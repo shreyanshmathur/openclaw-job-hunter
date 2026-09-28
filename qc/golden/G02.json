@@ -1,0 +1,43 @@
+{
+ "id": "G02",
+ "channel": "email_founder",
+ "subject": "25 micro-warehouses by June",
+ "body": "Hi Nina,\n\nHarbor Parcel's August post says the seed round will pay for 25 new micro-warehouses by June. At that pace, receiving errors are usually the first thing to slip.\n\nAt Tidewater Freight I ran launch operations for 18 micro-warehouses in 10 months and kept the damaged-parcel rate under 2%.\n\nAre you hiring someone to own warehouse launches yet? If not, 15 minutes of your view on that role would still help me.\n\nBest,",
+ "recipient": {
+  "first_name": "Nina",
+  "last_name": "Okafor",
+  "title": "Founder",
+  "company": "Harbor Parcel",
+  "locale": "IN"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Harbor Parcel blog, 2026-08-20: our seed round will fund 25 new micro-warehouses by June 2027.",
+   "snippet": "our seed round will fund 25 new micro-warehouses by June 2027",
+   "source_type": "company_blog",
+   "source_url": "https://harborparcel.example/blog/seed",
+   "published_at": "2026-08-20",
+   "retrieved_at": "2026-09-24"
+  }
+ },
+ "profile_facts": {
+  "P1": "Ran launch operations for 18 micro-warehouses in 10 months at Tidewater Freight; damaged-parcel rate held under 2%."
+ },
+ "hook": {
+  "anchor": "25 new micro-warehouses",
+  "source_type": "company_blog",
+  "source_url": "https://harborparcel.example/blog/seed",
+  "snippet": "our seed round will fund 25 new micro-warehouses by June 2027",
+  "published_at": "2026-08-20",
+  "retrieved_at": "2026-09-24",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "18 micro-warehouses in 10 months, damaged-parcel rate under 2%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "funding used for its consequence, not praised"
+}

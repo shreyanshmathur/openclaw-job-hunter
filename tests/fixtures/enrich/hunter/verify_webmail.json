@@ -1,0 +1,37 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "data": {
+   "accept_all": false,
+   "block": false,
+   "disposable": false,
+   "email": "example.person@mail.example",
+   "gibberish": false,
+   "mx_records": true,
+   "regexp": true,
+   "result": "deliverable",
+   "score": 91,
+   "smtp_check": true,
+   "smtp_server": true,
+   "sources": [],
+   "status": "webmail",
+   "webmail": true
+  },
+  "meta": {
+   "params": {
+    "email": "example.person@mail.example"
+   }
+  }
+ },
+ "expect": {
+  "credits": 0.5,
+  "free_mail_flag": true,
+  "outcome": "invalid",
+  "verification": "invalid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "verify",
+ "status": 200
+}

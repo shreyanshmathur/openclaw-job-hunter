@@ -1,0 +1,18 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "error": true,
+  "error_code": "RATE_LIMITED"
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "rate_limited",
+  "retry_after_s": 30
+ },
+ "headers": {
+  "Content-Type": "application/json",
+  "Retry-After": "30"
+ },
+ "op": "find_name_domain",
+ "status": 429
+}

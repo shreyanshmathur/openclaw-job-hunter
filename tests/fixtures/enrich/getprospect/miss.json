@@ -1,0 +1,17 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "_unverified": true,
+ "body": {
+  "email": null,
+  "status": "not_found"
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "miss"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

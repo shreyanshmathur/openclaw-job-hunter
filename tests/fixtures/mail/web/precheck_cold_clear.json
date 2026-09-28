@@ -1,0 +1,4 @@
+{"kind": "cold_email", "platform": "gmail", "observed_at": "2026-09-29T08:58:00Z",
+ "checks": [{"name": "sent_to_address", "value": 0}, {"name": "sent_to_other_addresses", "value": 0},
+            {"name": "sent_company_query", "value": 0}, {"name": "outbox_query", "value": 0},
+            {"name": "scheduled_query", "value": 0}]}

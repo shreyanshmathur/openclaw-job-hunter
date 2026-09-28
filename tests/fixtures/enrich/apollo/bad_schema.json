@@ -1,0 +1,13 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body_text": "<html></html>",
+ "expect": {
+  "credits": 1.0,
+  "outcome": "bad_response"
+ },
+ "headers": {
+  "Content-Type": "text/html"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

@@ -1,0 +1,41 @@
+{
+ "apiVersion": "1",
+ "jobs": [
+  {
+   "id": "9a8b7c6d-0000-4000-8000-00000000000a",
+   "title": "Senior Data Analyst",
+   "department": "Data",
+   "team": "Growth",
+   "employmentType": "FullTime",
+   "location": "Remote",
+   "secondaryLocations": [],
+   "publishedAt": "2026-09-24T06:00:00.000+00:00",
+   "isListed": true,
+   "isRemote": true,
+   "workplaceType": "Remote",
+   "jobUrl": "https://jobs.ashbyhq.com/larkspur/9a8b7c6d-0000-4000-8000-00000000000a",
+   "applyUrl": "https://jobs.ashbyhq.com/larkspur/9a8b7c6d-0000-4000-8000-00000000000a/application",
+   "descriptionPlain": "Larkspur Logistics is remote first across APAC. You will model delivery times.",
+   "compensation": {
+    "summaryComponents": [
+     {
+      "compensationType": "Salary",
+      "interval": "1 YEAR",
+      "currencyCode": "INR",
+      "minValue": 900000,
+      "maxValue": 1200000
+     }
+    ]
+   }
+  },
+  {
+   "id": "9a8b7c6d-0000-4000-8000-00000000000b",
+   "title": "Data Analyst",
+   "employmentType": "FullTime",
+   "location": "Bengaluru",
+   "publishedAt": "2026-09-24T06:00:00.000+00:00",
+   "isListed": false,
+   "jobUrl": "https://jobs.ashbyhq.com/larkspur/9a8b7c6d-0000-4000-8000-00000000000b"
+  }
+ ]
+}

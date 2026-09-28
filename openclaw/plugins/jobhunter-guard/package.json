@@ -1,0 +1,21 @@
+{
+  "name": "jobhunter-guard",
+  "version": "2.0.0",
+  "private": true,
+  "description": "OpenClaw plugin that fences the jobhunter-* agents: exec ACL, file confinement, browser token gate, stop-signature observer, /jh chat command.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "node --test 'test/*.test.ts'"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "install": {
+      "minHostVersion": ">=2026.9.5"
+    }
+  }
+}

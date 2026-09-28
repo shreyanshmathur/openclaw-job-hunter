@@ -1,0 +1,12 @@
+{
+ "id": 4012345,
+ "title": "Data Analyst",
+ "company_name": "Kestrel Commerce",
+ "first_published": "2026-09-22T09:00:00-04:00",
+ "updated_at": "2026-09-24T10:00:00-04:00",
+ "location": {
+  "name": "Bengaluru, Karnataka, India"
+ },
+ "absolute_url": "https://kestrel.example/careers?gh_jid=4012345",
+ "content": "&lt;h2&gt;About the role&lt;/h2&gt;&lt;p&gt;Kestrel Commerce is hiring a Data Analyst for the returns team in Bengaluru (hybrid, three days in the office).&lt;/p&gt;&lt;ul&gt;&lt;li&gt;2-4 years of experience with SQL and Python for forecasting&lt;/li&gt;&lt;li&gt;Experience with dbt is a plus&lt;/li&gt;&lt;li&gt;Build dashboards in Tableau for regional teams&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Work closely with logistics and e-commerce partners.&lt;/p&gt;"
+}

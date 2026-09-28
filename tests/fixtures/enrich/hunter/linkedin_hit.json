@@ -1,0 +1,71 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "data": {
+   "accept_all": false,
+   "company": "Kestrel Commerce",
+   "domain": "kestrel.example",
+   "email": "example.person@kestrel.example",
+   "first_name": "Example",
+   "last_name": "Person",
+   "linkedin_url": "https://www.linkedin.com/in/example-person",
+   "phone_number": "+10000000000",
+   "position": "Engineering Manager",
+   "score": 95,
+   "sources": [
+    {
+     "domain": "kestrel.example",
+     "extracted_on": "2026-01-02",
+     "last_seen_on": "2026-09-01",
+     "still_on_page": false,
+     "uri": "http://kestrel.example/old"
+    },
+    {
+     "domain": "linkedin.com",
+     "extracted_on": "2026-01-02",
+     "last_seen_on": "2026-09-01",
+     "still_on_page": true,
+     "uri": "https://www.linkedin.com/in/example-person"
+    },
+    {
+     "domain": "blog.kestrel.example",
+     "extracted_on": "2026-02-02",
+     "last_seen_on": "2026-09-01",
+     "still_on_page": false,
+     "uri": "https://blog.kestrel.example/post"
+    },
+    {
+     "domain": "kestrel.example",
+     "extracted_on": "2026-03-02",
+     "last_seen_on": "2026-09-20",
+     "still_on_page": true,
+     "uri": "https://kestrel.example/team"
+    }
+   ],
+   "twitter": null,
+   "verification": {
+    "date": "2026-09-20",
+    "status": "valid"
+   }
+  },
+  "meta": {
+   "params": {
+    "domain": "kestrel.example",
+    "first_name": "Example",
+    "last_name": "Person"
+   }
+  }
+ },
+ "expect": {
+  "confidence": 95,
+  "credits": 1.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_linkedin",
+ "status": 200
+}

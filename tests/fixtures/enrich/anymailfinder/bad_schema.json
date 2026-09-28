@@ -1,0 +1,15 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "unexpected": true
+ },
+ "expect": {
+  "credits": 1.0,
+  "outcome": "bad_response"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

@@ -1,0 +1,33 @@
+{
+ "enabled_default_chain": {
+  "enabled": true
+ },
+ "enabled_three_finders": {
+  "enabled": true,
+  "max_finders_per_person": 3
+ },
+ "grades_with_c": {
+  "enabled": true
+ },
+ "loosened_file": {
+  "chain": [
+   "prospeo",
+   "snov",
+   "hunter",
+   "hunter"
+  ],
+  "enabled": true,
+  "max_finders_per_person": 9,
+  "min_confidence": 10,
+  "providers": {
+   "prospeo": {
+    "budget_31d": 500,
+    "min_interval_s": 0
+   },
+   "tomba": {
+    "day_requests": 50
+   }
+  },
+  "timeout_s": 99
+ }
+}

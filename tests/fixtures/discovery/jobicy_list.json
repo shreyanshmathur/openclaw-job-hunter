@@ -1,0 +1,27 @@
+{
+ "apiVersion": "2",
+ "jobCount": 1,
+ "jobs": [
+  {
+   "id": 88001,
+   "url": "https://jobicy.com/jobs/88001-data-analyst",
+   "jobSlug": "88001-data-analyst",
+   "jobTitle": "Data Analyst",
+   "companyName": "Larkspur Logistics",
+   "jobIndustry": [
+    "Data Science"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "APAC",
+   "jobLevel": "Midweight",
+   "jobExcerpt": "Analyse routes",
+   "jobDescription": "<p>Analyse delivery routes.</p>",
+   "pubDate": "2026-09-22 09:00:00",
+   "annualSalaryMin": "20000",
+   "annualSalaryMax": "30000",
+   "salaryCurrency": "USD"
+  }
+ ]
+}

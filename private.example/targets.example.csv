@@ -1,0 +1,17 @@
+company,ats,tenant
+# Companies whose public ATS job boards the API lane polls. Copy this file to private/targets.csv and edit it.
+# ats is one of: greenhouse, lever, ashby, smartrecruiters, workable, recruitee, bamboohr, workday.
+# tenant is the board name from the job board URL:
+#   greenhouse       https://job-boards.greenhouse.io/<tenant>/jobs/...
+#   lever            https://jobs.lever.co/<tenant>/...        (EU boards: write eu:<tenant>)
+#   ashby            https://jobs.ashbyhq.com/<tenant>/...
+#   smartrecruiters  https://jobs.smartrecruiters.com/<tenant>/...
+#   workable         https://apply.workable.com/<tenant>/...
+#   recruitee        https://<tenant>.recruitee.com/...
+#   bamboohr         https://<tenant>.bamboohr.com/careers
+#   workday          https://<tenant>.wd<N>.myworkdayjobs.com/<site>/...   (write <tenant>.wd<N>/<site>)
+# Lines starting with # are ignored. Fictional examples:
+# Kestrel Commerce,greenhouse,kestrelcommerce
+# Tidemark Analytics,lever,tidemark
+# Larkspur Logistics,ashby,larkspur
+# Kestrel Freight,workday,kestrelfreight.wd5/External

@@ -1,0 +1,93 @@
+{
+ "name": "stop_page_cycle (real tool-call shapes)",
+ "source": "tests/fixtures/browser/stop_page_cycle.json (U6), re-recorded",
+ "description": "The U6 outreach cycle that meets a LinkedIn security check, re-recorded in real shapes: the navigate result already reports the checkpoint URL, so the guard stops the session there (R5). The agent can still write stop.json in its work folder, run detect and end the cycle; every browser call, including the driver and closing the tab, is refused with G_STOPPED.",
+ "agent": "jobhunter-outreach",
+ "session": "agent:jobhunter-outreach:cron:e2e-stop",
+ "steps": [
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py preflight --lane outreach",
+    "timeoutSeconds": 90
+   },
+   "save": {
+    "CYCLE": "cycle_id"
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "navigate",
+    "targetUrl": "https://www.linkedin.com/in/example-jordan-blake/"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- heading \"Let's do a quick security check\" [level=1]\n- button \"Verify\" [ref=e5]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "https://www.linkedin.com/checkpoint/challenge/AgExampleChallenge",
+     "title": "Security Verification | LinkedIn"
+    }
+   },
+   "expect_stop": true
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "evaluate",
+    "fn": "{DRIVER:detect_page}"
+   },
+   "expect": "G_STOPPED",
+   "note": "after the guard saw the stop page nothing in the browser runs, not even a read-only driver"
+  },
+  {
+   "tool": "write",
+   "params": {
+    "path": "{WS}/work/{CYCLE}/stop.json",
+    "content": "{\"platform\": \"linkedin\", \"url\": \"https://www.linkedin.com/checkpoint/challenge/AgExampleChallenge\", \"title\": \"Security Verification | LinkedIn\", \"http_status\": null, \"text\": \"Let's do a quick security check\"}"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} detect --file {WS}/work/{CYCLE}/stop.json",
+    "timeoutSeconds": 90
+   },
+   "jh_code": "E_STOP_DETECTED"
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "close"
+   },
+   "expect": "G_STOPPED",
+   "note": "closing the tab is a browser call too"
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} outreach next --limit 1",
+    "timeoutSeconds": 90
+   },
+   "expect": "G_STOPPED",
+   "note": "no other command after a stop"
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}",
+    "timeoutSeconds": 90
+   }
+  }
+ ]
+}

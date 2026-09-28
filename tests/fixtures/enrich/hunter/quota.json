@@ -1,0 +1,21 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "errors": [
+   {
+    "code": 429,
+    "details": "You have reached your monthly usage limit",
+    "id": "too_many_requests"
+   }
+  ]
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "quota_exhausted"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 429
+}

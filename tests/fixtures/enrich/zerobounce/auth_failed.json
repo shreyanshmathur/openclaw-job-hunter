@@ -1,0 +1,15 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "error": "Invalid API Key"
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "auth_failed"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "verify",
+ "status": 200
+}

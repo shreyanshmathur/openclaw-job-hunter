@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "notes": "One entry per OpenClaw agent (design 1.1 and 10.2). install.sh creates missing agents, `jh.py install render-workspaces` renders template_dir, skills and ref into WS_ROOT/<role>/, and `jh.py install render-agents-patch` writes agents.entries[id] from openclaw/agents.patch.json5.tmpl. Skills are looked up in template_dir/skills/<name>/ first, then skills-src/<name>/. Keep tools_allow equal to the tools list of the agent in scripts/jobhunter/acl.json.",
+  "agents": [
+    {
+      "id": "jobhunter-scout",
+      "role": "scout",
+      "template_dir": "agent-templates/scout",
+      "model": "anthropic/claude-sonnet-5",
+      "fallbacks": [],
+      "tools_allow": ["exec", "read", "write", "browser"],
+      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "skills": ["jobhunter-stop-detect", "jobhunter-browser-search", "jobhunter-linkedin-posts", "jobhunter-salary"],
+      "ref": [
+        {"from": "prompts/salary_research.md", "to": "salary_research.md"},
+        {"from": "drivers/*.js", "to": "drivers/"}
+      ]
+    },
+    {
+      "id": "jobhunter-evaluator",
+      "role": "evaluator",
+      "template_dir": "agent-templates/evaluator",
+      "model": "anthropic/claude-sonnet-5",
+      "fallbacks": [],
+      "tools_allow": ["exec", "read", "write"],
+      "tools_deny": ["browser", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "skills": ["jobhunter-evaluate", "jobhunter-profile"],
+      "ref": [
+        {"from": "prompts/evaluator_scorecard.md", "to": "evaluator_scorecard.md"},
+        {"from": "prompts/profile_inference.md", "to": "profile_inference.md"}
+      ]
+    },
+    {
+      "id": "jobhunter-applier",
+      "role": "applier",
+      "template_dir": "agent-templates/applier",
+      "model": "anthropic/claude-opus-5-5",
+      "fallbacks": ["anthropic/claude-sonnet-5"],
+      "tools_allow": ["exec", "read", "write", "browser"],
+      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "skills": ["jobhunter-gate", "jobhunter-stop-detect", "jobhunter-qc-loop", "jobhunter-apply-ats", "jobhunter-apply-boards", "jobhunter-apply-email", "jobhunter-resume-tailor", "jobhunter-form-answers", "jobhunter-upload", "jobhunter-gmail-web"],
+      "ref": [
+        {"from": "prompts/resume_tailor.md", "to": "resume_tailor.md"},
+        {"from": "prompts/form_answer.md", "to": "form_answer.md"},
+        {"from": "prompts/writer_brief.md", "to": "writer_brief.md"},
+        {"from": "prompts/rewrite.md", "to": "rewrite.md"},
+        {"from": "prompts/tone_rules.json", "to": "tone_rules.json"},
+        {"from": "drivers/*.js", "to": "drivers/"}
+      ]
+    },
+    {
+      "id": "jobhunter-outreach",
+      "role": "outreach",
+      "template_dir": "agent-templates/outreach",
+      "model": "anthropic/claude-opus-5-5",
+      "fallbacks": ["anthropic/claude-sonnet-5"],
+      "tools_allow": ["exec", "read", "write", "browser"],
+      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "skills": ["jobhunter-gate", "jobhunter-stop-detect", "jobhunter-qc-loop", "jobhunter-gmail-web", "jobhunter-research", "jobhunter-write", "jobhunter-linkedin", "jobhunter-replies"],
+      "ref": [
+        {"from": "prompts/writer_brief.md", "to": "writer_brief.md"},
+        {"from": "prompts/rewrite.md", "to": "rewrite.md"},
+        {"from": "prompts/tone_rules.json", "to": "tone_rules.json"},
+        {"from": "prompts/reply_classifier.md", "to": "reply_classifier.md"},
+        {"from": "drivers/*.js", "to": "drivers/"}
+      ]
+    },
+    {
+      "id": "jobhunter-qc",
+      "role": "qc",
+      "template_dir": "agent-templates/qc",
+      "model": "anthropic/claude-sonnet-5",
+      "fallbacks": [],
+      "tools_allow": [],
+      "tools_deny": ["exec", "read", "write", "edit", "apply_patch", "browser", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "skills": [],
+      "ref": []
+    }
+  ]
+}

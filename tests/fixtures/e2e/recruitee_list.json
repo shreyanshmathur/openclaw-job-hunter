@@ -1,0 +1,47 @@
+{
+ "offers": [
+  {
+   "id": 2210001,
+   "slug": "data-analyst-returns",
+   "title": "Data Analyst, Returns",
+   "company_name": "Birchwood Health",
+   "careers_url": "https://careers.birchwood.example/o/data-analyst-returns",
+   "careers_apply_url": "https://careers.birchwood.example/o/data-analyst-returns/c/new",
+   "location": "Remote, US",
+   "city": "Springfield",
+   "country": "United States",
+   "country_code": "US",
+   "remote": true,
+   "hybrid": false,
+   "on_site": false,
+   "employment_type_code": "fulltime",
+   "published_at": "2026-09-27 10:00:00 UTC",
+   "description": "<p>Birchwood Health needs a Data Analyst for returns forecasting of home test kits.</p>",
+   "requirements": "<ul><li>2 to 4 years of SQL and Python</li><li>Remote in the US</li></ul>",
+   "salary": {"min": "65000", "max": "80000", "currency": "USD", "period": "year"}
+  },
+  {
+   "id": "2210002",
+   "slug": "business-analyst",
+   "title": "Business Analyst",
+   "company_name": "Birchwood Health",
+   "careers_url": "https://birchwood.recruitee.com/l/en/o/business-analyst",
+   "location": "Remote, US",
+   "country_code": "US",
+   "remote": true,
+   "employment_type_code": "fulltime",
+   "published_at": "2026-09-26 10:00:00 UTC",
+   "description": "<p>Business Analyst for kit logistics.</p>",
+   "requirements": "<ul><li>2 to 4 years of SQL</li></ul>",
+   "salary": {"min": "62000", "max": "76000", "currency": "USD", "period": "year"}
+  },
+  {
+   "id": "not-a-number",
+   "slug": "operations-analyst",
+   "title": "Operations Analyst",
+   "company_name": "Birchwood Health",
+   "careers_url": "https://birchwood.recruitee.com/o/operations-analyst",
+   "remote": true
+  }
+ ]
+}

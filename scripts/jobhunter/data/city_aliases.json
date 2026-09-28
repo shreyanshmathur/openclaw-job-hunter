@@ -1,0 +1,21 @@
+{
+  "bengaluru": ["bangalore", "blr", "bengaluru urban", "bangalore urban"],
+  "mumbai": ["bombay", "greater mumbai"],
+  "delhi": ["new delhi", "delhi ncr", "ncr"],
+  "chennai": ["madras"],
+  "kolkata": ["calcutta"],
+  "pune": ["poona"],
+  "hyderabad": ["hyd"],
+  "noida": ["greater noida"],
+  "kochi": ["cochin"],
+  "thiruvananthapuram": ["trivandrum"],
+  "mysuru": ["mysore"],
+  "vadodara": ["baroda"],
+  "ahmedabad": ["amdavad"],
+  "remote": ["anywhere", "work from home", "wfh", "fully remote", "remote first", "remote india"],
+  "new york": ["nyc", "new york city", "new york ny"],
+  "san francisco": ["sf", "san francisco bay area", "bay area", "san francisco ca"],
+  "london": ["greater london", "london uk"],
+  "singapore": ["sg"],
+  "dubai": ["dubai uae"]
+}

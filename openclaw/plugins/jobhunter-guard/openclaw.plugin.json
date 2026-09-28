@@ -1,0 +1,53 @@
+{
+  "id": "jobhunter-guard",
+  "name": "Job hunter guard",
+  "description": "Trusted tool policy for the jobhunter-* agents, browser result observer, exec environment, heartbeat and the owner-only /jh chat command.",
+  "version": "2.0.0",
+  "activation": { "onStartup": true },
+  "contracts": {
+    "trustedToolPolicies": ["jobhunter-guard"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["repo", "python", "homeFile", "publicReadonlyAgents"],
+    "properties": {
+      "repo": {
+        "type": "string",
+        "minLength": 2,
+        "pattern": "^/[^ ]*$",
+        "description": "Absolute path of the openclaw-job-hunter clone (no spaces)."
+      },
+      "python": {
+        "type": "string",
+        "minLength": 2,
+        "pattern": "^/[^ ]*$",
+        "description": "Absolute path of the python3 interpreter the agents must use in exec calls."
+      },
+      "homeFile": {
+        "type": "string",
+        "minLength": 2,
+        "pattern": "^/[^ ]*$",
+        "description": "Absolute path of private/home.json of this install."
+      },
+      "publicReadonlyAgents": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 },
+        "description": "Agents outside jobhunter-* that may run the public read-only jh.py commands (status, inbox, approvals list, budget, breaker status, home show)."
+      },
+      "ownerFallback": {
+        "type": "array",
+        "description": "Chat senders accepted as the owner for /jh when the host does not report owner status.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "senderId"],
+          "properties": {
+            "channel": { "type": "string", "minLength": 1 },
+            "senderId": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "description": "Recorded fake outreach cycle that meets a LinkedIn security check: after the stop hint the agent writes stop.json, runs detect, closes its tab and ends the cycle. Nothing else. Browser calls are recorded in the shapes the jobhunter-guard plugin accepts: act kinds with refs from the latest snapshot of the same tab, upload with paths and a ref, drivers as act kind evaluate whose fn is the exact driver file text ({DRIVER:<name>} stands for the text of drivers/<name>.js).",
+  "agent": "jobhunter-outreach",
+  "lane": "outreach",
+  "steps": [
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py preflight --lane outreach", "timeoutSeconds": 90}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.linkedin.com/in/example-alex-rivera/"}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": "{DRIVER:detect_page}"}, "result": {"detect_file": {"platform": "linkedin", "url": "https://www.linkedin.com/checkpoint/challenge/example", "title": "Security Verification | LinkedIn", "http_status": null, "text": "Let's do a quick security check"}, "hint": "stop", "matched": ["url:/checkpoint/"], "family": "linkedin"}},
+    {"tool": "write", "params": {"path": "{WS}/work/{CYCLE}/stop.json", "content_from": "last_result.detect_file"}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py detect --file {WS}/work/{CYCLE}/stop.json", "timeoutSeconds": 90}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "close"}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}", "timeoutSeconds": 90}}
+  ]
+}

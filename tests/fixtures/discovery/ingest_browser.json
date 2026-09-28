@@ -1,0 +1,55 @@
+{
+ "source": "naukri",
+ "discovered_via": "browser",
+ "jobs": [
+  {
+   "source_url": "https://www.naukri.com/job-listings-data-analyst-kestrel-commerce-bengaluru-2-to-4-years-250926000001",
+   "apply_url": null,
+   "redirect_urls": [],
+   "company": "Kestrel Commerce",
+   "company_domain": null,
+   "title": "Data Analyst",
+   "location": "Bengaluru",
+   "work_mode": "hybrid",
+   "remote_scope": null,
+   "employment_type": "full_time",
+   "posted_at": "2026-09-25",
+   "years": {
+    "min": 2,
+    "max": 4
+   },
+   "salary": {
+    "min": null,
+    "max": null,
+    "currency": null,
+    "period": null
+   },
+   "apply_route_hint": "board_inapp",
+   "apply_email": null,
+   "jd_text": "Kestrel Commerce needs a Data Analyst in Bengaluru. 2 to 4 years of SQL and Python for forecasting.",
+   "hiring_team": [
+    {
+     "name": "Alex Rivera",
+     "title": "Head of Analytics",
+     "linkedin_url": "https://www.linkedin.com/in/example-alex-rivera",
+     "relation": "hiring_manager"
+    }
+   ],
+   "native_ids": {
+    "board_job_id": "250926000001"
+   }
+  },
+  {
+   "source_url": "https://www.naukri.com/job-listings-sales-intern-tidemark-bengaluru-0-to-1-years-250926000002",
+   "company": "Tidemark Analytics",
+   "title": "Sales Intern",
+   "location": "Bengaluru",
+   "work_mode": "hybrid",
+   "posted_at": "2026-09-25",
+   "jd_text": "Six month sales internship.",
+   "native_ids": {
+    "board_job_id": "250926000002"
+   }
+  }
+ ]
+}

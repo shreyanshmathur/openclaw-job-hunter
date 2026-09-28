@@ -1,0 +1,4 @@
+{
+  "platform": "boards",
+  "stop": {"text": ["verify you are human", "unusual traffic", "access denied"], "url": ["/captcha"]}
+}

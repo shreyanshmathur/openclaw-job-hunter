@@ -1,0 +1,70 @@
+{
+ "id": "G14",
+ "channel": "email_cold",
+ "subject": "Zone-level stockouts",
+ "body": "Hi Priya,\n\nYour September post on stockouts in new zones stayed with me. I also read about Lumen's Series A last month, and I noticed we both studied at Fictional Institute of Technology.\n\nAt Fernleaf Grocers I rebuilt demand forecasting at store-zone level, and stockouts in new zones fell from 11% to 6% in one quarter.\n\nWould a 15 minute call next week be useful? If someone else owns this hire, a name is plenty.\n\nThanks,",
+ "recipient": {
+  "first_name": "Priya",
+  "last_name": "Menon",
+  "title": "Head of Data",
+  "company": "Lumen Grocers",
+  "locale": "IN"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Lumen Grocers engineering blog, 2026-09-02: we still forecast demand per city, and stockouts in new zones run at 9%.",
+   "snippet": "we still forecast demand per city, and stockouts in new zones run at 9%",
+   "source_type": "engineering_blog",
+   "source_url": "https://lumen.example/blog/zone-forecasts",
+   "published_at": "2026-09-02",
+   "retrieved_at": "2026-09-25"
+  },
+  "R2": {
+   "text": "Lumen Grocers job post, Senior Data Analyst, posted 2026-09-10: owns demand forecasting for new zones.",
+   "snippet": "Senior Data Analyst: owns demand forecasting for new zones",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/lumen/senior-data-analyst",
+   "published_at": "2026-09-10",
+   "retrieved_at": "2026-09-25"
+  },
+  "R3": {
+   "text": "News, 2026-08-28: Lumen Grocers raised a Series A to expand into new zones.",
+   "snippet": "Lumen Grocers raised a Series A to expand into new zones",
+   "source_type": "news",
+   "source_url": "https://news.example.com/lumen-series-a",
+   "published_at": "2026-08-28",
+   "retrieved_at": "2026-09-25"
+  },
+  "R4": {
+   "text": "Priya Menon LinkedIn profile: Education: Fictional Institute of Technology.",
+   "snippet": "Education: Fictional Institute of Technology",
+   "source_type": "linkedin_profile",
+   "source_url": "https://www.linkedin.com/in/example-person",
+   "published_at": null,
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "At Fernleaf Grocers, rebuilt demand forecasting at store-zone level; stockouts in new zones fell from 11% to 6% in one quarter.",
+  "P2": "3 years as a data analyst at Fernleaf Grocers.",
+  "P3": "Wrote a one-page note on zone-level feature selection, published at https://example.com/zone-notes",
+  "P4": "B.Tech, Fictional Institute of Technology, 2021."
+ },
+ "hook": {
+  "anchor": "stockouts in new zones",
+  "source_type": "engineering_blog",
+  "source_url": "https://lumen.example/blog/zone-forecasts",
+  "snippet": "we still forecast demand per city, and stockouts in new zones run at 9%",
+  "published_at": "2026-09-02",
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "fell from 11% to 6%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "hook stacking: post plus funding plus school"
+}

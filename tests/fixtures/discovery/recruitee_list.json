@@ -1,0 +1,29 @@
+{
+ "offers": [
+  {
+   "id": 1987654,
+   "slug": "data-analyst",
+   "title": "Data Analyst",
+   "company_name": "Birchwood Health",
+   "careers_url": "https://birchwood.recruitee.com/o/data-analyst",
+   "careers_apply_url": "https://birchwood.recruitee.com/o/data-analyst/c/new",
+   "location": "Bengaluru, India",
+   "city": "Bengaluru",
+   "country": "India",
+   "country_code": "IN",
+   "remote": false,
+   "hybrid": true,
+   "on_site": false,
+   "employment_type_code": "fulltime",
+   "published_at": "2026-09-19 10:00:00 UTC",
+   "description": "<p>Birchwood Health analytics team.</p>",
+   "requirements": "<ul><li>SQL</li></ul>",
+   "salary": {
+    "min": "1600000",
+    "max": "2200000",
+    "currency": "INR",
+    "period": "year"
+   }
+  }
+ ]
+}

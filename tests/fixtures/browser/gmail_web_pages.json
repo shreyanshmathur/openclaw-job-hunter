@@ -1,0 +1,1018 @@
+{
+ "_comment": "Recorded-shape Gmail and login pages for the read-only drivers (fictional people, reserved .example domains). Each page is {host, href, title, children} for the fake DOM in tests/test_drivers_static.py.",
+ "owner": "sam.owner@example.com",
+ "sent_search_hit": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Asent+to%3Aalex.rivera%40kestrel.example",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "table",
+        "children": [
+         {
+          "tag": "tr",
+          "cls": "zA yO",
+          "children": [
+           {
+            "tag": "td",
+            "cls": "yX",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "email": "alex.rivera@kestrel.example",
+               "name": "Alex Rivera"
+              },
+              "text": "Alex Rivera"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xY",
+            "children": [
+             {
+              "tag": "span",
+              "cls": "bog",
+              "attrs": {
+               "data-legacy-thread-id": "18c2f0000000a001"
+              },
+              "text": "Pincode-level RTO models"
+             },
+             {
+              "tag": "span",
+              "cls": "y2",
+              "text": " - Hi Alex, Your post on pincode-level"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xW",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "title": "Sun, Sep 27, 2026, 10:02 AM"
+              },
+              "text": "Sep 27"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "navigation"
+      },
+      "text": "1-1 of 1"
+     }
+    ]
+   }
+  ]
+ },
+ "sent_search_empty": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Asent+to%3Ajordan.lee%40tidemark.example",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "div",
+        "cls": "TC",
+        "text": "No messages matched your search. Try using search options such as sender, date, size and more."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "outbox_empty": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Aoutbox+to%3Ajordan.lee%40tidemark.example",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "div",
+        "cls": "TC",
+        "text": "No messages matched your search."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "not_loaded": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Ascheduled+to%3Ajordan.lee%40tidemark.example",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "div",
+        "text": "Loading..."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "hidden_rows_only": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Asent+to%3Ajordan.lee%40tidemark.example",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "table",
+        "hidden": true,
+        "children": [
+         {
+          "tag": "tr",
+          "cls": "zA yO",
+          "children": [
+           {
+            "tag": "td",
+            "cls": "yX",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "email": "old@tidemark.example",
+               "name": "Old"
+              },
+              "text": "Old"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xY",
+            "children": [
+             {
+              "tag": "span",
+              "cls": "bog",
+              "attrs": {
+               "data-legacy-thread-id": "18c2f0000000a009"
+              },
+              "text": "Old"
+             },
+             {
+              "tag": "span",
+              "cls": "y2",
+              "text": " - x"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xW",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "title": "Mon, Sep 21, 2026, 9:00 AM"
+              },
+              "text": "Sep 27"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "tag": "div",
+        "cls": "TC",
+        "text": "No messages matched your search."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "sent_audit": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#search/in%3Asent+newer_than%3A2d",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "table",
+        "children": [
+         {
+          "tag": "tr",
+          "cls": "zA yO",
+          "children": [
+           {
+            "tag": "td",
+            "cls": "yX",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "email": "alex.rivera@kestrel.example",
+               "name": "Alex Rivera"
+              },
+              "text": "Alex Rivera"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xY",
+            "children": [
+             {
+              "tag": "span",
+              "cls": "bog",
+              "attrs": {
+               "data-legacy-thread-id": "18c2f0000000a001"
+              },
+              "text": "Pincode-level RTO models"
+             },
+             {
+              "tag": "span",
+              "cls": "y2",
+              "text": " - Hi Alex"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xW",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "title": "Sun, Sep 27, 2026, 10:02 AM"
+              },
+              "text": "Sep 27"
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "tag": "tr",
+          "cls": "zA yO",
+          "children": [
+           {
+            "tag": "td",
+            "cls": "yX",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "email": "sam.owner@example.com",
+               "name": "me"
+              },
+              "text": "me"
+             },
+             {
+              "tag": "span",
+              "attrs": {
+               "email": "priya.nair@tidemark.example",
+               "name": "Priya Nair"
+              },
+              "text": "Priya Nair"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xY",
+            "children": [
+             {
+              "tag": "span",
+              "cls": "bog",
+              "attrs": {
+               "data-legacy-thread-id": "18c2f0000000a002"
+              },
+              "text": "Re: Data role"
+             },
+             {
+              "tag": "span",
+              "cls": "y2",
+              "text": " - Thanks Priya"
+             }
+            ]
+           },
+           {
+            "tag": "td",
+            "cls": "xW",
+            "children": [
+             {
+              "tag": "span",
+              "attrs": {
+               "title": "Sat, Sep 26, 2026, 4:15 PM"
+              },
+              "text": "Sep 27"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "navigation"
+      },
+      "text": "1-2 of 2"
+     }
+    ]
+   }
+  ]
+ },
+ "inbox_reply": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#inbox/18c2f0000000a001",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "h2",
+        "cls": "hP",
+        "attrs": {
+         "data-legacy-thread-id": "18c2f0000000a001"
+        },
+        "text": "Pincode-level RTO models"
+       },
+       {
+        "tag": "div",
+        "cls": "adn ads",
+        "attrs": {
+         "data-message-id": "#msg-f:1718c2f0000000b001",
+         "data-legacy-message-id": "18c2f0000000b001"
+        },
+        "children": [
+         {
+          "tag": "span",
+          "cls": "gD",
+          "attrs": {
+           "email": "sam.owner@example.com",
+           "name": "Sam Owner"
+          },
+          "text": "Sam Owner"
+         },
+         {
+          "tag": "div",
+          "cls": "iw",
+          "children": [
+           {
+            "tag": "span",
+            "cls": "g2",
+            "attrs": {
+             "email": "alex.rivera@kestrel.example",
+             "name": "alex.rivera@kestrel.example"
+            },
+            "text": "alex.rivera@kestrel.example"
+           }
+          ]
+         },
+         {
+          "tag": "span",
+          "cls": "g3",
+          "attrs": {
+           "title": "Sun, Sep 27, 2026, 10:02 AM"
+          },
+          "text": "10:02 AM"
+         },
+         {
+          "tag": "div",
+          "cls": "a3s",
+          "hidden": false,
+          "children": [
+           {
+            "tag": "div",
+            "text": "Hi Alex,\n\nYour post on pincode-level RTO models matched work I did on courier returns at a fictional retailer.\n\nWould a short call next week be useful?\n\nSam Owner"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "tag": "div",
+        "cls": "adn ads",
+        "attrs": {
+         "data-message-id": "#msg-f:1718c2f0000000b002",
+         "data-legacy-message-id": "18c2f0000000b002"
+        },
+        "children": [
+         {
+          "tag": "span",
+          "cls": "gD",
+          "attrs": {
+           "email": "alex.rivera@kestrel.example",
+           "name": "Alex Rivera"
+          },
+          "text": "Alex Rivera"
+         },
+         {
+          "tag": "div",
+          "cls": "iw",
+          "children": [
+           {
+            "tag": "span",
+            "cls": "g2",
+            "attrs": {
+             "email": "sam.owner@example.com",
+             "name": "sam.owner@example.com"
+            },
+            "text": "sam.owner@example.com"
+           }
+          ]
+         },
+         {
+          "tag": "span",
+          "cls": "g3",
+          "attrs": {
+           "title": "Mon, Sep 28, 2026, 6:02 AM"
+          },
+          "text": "10:02 AM"
+         },
+         {
+          "tag": "div",
+          "cls": "a3s",
+          "hidden": false,
+          "children": [
+           {
+            "tag": "div",
+            "text": "Thanks Sam, happy to talk. Does Tuesday work? What is your notice period?"
+           },
+           {
+            "tag": "div",
+            "cls": "gmail_quote",
+            "text": "On Sun, Sep 27, 2026 Sam Owner wrote:\nHi Alex, Your post on pincode-level RTO models"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "bounce_notice": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#inbox/18c2f0000000a003",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "h2",
+        "cls": "hP",
+        "attrs": {
+         "data-legacy-thread-id": "18c2f0000000a003"
+        },
+        "text": "Delivery Status Notification (Failure)"
+       },
+       {
+        "tag": "div",
+        "cls": "adn ads",
+        "attrs": {
+         "data-message-id": "#msg-f:1718c2f0000000b003",
+         "data-legacy-message-id": "18c2f0000000b003"
+        },
+        "children": [
+         {
+          "tag": "span",
+          "cls": "gD",
+          "attrs": {
+           "email": "mailer-daemon@example.com",
+           "name": "Mail Delivery Subsystem"
+          },
+          "text": "Mail Delivery Subsystem"
+         },
+         {
+          "tag": "div",
+          "cls": "iw",
+          "children": [
+           {
+            "tag": "span",
+            "cls": "g2",
+            "attrs": {
+             "email": "sam.owner@example.com",
+             "name": "sam.owner@example.com"
+            },
+            "text": "sam.owner@example.com"
+           }
+          ]
+         },
+         {
+          "tag": "span",
+          "cls": "g3",
+          "attrs": {
+           "title": "Mon, Sep 28, 2026, 7:10 AM"
+          },
+          "text": "10:02 AM"
+         },
+         {
+          "tag": "div",
+          "cls": "a3s",
+          "hidden": false,
+          "children": [
+           {
+            "tag": "div",
+            "text": "Address not found\n\nYour message wasn't delivered to jordan.lee@tidemark.example because the address couldn't be found, or is unable to receive mail.\n\nThe response from the remote server was:\n550 5.1.1 The email account that you tried to reach does not exist."
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "sent_readback": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#sent/18c2f0000000a001",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "h2",
+        "cls": "hP",
+        "attrs": {
+         "data-legacy-thread-id": "18c2f0000000a001"
+        },
+        "text": "Pincode-level RTO models"
+       },
+       {
+        "tag": "div",
+        "cls": "adn ads",
+        "attrs": {
+         "data-message-id": "#msg-f:1718c2f0000000b001",
+         "data-legacy-message-id": "18c2f0000000b001"
+        },
+        "children": [
+         {
+          "tag": "span",
+          "cls": "gD",
+          "attrs": {
+           "email": "sam.owner@example.com",
+           "name": "Sam Owner"
+          },
+          "text": "Sam Owner"
+         },
+         {
+          "tag": "div",
+          "cls": "iw",
+          "children": [
+           {
+            "tag": "span",
+            "cls": "g2",
+            "attrs": {
+             "email": "alex.rivera@kestrel.example",
+             "name": "alex.rivera@kestrel.example"
+            },
+            "text": "alex.rivera@kestrel.example"
+           }
+          ]
+         },
+         {
+          "tag": "span",
+          "cls": "g3",
+          "attrs": {
+           "title": "Sun, Sep 27, 2026, 10:02 AM"
+          },
+          "text": "10:02 AM"
+         },
+         {
+          "tag": "div",
+          "cls": "a3s",
+          "hidden": false,
+          "children": [
+           {
+            "tag": "div",
+            "text": "Hi Alex,\n\nYour post on pincode-level RTO models matched work I did on courier returns at a fictional retailer.\n\nWould a short call next week be useful?\n\nSam Owner"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "followup_reply_compose": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#sent/18c2f0000000a001",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "h2",
+        "cls": "hP",
+        "attrs": {
+         "data-legacy-thread-id": "18c2f0000000a001"
+        },
+        "text": "Pincode-level RTO models"
+       },
+       {
+        "tag": "table",
+        "children": [
+         {
+          "tag": "span",
+          "attrs": {
+           "email": "alex.rivera@kestrel.example"
+          },
+          "text": "Alex Rivera"
+         },
+         {
+          "tag": "div",
+          "attrs": {
+           "contenteditable": "true",
+           "aria-label": "Message Body",
+           "role": "textbox"
+          },
+          "text": "Hi Alex,\n\nOne more data point since my last note.\n\nSam Owner"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "login_gmail_ok": {
+  "host": "mail.google.com",
+  "href": "https://mail.google.com/mail/u/0/#inbox",
+  "title": "Inbox - sam.owner@example.com - Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "a",
+      "attrs": {
+       "aria-label": "Google Account: Sam Owner (sam.owner@example.com)"
+      },
+      "text": "S"
+     },
+     {
+      "tag": "div",
+      "attrs": {
+       "role": "main"
+      },
+      "children": [
+       {
+        "tag": "table",
+        "children": []
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "login_gmail_signin": {
+  "host": "accounts.google.com",
+  "href": "https://accounts.google.com/v3/signin/identifier?service=mail",
+  "title": "Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "input",
+      "attrs": {
+       "type": "email"
+      }
+     },
+     {
+      "tag": "div",
+      "text": "Sign in to continue to Gmail"
+     }
+    ]
+   }
+  ]
+ },
+ "login_gmail_verify": {
+  "host": "accounts.google.com",
+  "href": "https://accounts.google.com/v3/signin/challenge/pwd",
+  "title": "Gmail",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Verify it's you"
+     }
+    ]
+   }
+  ]
+ },
+ "login_linkedin_feed": {
+  "host": "www.linkedin.com",
+  "href": "https://www.linkedin.com/feed/",
+  "title": "Feed | LinkedIn",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "img",
+      "cls": "global-nav__me-photo",
+      "attrs": {
+       "alt": "Sam Owner"
+      }
+     },
+     {
+      "tag": "main",
+      "cls": "scaffold-layout__main",
+      "text": "Start a post"
+     }
+    ]
+   }
+  ]
+ },
+ "login_linkedin_checkpoint": {
+  "host": "www.linkedin.com",
+  "href": "https://www.linkedin.com/checkpoint/challenge/AgE0000",
+  "title": "Security Verification | LinkedIn",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Let's do a quick security check"
+     }
+    ]
+   }
+  ]
+ },
+ "login_naukri_logged_out": {
+  "host": "www.naukri.com",
+  "href": "https://www.naukri.com/nlogin/login",
+  "title": "Login | Naukri",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "input",
+      "attrs": {
+       "type": "password"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "detect_li_restricted_checkpoint": {
+  "host": "www.linkedin.com",
+  "href": "https://www.linkedin.com/checkpoint/lg/restricted",
+  "title": "LinkedIn",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Your account has been restricted. We noticed unusual activity. Security verification needed."
+     }
+    ]
+   }
+  ]
+ },
+ "detect_ats_captcha_and_block": {
+  "host": "job-boards.greenhouse.io",
+  "href": "https://job-boards.greenhouse.io/example/jobs/1",
+  "title": "Apply",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Please complete the captcha. Access denied for this request."
+     }
+    ]
+   }
+  ]
+ },
+ "detect_ats_captcha": {
+  "host": "job-boards.greenhouse.io",
+  "href": "https://job-boards.greenhouse.io/example/jobs/2",
+  "title": "Apply",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Verify you are a human before you apply."
+     }
+    ]
+   }
+  ]
+ },
+ "detect_clear": {
+  "host": "www.naukri.com",
+  "href": "https://www.naukri.com/job-listings-data-analyst-1",
+  "title": "Data Analyst | Naukri",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "div",
+      "text": "Apply on company site"
+     }
+    ]
+   }
+  ]
+ },
+ "detect_board_login": {
+  "host": "www.naukri.com",
+  "href": "https://www.naukri.com/nlogin/login",
+  "title": "Login",
+  "children": [
+   {
+    "tag": "body",
+    "children": [
+     {
+      "tag": "input",
+      "attrs": {
+       "type": "password"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

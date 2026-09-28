@@ -1,0 +1,18 @@
+{
+ "0-legal-notice": "Fictional notice",
+ "job-count": 1,
+ "jobs": [
+  {
+   "id": 2004001,
+   "url": "https://remotive.com/remote-jobs/data/analytics-engineer-2004001",
+   "title": "Analytics Engineer",
+   "company_name": "Ferncrest",
+   "category": "Data",
+   "job_type": "full_time",
+   "publication_date": "2026-09-23T12:00:00",
+   "candidate_required_location": "APAC",
+   "salary": "",
+   "description": "<p>Build dbt models.</p>"
+  }
+ ]
+}

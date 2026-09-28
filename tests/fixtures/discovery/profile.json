@@ -1,0 +1,108 @@
+{
+ "version": 1,
+ "profile_version": "pv-test-1",
+ "confirmed": true,
+ "fields": {
+  "role_families": {
+   "value": [
+    {
+     "name": "Data analytics",
+     "titles": [
+      "Data Analyst",
+      "Business Analyst"
+     ],
+     "include": [
+      "analyst",
+      "analytics"
+     ],
+     "exclude": [
+      "intern",
+      "director",
+      "sales"
+     ]
+    }
+   ],
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-26T05:00:00Z"
+  },
+  "seniority": {
+   "value": {
+    "min": "associate",
+    "max": "senior"
+   },
+   "source": "user_confirmed"
+  },
+  "experience_years": {
+   "value": 3.0,
+   "source": "user_confirmed"
+  },
+  "salary": {
+   "value": {
+    "currency": "INR",
+    "period": "year",
+    "floor": 1500000,
+    "target": 2000000,
+    "may_state_expected_in_forms": true
+   },
+   "source": "user_confirmed"
+  },
+  "locations": {
+   "value": {
+    "cities": [
+     "bengaluru",
+     "remote"
+    ],
+    "work_modes": [
+     "remote",
+     "hybrid"
+    ],
+    "relocate": false
+   },
+   "source": "user_confirmed"
+  },
+  "work_authorization": {
+   "value": {
+    "IN": "citizen",
+    "other": "needs_sponsorship"
+   },
+   "source": "user_confirmed"
+  },
+  "languages": {
+   "value": [
+    "English",
+    "Hindi"
+   ],
+   "source": "user_confirmed"
+  },
+  "sites_enabled": {
+   "value": [
+    "naukri"
+   ],
+   "source": "user_confirmed"
+  },
+  "linkedin": {
+   "value": {
+    "enabled": false
+   },
+   "source": "user_confirmed"
+  },
+  "notice_period_days": {
+   "value": 30,
+   "source": "inferred"
+  }
+ },
+ "facts": {
+  "P1": {
+   "text": "Built SQL and Python forecasting for returns at Tidemark Analytics",
+   "source": "resume"
+  },
+  "P2": {
+   "text": "Three years of SQL, Python and Tableau reporting",
+   "source": "resume"
+  },
+  "P3": {
+   "text": "Led a logistics dashboard project for 12 regional teams",
+   "source": "resume"
+  }
+ }
+}

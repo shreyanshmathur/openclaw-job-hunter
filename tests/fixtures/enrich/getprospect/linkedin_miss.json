@@ -1,0 +1,16 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "_unverified": true,
+ "body": {
+  "message": "Not found"
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "miss"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_linkedin",
+ "status": 404
+}

@@ -1,0 +1,10 @@
+{
+ "id": 4100001,
+ "title": "Data Analyst",
+ "company_name": "Growth Valley",
+ "first_published": "2026-09-27T09:00:00-04:00",
+ "updated_at": "2026-09-28T10:00:00-04:00",
+ "location": {"name": "Remote"},
+ "absolute_url": "https://growthvalley.example/careers?gh_jid=4100001",
+ "content": "&lt;h2&gt;About the role&lt;/h2&gt;&lt;p&gt;Growth Valley needs a Data Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US, full time. Pay 65000 to 80000 USD per year.&lt;/p&gt;"
+}

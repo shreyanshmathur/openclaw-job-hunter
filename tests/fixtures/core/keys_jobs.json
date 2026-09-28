@@ -1,0 +1,52 @@
+{
+  "same_key": [
+    {"name": "greenhouse board, new board host, embed, gh_jid and API id", "key": "ats:greenhouse:4012345",
+     "inputs": [
+       {"url": "https://boards.greenhouse.io/kestrel/jobs/4012345?gh_src=abc123"},
+       {"url": "https://job-boards.greenhouse.io/kestrel/jobs/4012345"},
+       {"url": "https://boards.greenhouse.io/embed/job_app?for=kestrel&token=4012345"},
+       {"url": "https://kestrel.example/careers/data-analyst?gh_jid=4012345&utm_source=newsletter"},
+       {"url": "https://boards.greenhouse.io/kestrel/jobs/4012345", "native_ids": {"ats_job_id": "4012345"}, "source": "greenhouse"}]},
+    {"name": "ashby with and without /application and ashby_jid", "key": "ats:ashby:0c6a2f7e-1111-4a2b-9c3d-0123456789ab",
+     "inputs": [
+       {"url": "https://jobs.ashbyhq.com/kestrel/0c6a2f7e-1111-4a2b-9c3d-0123456789ab"},
+       {"url": "https://jobs.ashbyhq.com/kestrel/0c6a2f7e-1111-4a2b-9c3d-0123456789ab/application"},
+       {"url": "https://kestrel.example/jobs?ashby_jid=0c6a2f7e-1111-4a2b-9c3d-0123456789ab"}]},
+    {"name": "lever global and EU hosts", "key": "ats:lever:5d8e7f60-2222-4b3c-8d4e-abcdefabcdef",
+     "inputs": [
+       {"url": "https://jobs.lever.co/tidemark/5d8e7f60-2222-4b3c-8d4e-abcdefabcdef"},
+       {"url": "https://jobs.eu.lever.co/tidemark/5d8e7f60-2222-4b3c-8d4e-abcdefabcdef/apply?lever-source=LinkedIn"}]},
+    {"name": "workday two sites, same REQID", "key": "ats:workday:harborworks:R12345",
+     "inputs": [
+       {"url": "https://harborworks.wd5.myworkdayjobs.com/en-US/External/job/Bengaluru/Data-Analyst_R12345"},
+       {"url": "https://harborworks.wd5.myworkdayjobs.com/Campus/job/Pune/Data-Analyst_R12345?source=LinkedIn"}]},
+    {"name": "naukri with tracking parameters", "key": "board:naukri:250925000123",
+     "inputs": [
+       {"url": "https://www.naukri.com/job-listings-data-analyst-kestrel-bengaluru-2-to-4-years-250925000123?src=jobsearchDesk&sid=1"},
+       {"url": "https://www.naukri.com/job-listings-data-analyst-kestrel-bengaluru-2-to-4-years-250925000123", "native_ids": {"board_job_id": "250925000123"}, "source": "naukri"}]},
+    {"name": "linkedin job view and currentJobId", "key": "board:linkedin:4012345678",
+     "inputs": [
+       {"url": "https://www.linkedin.com/jobs/view/4012345678/"},
+       {"url": "https://www.linkedin.com/jobs/search/?currentJobId=4012345678&keywords=analyst"}]},
+    {"name": "linkedin hiring post", "key": "post:linkedin:7380000000000000000",
+     "inputs": [
+       {"url": "https://www.linkedin.com/posts/example-person_hiring-activity-7380000000000000000-AbCd"},
+       {"url": "https://www.linkedin.com/feed/update/urn:li:activity:7380000000000000000/", "native_ids": {"post_id": "7380000000000000000"}, "source": "linkedin_post"}]},
+    {"name": "smartrecruiters posting", "key": "ats:smartrecruiters:744000012345678",
+     "inputs": [{"url": "https://jobs.smartrecruiters.com/KestrelCommerce/744000012345678-data-analyst"}]},
+    {"name": "workable shortcode", "key": "ats:workable:kestrel:A1B2C3D4E5",
+     "inputs": [{"url": "https://apply.workable.com/kestrel/j/A1B2C3D4E5/"}]},
+    {"name": "yc work at a startup", "key": "board:yc:61234",
+     "inputs": [{"url": "https://www.workatastartup.com/jobs/61234"}]}
+  ],
+  "different": [
+    ["https://boards.greenhouse.io/kestrel/jobs/4012345", "https://boards.greenhouse.io/kestrel/jobs/4012346"],
+    ["https://harborworks.wd5.myworkdayjobs.com/External/job/Pune/Data-Analyst_R12345", "https://otherco.wd5.myworkdayjobs.com/External/job/Pune/Data-Analyst_R12345"]
+  ],
+  "invented": [
+    {"url": "https://boards.greenhouse.io/kestrel/jobs/4012345", "native_ids": {"ats_job_id": "9999999"}, "source": "greenhouse"},
+    {"url": "https://kestrel.example/careers/data-analyst", "native_ids": {"ats_job_id": "4012345"}, "source": "greenhouse"},
+    {"url": "https://www.naukri.com/job-listings-data-analyst-250925000123", "native_ids": {"board_job_id": "111111111111"}, "source": "naukri"},
+    {"url": "https://kestrel.example/jobs/1", "native_ids": {"board_job_id": "1"}, "source": ""}
+  ]
+}

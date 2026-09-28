@@ -1,0 +1,43 @@
+{
+ "id": "G16",
+ "channel": "email_cold",
+ "subject": "Data Analyst position at Maple Freight",
+ "body": "Dear Mr. Grant,\n\nWith the greatest respect, I humbly write about the Data Analyst position, whose post notes that the analytics team owns weekly freight forecasts. I would be most grateful for your esteemed consideration.\n\nAt Tidewater Freight I built the RTO forecasting model, and RTO fell from 18% to 13% over two quarters.\n\nMight I request fifteen minutes at a moment convenient to you? Should another colleague own this hire, a name would be appreciated.\n\nYours faithfully,",
+ "recipient": {
+  "first_name": "Leo",
+  "last_name": "Grant",
+  "title": "Head of Analytics",
+  "company": "Maple Freight",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Maple Freight job post, Data Analyst, posted 2026-09-14: the analytics team owns weekly freight forecasts.",
+   "snippet": "the analytics team owns weekly freight forecasts",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/maple/data-analyst",
+   "published_at": "2026-09-14",
+   "retrieved_at": "2026-09-24"
+  }
+ },
+ "profile_facts": {
+  "P1": "Built reporting and the RTO forecasting model at Tidewater Freight; RTO fell from 18% to 13% over two quarters."
+ },
+ "hook": {
+  "anchor": "weekly freight forecasts",
+  "source_type": "job_post",
+  "source_url": "https://jobs.example.com/maple/data-analyst",
+  "snippet": "the analytics team owns weekly freight forecasts",
+  "published_at": "2026-09-14",
+  "retrieved_at": "2026-09-24",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "RTO fell from 18% to 13%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "wrong tone for a US startup manager: ornate and deferential"
+}

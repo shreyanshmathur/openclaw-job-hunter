@@ -1,0 +1,37 @@
+{
+ "meta": {
+  "totalCount": 2
+ },
+ "result": [
+  {
+   "id": "41",
+   "jobOpeningName": "Operations Analyst",
+   "departmentId": "3",
+   "departmentLabel": "Operations",
+   "employmentStatusLabel": "Full-Time",
+   "location": {
+    "city": "Bengaluru",
+    "state": "Karnataka"
+   },
+   "atsLocation": {
+    "country": "India",
+    "state": "Karnataka",
+    "province": null,
+    "city": "Bengaluru"
+   },
+   "isRemote": null,
+   "locationType": "2"
+  },
+  {
+   "id": "42",
+   "jobOpeningName": "Warehouse Associate",
+   "employmentStatusLabel": "Part-Time",
+   "location": {
+    "city": "Mysuru",
+    "state": "Karnataka"
+   },
+   "isRemote": null,
+   "locationType": "0"
+  }
+ ]
+}

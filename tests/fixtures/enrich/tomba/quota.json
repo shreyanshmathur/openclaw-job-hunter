@@ -1,0 +1,18 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "errors": {
+   "message": "You have reached your monthly search limit",
+   "status": 403
+  }
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "quota_exhausted"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 403
+}

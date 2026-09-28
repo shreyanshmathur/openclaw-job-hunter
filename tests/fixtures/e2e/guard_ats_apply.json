@@ -1,0 +1,528 @@
+{
+ "name": "ats_apply_cycle (real tool-call shapes)",
+ "source": "tests/fixtures/browser/ats_apply_cycle.json (U6), re-recorded",
+ "description": "The U6 applier cycle for an approved Greenhouse package, re-recorded in the shapes OpenClaw gives the guard: browser results are {content: [{type: text, text}], details: {ok, targetId, url}} with driver output as JSON text, and write calls carry path and string content. The privacy checkbox of the U6 recording is left out: the answer bank treats attestations as questions only the person answers. Steps with an expect code are mutations the guard must refuse; they are not executed. {FORM_FLAGS} stands for the page flags drivers/read_form.js reports next to the observed values (captcha_visible, account_wall).",
+ "agent": "jobhunter-applier",
+ "session": "agent:jobhunter-applier:cron:e2e-apply",
+ "steps": [
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py preflight --lane applier",
+    "timeoutSeconds": 90
+   },
+   "save": {
+    "CYCLE": "cycle_id"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} apply next --limit 1",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "navigate",
+    "targetUrl": "{URL}"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- heading \"Data Analyst\" [level=1] [ref=e2]\n- button \"Apply for this job\" [ref=e10]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}",
+     "title": "Data Analyst at Kestrel Commerce"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "evaluate",
+    "fn": "{DRIVER:detect_page}"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"detect_file\": {\"platform\": \"greenhouse\", \"url\": \"{URL}\", \"title\": \"Data Analyst at Kestrel Commerce\", \"http_status\": null, \"text\": \"Data Analyst Apply for this job\"}, \"hint\": \"clear\", \"matched\": [], \"family\": \"ats\"}"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "write",
+   "params": {
+    "path": "{WS}/work/{CYCLE}/detect-1.json",
+    "content": "{\"platform\": \"greenhouse\", \"url\": \"{URL}\", \"title\": \"Data Analyst at Kestrel Commerce\", \"http_status\": null, \"text\": \"Data Analyst Apply for this job\"}"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} detect --file {WS}/work/{CYCLE}/detect-1.json",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck-plan --kind application --job {JOB}",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "evaluate",
+    "fn": "{DRIVER:read_applied_state}"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"checks\": [{\"name\": \"applied_badge\", \"value\": false}, {\"name\": \"already_applied_text\", \"value\": false}], \"matched\": [], \"page_url\": \"{URL}\"}"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "write",
+   "params": {
+    "path": "{WS}/work/{CYCLE}/precheck.json",
+    "content": "{\"kind\": \"application\", \"platform\": \"greenhouse\", \"observed_at\": \"{NOW}\", \"page_url\": \"{URL}\", \"checks\": [{\"name\": \"applied_badge\", \"value\": false}, {\"name\": \"already_applied_text\", \"value\": false}]}"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck --kind application --platform greenhouse --job {JOB} --file {WS}/work/{CYCLE}/precheck.json",
+    "timeoutSeconds": 90
+   },
+   "save": {
+    "PRECHECK": "precheck_id"
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "type",
+    "ref": "e10",
+    "text": "x",
+    "slowly": true
+   },
+   "expect": "G_NO_TOKEN",
+   "note": "mutation: a fill before gate reserve"
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate reserve --kind application --draft {DRAFT} --precheck {PRECHECK} --platform greenhouse --job {JOB}",
+    "timeoutSeconds": 90
+   },
+   "save": {
+    "TOKEN": "token"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} resume stage --variant {VARIANT} --token {TOKEN}",
+    "timeoutSeconds": 90
+   },
+   "save": {
+    "UPLOAD": "upload_path",
+    "FILENAME": "filename"
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "snapshot"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- heading \"Data Analyst\" [level=1] [ref=e2]\n- button \"Apply for this job\" [ref=e10]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "click",
+    "ref": "e10"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- form \"Apply for this job\" [ref=e11]\n  - button \"Attach\" [ref=e12]\n  - textbox \"First Name\" [ref=e20]\n  - textbox \"Last Name\" [ref=e21]\n  - textbox \"Email\" [ref=e22]\n  - textbox \"Notice period (days)\" [ref=e23]\n  - button \"Submit application\" [ref=e30]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "snapshot"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- form \"Apply for this job\" [ref=e11]\n  - button \"Attach\" [ref=e12]\n  - textbox \"First Name\" [ref=e20]\n  - textbox \"Last Name\" [ref=e21]\n  - textbox \"Email\" [ref=e22]\n  - textbox \"Notice period (days)\" [ref=e23]\n  - button \"Submit application\" [ref=e30]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "upload",
+    "paths": [
+     "{WS}/work/{CYCLE}/other.pdf"
+    ],
+    "ref": "e12"
+   },
+   "expect": "G_UPLOAD_PATH",
+   "note": "mutation: an upload of anything but the staged file"
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "upload",
+    "paths": [
+     "{UPLOAD}"
+    ],
+    "ref": "e12"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Uploaded 1 file."
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "type",
+    "ref": "e20",
+    "text": "{F:First Name}",
+    "slowly": true
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "typed"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "type",
+    "ref": "e21",
+    "text": "{F:Last Name}",
+    "slowly": true
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "typed"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "type",
+    "ref": "e22",
+    "text": "{F:Email}",
+    "slowly": true
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "typed"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "type",
+    "ref": "e23",
+    "text": "{F:Notice period (days)}",
+    "slowly": true
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "typed"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "click",
+    "ref": "e30"
+   },
+   "expect": "G_NOT_ARMED",
+   "note": "mutation: submit before gate arm"
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "evaluate",
+    "fn": "{DRIVER:read_form}"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"observed\": {\"fields\": {FIELDS_JSON}, \"resume_filename_visible\": \"{FILENAME}\"}, \"required_empty\": [], {FORM_FLAGS}\"validation_errors\": []}"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "write",
+   "params": {
+    "path": "{WS}/work/{CYCLE}/observed-{TOKEN}.json",
+    "content": "{\"fields\": {FIELDS_JSON}, \"resume_filename_visible\": \"{FILENAME}\"}"
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate arm {TOKEN} --observed-file {WS}/work/{CYCLE}/observed-{TOKEN}.json",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "click",
+    "ref": "e30"
+   },
+   "expect": "G_NOT_ARMED",
+   "note": "mutation: submit without the dwell"
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform greenhouse --kind dwell",
+    "timeoutSeconds": 90
+   },
+   "repeat_while": "remaining_s"
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "click",
+    "ref": "e30"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "- heading \"Thank you for applying to Kestrel Commerce\" [level=1]"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}/confirmation"
+    }
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "evaluate",
+    "fn": "{DRIVER:read_toast}"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\"toasts\": [], \"success_phrases\": [\"thank(s| you) for applying\"], \"error_phrases\": [], \"page_error_phrases\": [], \"page_text_excerpt\": \"Thank you for applying to Kestrel Commerce.\"}"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}/confirmation"
+    }
+   }
+  },
+  {
+   "tool": "write",
+   "params": {
+    "path": "{WS}/work/{CYCLE}/evidence-{TOKEN}.txt",
+    "content": "Page: Thank you for applying to Kestrel Commerce."
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate confirm {TOKEN} --evidence-file {WS}/work/{CYCLE}/evidence-{TOKEN}.txt",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} resume unstage --token {TOKEN}",
+    "timeoutSeconds": 90
+   }
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "act",
+    "kind": "click",
+    "ref": "e30"
+   },
+   "expect": "G_NO_TOKEN",
+   "note": "mutation: a second submit after confirm"
+  },
+  {
+   "tool": "browser",
+   "params": {
+    "profile": "jobhunter",
+    "action": "close"
+   },
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "closed"
+     }
+    ],
+    "details": {
+     "ok": true,
+     "targetId": "t1",
+     "url": "{URL}"
+    }
+   }
+  },
+  {
+   "tool": "exec",
+   "params": {
+    "command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}",
+    "timeoutSeconds": 90
+   }
+  }
+ ]
+}

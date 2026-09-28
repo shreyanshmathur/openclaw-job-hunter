@@ -1,0 +1,54 @@
+{
+ "id": "G07",
+ "channel": "form_answer",
+ "subject": null,
+ "body": "Northwind Pay's July post-mortem on the card retry spike describes a failure I fixed at Tidewater Freight in 2025. Retries were piling up behind one slow partner bank. I added per-bank retry budgets, and duplicate charge complaints fell from about 30 a week to 3. I want to work where payment reliability is the product itself, and this role is that work at a larger scale.",
+ "recipient": {
+  "first_name": "",
+  "last_name": "",
+  "company": "Northwind Pay",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Northwind Pay job post, Backend Engineer, Payments, posted 2026-09-12. Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "snippet": "Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/northwind/backend-payments",
+   "published_at": "2026-09-12",
+   "retrieved_at": "2026-09-25"
+  },
+  "R2": {
+   "text": "Northwind Pay engineering blog, 2026-07-15: post-mortem of the card retry spike, where retries piled up behind one slow issuing bank.",
+   "snippet": "post-mortem of the card retry spike, where retries piled up behind one slow issuing bank",
+   "source_type": "engineering_blog",
+   "source_url": "https://northwind.example/eng/card-retry-spike",
+   "published_at": "2026-07-15",
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "4 years building Go payment services at Tidewater Freight.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P3": "Notice period: 30 days.",
+  "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
+  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+ },
+ "hook": {
+  "anchor": "card retry spike",
+  "source_type": "engineering_blog",
+  "source_url": "https://northwind.example/eng/card-retry-spike",
+  "snippet": "post-mortem of the card retry spike, where retries piled up behind one slow issuing bank",
+  "published_at": "2026-07-15",
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R2"
+ },
+ "claims": [
+  {
+   "text": "from about 30 a week to 3",
+   "fact_id": "P5"
+  }
+ ],
+ "field_char_limit": 1000,
+ "note": "answers why in sentence 1, then proof"
+}

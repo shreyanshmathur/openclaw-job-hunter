@@ -1,0 +1,13 @@
+[
+  {
+    "code": "ats_rate_limited",
+    "text_regex": "too many requests"
+  },
+  {
+    "id": "ats_captcha",
+    "verdict": "stop",
+    "trip": false,
+    "job_needs_human": "captcha_visible",
+    "text": "captcha|i.m not a robot"
+  }
+]

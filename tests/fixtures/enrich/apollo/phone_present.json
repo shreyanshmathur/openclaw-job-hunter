@@ -1,0 +1,38 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "person": {
+   "email": "example.person@kestrel.example",
+   "email_status": "verified",
+   "first_name": "Example",
+   "id": "example-person-id",
+   "last_name": "Person",
+   "linkedin_url": "https://www.linkedin.com/in/example-person",
+   "name": "Example Person",
+   "organization": {
+    "name": "Kestrel Commerce",
+    "primary_phone": {
+     "number": "+10000000000"
+    }
+   },
+   "personal_emails": [],
+   "phone_numbers": [
+    {
+     "raw_number": "+10000000000",
+     "type": "mobile"
+    }
+   ],
+   "title": "Engineering Manager"
+  }
+ },
+ "expect": {
+  "credits": 1.0,
+  "email": null,
+  "outcome": "unexpected_phone"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

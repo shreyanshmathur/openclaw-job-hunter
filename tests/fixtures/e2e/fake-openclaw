@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Fake `openclaw` for the INT end-to-end tests: only `[--profile <name>] message send` with the options the
+real CLI has (OpenClaw 2026.9.5 `openclaw message send --help`). Any other option, a missing value, a missing
+target or body, or any other command fails like the real CLI does (commander: "error: unknown option").
+Accepted calls are appended as JSON lines to openclaw-calls.jsonl next to this file. Nothing is sent anywhere.
+"""
+import json
+import os
+import sys
+
+CHANNELS = ("telegram", "whatsapp", "discord", "irc", "googlechat", "slack", "signal", "imessage", "feishu", "nostr",
+            "buzz", "msteams", "mattermost", "nextcloud-talk", "matrix", "raft", "a2a", "line", "zalo", "clickclack",
+            "zalouser", "sms", "synology-chat", "tlon", "qa-channel", "reef", "twitch")
+# long name -> takes a value
+SEND_OPTIONS = {"--account": True, "--channel": True, "--delivery": True, "--dry-run": False,
+                "--force-document": False, "--gif-playback": False, "--json": False, "--message": True,
+                "--media": True, "--pin": False, "--presentation": True, "--reply-to": True, "--silent": False,
+                "--target": True, "--thread-id": True, "--verbose": False}
+SHORT = {"-m": "--message", "-t": "--target"}
+LOG = os.path.join(os.path.dirname(os.path.realpath(__file__)), "openclaw-calls.jsonl")
+
+
+def fail(msg, code=1):
+    sys.stderr.write("error: %s\n" % msg)
+    sys.exit(code)
+
+
+def main(argv):
+    profile = None
+    while argv and argv[0].startswith("-"):
+        if argv[0] == "--profile" and len(argv) > 1:
+            profile, argv = argv[1], argv[2:]
+        elif argv[0].startswith("--profile="):
+            profile, argv = argv[0].split("=", 1)[1], argv[1:]
+        else:
+            fail("unknown option '%s'" % argv[0])
+    if argv[:2] != ["message", "send"]:
+        fail("unknown command '%s'" % " ".join(argv[:2]))
+    opts = {}
+    rest = argv[2:]
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a in SHORT:
+            a = SHORT[a]
+        if not a.startswith("--"):
+            fail("too many arguments for 'send'. Expected 0 arguments but got 1.")
+        name, eq, val = a.partition("=")
+        if name not in SEND_OPTIONS:
+            fail("unknown option '%s'" % name)
+        if SEND_OPTIONS[name]:
+            if not eq:
+                i += 1
+                if i >= len(rest):
+                    fail("option '%s <value>' argument missing" % name)
+                val = rest[i]
+            opts[name] = val
+        else:
+            if eq:
+                fail("option '%s' does not take a value" % name)
+            opts[name] = True
+        i += 1
+    if "--target" not in opts:
+        fail("required option '-t, --target <dest>' not specified")
+    if not (opts.get("--message") or opts.get("--media") or opts.get("--presentation")):
+        fail("message body is required unless --media or --presentation is set")
+    if "--channel" in opts and opts["--channel"] not in CHANNELS:
+        fail("unknown channel: %s" % opts["--channel"])
+    with open(LOG, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"profile": profile, "argv": sys.argv[1:], "options": opts}) + "\n")
+    if opts.get("--json"):
+        print(json.dumps({"ok": True, "channel": opts.get("--channel"), "messageId": "fake-msg-1"}))
+    else:
+        print("Sent via %s." % opts.get("--channel"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

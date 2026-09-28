@@ -1,0 +1,12 @@
+{
+ "_note": "ENRICH-SPEC section 15.1: the acl.json entries the integrator merges (INTEGRATION PATCH LIST U1-2, version 3)",
+ "agents": {
+  "jobhunter-outreach": {"commands": {
+   "enrich find": {"--contact": "id", "--target": "target?"},
+   "enrich show": {"_1": "id"},
+   "enrich budget": {}
+  }}
+ },
+ "public_readonly": ["enrich budget"],
+ "human_only": ["enrich connect", "enrich disconnect", "enrich retry", "enrich test", "enrich find --include-reserve"]
+}

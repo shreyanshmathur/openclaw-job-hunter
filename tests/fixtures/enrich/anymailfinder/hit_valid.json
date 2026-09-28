@@ -1,0 +1,20 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "credits_charged": 1,
+  "email": "example.person@kestrel.example",
+  "email_status": "valid",
+  "valid_email": "example.person@kestrel.example"
+ },
+ "expect": {
+  "credits": 1.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

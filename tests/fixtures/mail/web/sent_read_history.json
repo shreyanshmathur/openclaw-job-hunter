@@ -1,0 +1,8 @@
+{"purpose": "history", "observed_at": "2026-09-29T08:55:00Z", "query": "in:sent after:2025/09/29", "complete": true,
+ "messages": [
+  {"date": "2026-03-02T09:12:00Z", "to": ["morgan.lee@harbor-analytics.example"], "subject": "Analytics roles"},
+  {"date": "2026-05-14", "to": ["no-reply@forms.example"], "subject": "Form receipt"},
+  {"date": "2026-06-01T15:40:00Z", "to": ["sam.lee.sender@example.com"], "subject": "Note to self"},
+  {"date": "2026-07-19T11:05:00Z", "to": ["riley.chen@northwind.example"], "cc": ["hiring@northwind.example"],
+   "subject": "Following up on the analyst opening"}
+ ]}

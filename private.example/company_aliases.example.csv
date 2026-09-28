@@ -1,0 +1,7 @@
+alias,company
+# Copy this file to private/company_aliases.csv and add names or domains that belong to one company, so the
+# agent treats them as one (no second cold email, one application cap). Lines starting with # are comments.
+# The examples below are fictional; remove the leading # to use a line.
+# KL Commerce,Kestrel Commerce
+# kestrel-commerce.example,Kestrel Commerce
+# Tidemark Analytics Private Limited,Tidemark

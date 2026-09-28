@@ -1,0 +1,28 @@
+{
+  "name": "applier fills and submits one ATS form under a token",
+  "steps": [
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "navigate", "targetUrl": "https://job-boards.greenhouse.io/kestrel/jobs/4000001"}}, "expect": "allow"},
+    {"result": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "navigate", "targetUrl": "https://job-boards.greenhouse.io/kestrel/jobs/4000001"},
+      "result": {"content": [{"type": "text", "text": "- main:\n  - heading \"Data Analyst\" [level=1]\n  - textbox \"First Name\" [ref=e4]\n  - button \"Attach\" [ref=e8]\n  - button \"Submit application\" [ref=e6]"}], "details": {"ok": true, "targetId": "t9", "url": "https://job-boards.greenhouse.io/kestrel/jobs/4000001"}}}, "expect_stop": false},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "type", "ref": "e4", "text": "Alex", "slowly": true}}, "expect": "G_NO_TOKEN"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "exec", "params": {"command": "@JH@ gate reserve --kind application --draft DABCDEFG --precheck 7 --platform greenhouse --job JABCDEFG"}}, "expect": "allow"},
+    {"sql": "INSERT INTO actions (token, kind, route, first_touch, platform, agent_id, status, reserved_at, expires_at, created_at, updated_at) VALUES ('TABCDEFGHJKM', 'application', 'browser', 0, 'greenhouse', 'jobhunter-applier', 'reserved', '2026-09-27T05:00:00Z', '2026-09-27T05:30:00Z', '2026-09-27T05:00:00Z', '2026-09-27T05:00:00Z')"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "type", "ref": "e4", "text": "Alex", "slowly": true}}, "expect": "allow"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"}}, "expect": "G_NOT_ARMED"},
+    {"sql": "INSERT INTO staged_files (token, variant_id, path, sha256, staged_at) VALUES ('TABCDEFGHJKM', 1, '/tmp/openclaw/uploads/TABCDEFGHJKM/Alex_Rivera_Resume.pdf', 'x', '2026-09-27T05:01:00Z')"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "upload", "paths": ["/tmp/openclaw/uploads/other.pdf"], "ref": "e8"}}, "expect": "G_UPLOAD_PATH"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "upload", "paths": ["/tmp/openclaw/uploads/TABCDEFGHJKM/Alex_Rivera_Resume.pdf"], "ref": "e8"}}, "expect": "allow"},
+    {"clock": "2026-09-27T05:02:00Z"},
+    {"sql": "UPDATE actions SET status = 'armed', armed_at = '2026-09-27T05:02:00Z' WHERE token = 'TABCDEFGHJKM'"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"}}, "expect": "G_NOT_ARMED"},
+    {"sql": "INSERT INTO locks (name, holder, acquired_at, expires_at) VALUES ('pace:jobhunter-applier:dwell', 'jobhunter-applier', '2026-09-27T05:02:05Z', '2026-09-27T05:02:25Z')"},
+    {"clock": "2026-09-27T05:02:15Z"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"}}, "expect": "G_NOT_ARMED"},
+    {"clock": "2026-09-27T05:02:30Z"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"}}, "expect": "allow"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "press", "key": "Enter"}}, "expect": "allow"},
+    {"call": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"}}, "expect": "G_COMMIT_BUDGET"},
+    {"result": {"agent": "jobhunter-applier", "session": "s-app", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e6"},
+      "result": {"content": [{"type": "text", "text": "- heading \"Thank you for applying to Kestrel Commerce\" [level=1]"}], "details": {"ok": true, "targetId": "t9", "url": "https://job-boards.greenhouse.io/kestrel/jobs/4000001/confirmation"}}}, "expect_stop": false}
+  ]
+}

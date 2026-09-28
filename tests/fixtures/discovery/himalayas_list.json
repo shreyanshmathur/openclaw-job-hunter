@@ -1,0 +1,46 @@
+{
+ "totalCount": 2,
+ "jobs": [
+  {
+   "title": "Data Analyst",
+   "excerpt": "Analyse retail data",
+   "companyName": "Tidemark Analytics",
+   "companySlug": "tidemark",
+   "employmentType": "Full Time",
+   "minSalary": null,
+   "maxSalary": null,
+   "currency": "USD",
+   "seniority": [
+    "Mid-level"
+   ],
+   "locationRestrictions": [
+    "India",
+    "Singapore"
+   ],
+   "timezoneRestrictions": [
+    5.5
+   ],
+   "categories": [
+    "Data"
+   ],
+   "description": "<p>Remote across APAC. 2-5 years of experience.</p>",
+   "pubDate": 1790208000,
+   "expiryDate": 1795000000,
+   "applicationLink": "https://jobs.lever.co/tidemark/5d3c1a2b-0000-4000-8000-000000000001",
+   "guid": "https://himalayas.app/companies/tidemark/jobs/data-analyst-apac"
+  },
+  {
+   "title": "Business Analyst",
+   "companyName": "Ferncrest",
+   "companySlug": "ferncrest",
+   "employmentType": "Full Time",
+   "locationRestrictions": [
+    "United States"
+   ],
+   "description": "<p>US only.</p>",
+   "pubDate": 1790208000,
+   "applicationLink": "https://ferncrest.example/jobs/12",
+   "guid": "https://himalayas.app/companies/ferncrest/jobs/business-analyst-us"
+  }
+ ]
+}

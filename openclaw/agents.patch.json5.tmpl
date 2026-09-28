@@ -1,0 +1,31 @@
+// Per-agent OpenClaw config for one jobhunter agent (design 10.3 step 9).
+//
+// `jh.py install render-agents-patch` renders this object once per entry of openclaw/agents.json and writes
+// {"agents": {"entries": {"<agent id>": <this object>}}} to state/install/agents.patch.json. install.sh then
+// runs `openclaw config patch --file <that> --dry-run --json`, the real patch, and `openclaw config validate`.
+//
+// Scope rule: only agents.entries["jobhunter-*"]. Never bindings, channels, agents.defaults or
+// browser.defaultProfile. The renderer refuses any other top-level key.
+//
+// Placeholders:
+//   a string that is exactly "__MODEL__", "__SKILLS__", "__TOOLS_ALLOW__", "__TOOLS_DENY__" or
+//   "__MODELS_RUNTIME__" is replaced by the typed value from agents.json ("__MODELS_RUNTIME__" is dropped
+//   on the API key route); inside other strings __WS__ (the agent's workspace), __WS_ROOT__, __REPO__,
+//   __PY__, __ROLE__ and __AGENT_ID__ are replaced as text.
+{
+  "workspace": "__WS__",
+  "model": "__MODEL__",
+  "models": "__MODELS_RUNTIME__",
+  "skills": "__SKILLS__",
+  "tools": {
+    "allow": "__TOOLS_ALLOW__",
+    "deny": "__TOOLS_DENY__",
+    "fs": {"workspaceOnly": true},
+    // allowlist plus ask on a miss; with no approval client connected a miss is denied. The allowlist
+    // entry itself (python, jh.py argPattern) is merged into the approvals document from
+    // openclaw/exec-approvals.json5.tmpl.
+    "exec": {"mode": "ask", "strictInlineEval": true}
+  },
+  // no memory search for pipeline agents [verify key: agents.entries.*.memory.search]
+  "memory": {"search": {"enabled": false}}
+}

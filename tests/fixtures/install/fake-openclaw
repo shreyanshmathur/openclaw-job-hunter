@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""Fake `openclaw` for the install tests (owned by U7). Never talks to anything real.
+
+Every call is appended as one JSON line to $FAKE_OC_LOG; state lives in $FAKE_OC_STATE/state.json. Both
+variables are required, so an accidental call outside a test does nothing. Supported: the commands that
+install.sh, uninstall.sh and ./jobhunter use, with the flags verified against the real CLI's --help.
+"""
+import datetime
+import json
+import os
+import sys
+
+
+def die(msg, code=2):
+    sys.stderr.write("fake-openclaw: %s\n" % msg)
+    sys.exit(code)
+
+
+LOG = os.environ.get("FAKE_OC_LOG")
+STATE_DIR = os.environ.get("FAKE_OC_STATE")
+if not LOG or not STATE_DIR:
+    die("FAKE_OC_LOG and FAKE_OC_STATE must be set", 3)
+STATE_FILE = os.path.join(STATE_DIR, "state.json")
+
+
+def load():
+    try:
+        with open(STATE_FILE) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {"configured": os.environ.get("FAKE_OC_CONFIGURED", "1") == "1", "agents": [], "crons": {},
+                "next_id": 1, "plugins": [], "profiles": ["openclaw"], "patches": [], "guard_repo": "",
+                "approvals": {"version": 1, "defaults": {}, "agents": {"main": {"security": "full"}}},
+                "extradirs": None}
+
+
+def save(st):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(STATE_FILE, "w") as fh:
+        json.dump(st, fh, indent=1, sort_keys=True)
+
+
+def opt(args, name, default=None):
+    if name in args:
+        i = args.index(name)
+        if i + 1 < len(args):
+            return args[i + 1]
+    return default
+
+
+argv = sys.argv[1:]
+with open(LOG, "a") as fh:
+    # whether an API key came through the environment (never its value)
+    fh.write(json.dumps({"argv": argv, "env_api_key": bool(os.environ.get("ANTHROPIC_API_KEY"))}) + "\n")
+profile = None
+if argv[:1] == ["--profile"]:
+    profile, argv = argv[1], argv[2:]
+st = load()
+cmd = argv[:2]
+rest = argv[2:]
+
+
+def out(obj):
+    print(json.dumps(obj))
+
+
+if argv[:1] == ["--version"]:
+    print(os.environ.get("FAKE_OC_VERSION", "OpenClaw 2026.9.5 (fake)"))
+elif cmd == ["config", "get"]:
+    path = rest[0] if rest else ""
+    if path == "gateway.mode" and st["configured"]:
+        print("local")
+    elif path == "skills.load.extraDirs" and st.get("extradirs") is not None:
+        out(st["extradirs"])
+    else:
+        die("config path not set: %s" % path, 1)
+elif argv[:1] == ["onboard"]:
+    if "--non-interactive" not in argv or "--accept-risk" not in argv:
+        die("onboard needs --non-interactive --accept-risk")
+    if opt(argv, "--auth-choice") == "apiKey":
+        # like OpenClaw: the flag, else ANTHROPIC_API_KEY from the environment (FAKE_OC_ONBOARD_NEEDS_FLAG=1
+        # plays an OpenClaw that only takes the flag)
+        flag = opt(argv, "--anthropic-api-key")
+        env_key = "" if os.environ.get("FAKE_OC_ONBOARD_NEEDS_FLAG") == "1" else os.environ.get("ANTHROPIC_API_KEY", "")
+        if not (flag or env_key):
+            die("Missing --anthropic-api-key (or ANTHROPIC_API_KEY in env)", 1)
+    st["configured"] = True
+    out({"ok": True})
+elif cmd == ["gateway", "status"] or cmd == ["gateway", "start"] or cmd == ["gateway", "install"]:
+    print("Gateway: running (fake)")
+elif cmd == ["agents", "list"]:
+    out([{"id": a["id"], "workspace": a["workspace"]} for a in st["agents"]])
+elif cmd == ["agents", "add"]:
+    aid = rest[0]
+    if any(a["id"] == aid for a in st["agents"]):
+        die("agent exists: %s" % aid, 1)
+    if "--workspace" not in rest or "--non-interactive" not in rest:
+        die("agents add needs --workspace and --non-interactive")
+    st["agents"].append({"id": aid, "workspace": opt(rest, "--workspace"), "model": opt(rest, "--model")})
+    out({"ok": True, "id": aid})
+elif cmd == ["agents", "set-identity"] or cmd == ["models", "auth"]:
+    print("ok")
+elif cmd == ["agents", "delete"]:
+    st["agents"] = [a for a in st["agents"] if a["id"] != rest[0]]
+    out({"ok": True})
+elif cmd == ["config", "patch"]:
+    f = opt(rest, "--file")
+    with open(f) as fh:
+        patch = json.load(fh)
+    bad = [k for k in patch if k not in ("agents", "plugins", "skills", "browser")]
+    if bad:
+        die("patch touches %s" % bad, 1)
+    if "--dry-run" not in rest:
+        st["patches"].append(patch)
+        g = (((patch.get("plugins") or {}).get("entries") or {}).get("jobhunter-guard") or {})
+        if isinstance(g, dict) and (g.get("config") or {}).get("repo"):
+            st["guard_repo"] = g["config"]["repo"]
+        dirs = ((patch.get("skills") or {}).get("load") or {}).get("extraDirs")
+        if dirs is not None:
+            st["extradirs"] = dirs
+    out({"ok": True, "dryRun": "--dry-run" in rest})
+elif cmd == ["config", "validate"]:
+    print("valid")
+elif cmd == ["approvals", "get"]:
+    out(st["approvals"])
+elif cmd == ["approvals", "set"]:
+    with open(opt(rest, "--file")) as fh:
+        st["approvals"] = json.load(fh)
+    out({"ok": True})
+elif cmd == ["plugins", "list"]:
+    out({"plugins": [{"id": p} for p in st["plugins"]]})
+elif cmd == ["plugins", "install"]:
+    if "--link" not in rest:
+        die("expected --link")
+    if "jobhunter-guard" in st["plugins"]:
+        die("already installed", 1)
+    st["plugins"].append("jobhunter-guard")
+    print("installed")
+elif cmd == ["plugins", "enable"] or cmd == ["plugins", "disable"]:
+    print("ok")
+elif cmd == ["plugins", "reload"]:
+    repo = st.get("guard_repo")
+    if repo:
+        with open(os.path.join(repo, "private", "home.json")) as fh:
+            iid = json.load(fh)["install_id"]
+        gd = os.path.join(repo, "state", "guard")
+        os.makedirs(gd, exist_ok=True)
+        ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        with open(os.path.join(gd, "heartbeat.json"), "w") as fh:
+            json.dump({"install_id": iid, "version": "fake", "loaded_at": ts, "beat_at": ts}, fh)
+    print("reloaded")
+elif cmd == ["plugins", "uninstall"]:
+    st["plugins"] = [p for p in st["plugins"] if p not in rest]
+    print("ok")
+elif argv[:1] == ["browser"]:
+    b = argv[1:]
+    while b[:1] in (["--browser-profile"], ["--json"]):     # browser-level options before the subcommand
+        b = b[2:] if b[0] == "--browser-profile" else b[1:]
+    cookies = st.setdefault("cookie_domains", [])
+    tabs = st.setdefault("tabs", {})
+    if b[:1] == ["profiles"]:
+        print("\n".join(st["profiles"]))
+    elif b[:1] == ["create-profile"]:
+        st["profiles"].append(opt(b, "--name"))
+        print("created")
+    elif b[:1] == ["delete-profile"]:
+        st["profiles"] = [p for p in st["profiles"] if p != opt(b, "--name")]
+    elif b[:1] == ["import-profile"]:
+        # the real flags (openclaw browser import-profile --help): --browser, --system, --into, --domains
+        doms = [d for d in (opt(b, "--domains") or "").split(",") if d]
+        if opt(b, "--into") != "jobhunter" or not doms or not opt(b, "--system"):
+            die("import-profile needs --into jobhunter, --system and --domains")
+        seen = None
+        cf = os.environ.get("FAKE_OC_CONSENT_FILE")
+        if cf:   # which sites were granted in private/consent.json when the copy ran
+            try:
+                with open(cf) as fh:
+                    rows = json.load(fh).get("sites", {})
+                seen = sorted(k for k, v in rows.items() if v.get("status") == "granted")
+            except (OSError, ValueError):
+                seen = []
+        st.setdefault("imports", []).append({"system": opt(b, "--system"), "browser": opt(b, "--browser"),
+                                             "domains": doms, "granted_at_copy": seen})
+        if os.environ.get("FAKE_OC_IMPORT_FAIL") == "1":
+            save(st)
+            die("import failed (fake)", 1)
+        for d in doms:
+            if d not in cookies:
+                cookies.append(d)
+        print("imported %d domains" % len(doms))
+    elif b[:2] == ["cookies", "clear"]:
+        st["cookie_domains"] = []
+        st["cookie_clears"] = st.get("cookie_clears", 0) + 1
+        print("cleared")
+    elif b[:1] == ["open"]:
+        url = [x for x in b[1:] if not x.startswith("--") and x != opt(b, "--label")][0]
+        tabs[opt(b, "--label") or "tab-%d" % (len(tabs) + 1)] = url
+        print("opened")
+    elif b[:1] == ["close"]:
+        tabs.pop(b[1] if len(b) > 1 else "", None)
+        print("closed")
+    elif b[:1] == ["evaluate"]:
+        # the login probe: the page stays on its site when the profile holds cookies for it, else the site's
+        # login page; FAKE_OC_CHECKPOINT=<host part> shows a verification prompt there
+        from urllib.parse import urlsplit
+        url = tabs.get(opt(b, "--target-id") or "", "")
+        host = (urlsplit(url).hostname or "").lower()
+        logged = any(host == d or host.endswith("." + d) for d in cookies)
+        email = None
+        if not logged:
+            url = "https://accounts.google.com/signin" if "google" in host else "https://%s/login" % host
+        elif host == "mail.google.com":
+            email = os.environ.get("FAKE_OC_GMAIL_ACCOUNT") or None
+        chk = os.environ.get("FAKE_OC_CHECKPOINT")
+        probe = {"jh_login_probe": 1, "url": url, "title": "Fake page", "account_email": email,
+                 "password_field": not logged, "captcha": False,
+                 "challenge_text": bool(chk and chk in host)}
+        out({"ok": True, "result": probe})
+    elif b[:1] in (["doctor"], ["stop"], ["start"], ["system-profiles"], ["wait"]):
+        print("ok")
+    else:
+        die("unsupported browser command %s" % b)
+elif cmd == ["channels", "status"]:
+    print("whatsapp: not linked")
+elif cmd == ["cron", "add"]:
+    key = opt(rest, "--declaration-key")
+    for required in ("--name", "--display-name", "--declaration-key", "--no-deliver", "--disabled"):
+        if required not in rest:
+            die("cron add without %s" % required)
+    if "--command-argv" in rest:
+        json.loads(opt(rest, "--command-argv"))
+    if key in st["crons"]:
+        st["crons"][key]["name"] = opt(rest, "--name")
+    else:
+        st["crons"][key] = {"id": "job-%03d" % st["next_id"], "enabled": False, "name": opt(rest, "--name")}
+        st["next_id"] += 1
+    out({"ok": True, "id": st["crons"][key]["id"]})
+elif cmd == ["cron", "list"]:
+    jobs = [{"id": v["id"], "name": v["name"], "declarationKey": k, "enabled": v["enabled"]}
+            for k, v in sorted(st["crons"].items())]
+    out({"jobs": jobs, "total": len(jobs), "limit": 200, "hasMore": False})
+elif cmd in (["cron", "edit"], ["cron", "enable"], ["cron", "disable"], ["cron", "rm"], ["cron", "run"]):
+    jid = rest[0] if rest else ""
+    hit = [k for k, v in st["crons"].items() if v["id"] == jid]
+    if not hit:
+        die("no such job %s" % jid, 1)
+    if cmd[1] == "enable":
+        st["crons"][hit[0]]["enabled"] = True
+    elif cmd[1] == "disable":
+        st["crons"][hit[0]]["enabled"] = False
+    elif cmd[1] == "rm":
+        del st["crons"][hit[0]]
+    out({"ok": True})
+elif cmd == ["cron", "runs"]:
+    out({"runs": []})
+elif argv[:1] == ["agent"]:
+    out({"ok": True, "agent": opt(argv, "--agent"), "text": "OK"})
+elif cmd == ["sandbox", "explain"]:
+    print("tools: none (fake)")
+elif argv[:1] == ["doctor"] or cmd == ["skills", "check"]:
+    print("ok")
+else:
+    die("unsupported command: %s" % " ".join(argv))
+save(st)

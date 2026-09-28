@@ -1,0 +1,16 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "error": true,
+  "error_code": "INTERNAL_ERROR"
+ },
+ "expect": {
+  "credits": 1.0,
+  "outcome": "server_error"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 500
+}

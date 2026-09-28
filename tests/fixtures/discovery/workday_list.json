@@ -1,0 +1,23 @@
+{
+ "total": 2,
+ "jobPostings": [
+  {
+   "title": "Data Analyst II",
+   "externalPath": "/job/Bengaluru/Data-Analyst-II_JR-004512",
+   "locationsText": "Bengaluru",
+   "postedOn": "Posted 3 Days Ago",
+   "bulletFields": [
+    "JR-004512"
+   ]
+  },
+  {
+   "title": "Data Analyst II",
+   "externalPath": "/job/Pune/Data-Analyst-II_JR-004513",
+   "locationsText": "Pune",
+   "postedOn": "Posted 30+ Days Ago",
+   "bulletFields": [
+    "JR-004513"
+   ]
+  }
+ ]
+}

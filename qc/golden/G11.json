@@ -1,0 +1,43 @@
+{
+ "id": "G11",
+ "channel": "email_cold",
+ "subject": "Analytics at Maple Freight",
+ "body": "Hi Leo,\n\nI saw that Maple Freight is building an analytics team. Growing teams usually need people who can turn data into decisions.\n\nAt Tidewater Freight I built reporting and forecasting, and RTO fell from 18% to 13% over two quarters. I think that experience could help your team as it grows.\n\nWould a 15 minute call next week be useful? If someone else owns this hire, a name is plenty.\n\nThanks,",
+ "recipient": {
+  "first_name": "Leo",
+  "last_name": "Grant",
+  "title": "Head of Analytics",
+  "company": "Maple Freight",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Maple Freight careers page: we are a growing logistics company building an analytics team.",
+   "snippet": "we are a growing logistics company building an analytics team",
+   "source_type": "company_site",
+   "source_url": "https://maplefreight.example/careers",
+   "published_at": null,
+   "retrieved_at": "2026-09-24"
+  }
+ },
+ "profile_facts": {
+  "P1": "Built reporting and the RTO forecasting model at Tidewater Freight; RTO fell from 18% to 13% over two quarters."
+ },
+ "hook": {
+  "anchor": "building an analytics team",
+  "source_type": "company_site",
+  "source_url": "https://maplefreight.example/careers",
+  "snippet": "we are a growing logistics company building an analytics team",
+  "published_at": null,
+  "retrieved_at": "2026-09-24",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "RTO fell from 18% to 13%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "generic hook: fails the swap test"
+}

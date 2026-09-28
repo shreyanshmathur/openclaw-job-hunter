@@ -1,0 +1,176 @@
+{
+ "version": 1,
+ "answers": [
+  {
+   "key": "full_name",
+   "patterns": [
+    "^full name$",
+    "^name$",
+    "^(first and last|legal) name$"
+   ],
+   "value": "",
+   "source": "resume",
+   "sensitive": false
+  },
+  {
+   "key": "first_name",
+   "patterns": [
+    "^first name$",
+    "^given name$"
+   ],
+   "value": "",
+   "source": "resume",
+   "sensitive": false
+  },
+  {
+   "key": "last_name",
+   "patterns": [
+    "^last name$",
+    "^surname$",
+    "^family name$"
+   ],
+   "value": "",
+   "source": "resume",
+   "sensitive": false
+  },
+  {
+   "key": "email",
+   "patterns": [
+    "^e-?mail( address)?$",
+    "^your e-?mail"
+   ],
+   "value": "",
+   "source": "profile",
+   "sensitive": false
+  },
+  {
+   "key": "phone",
+   "patterns": [
+    "phone",
+    "mobile"
+   ],
+   "value": "",
+   "source": "profile",
+   "sensitive": false
+  },
+  {
+   "key": "current_city",
+   "patterns": [
+    "current (city|location)",
+    "where are you (currently )?based"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "total_experience_years",
+   "patterns": [
+    "total (years of )?experience",
+    "years of (relevant )?experience"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "notice_period_days",
+   "patterns": [
+    "notice period"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "expected_ctc",
+   "patterns": [
+    "expected (ctc|salary|compensation|pay)",
+    "salary expectation"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": true
+  },
+  {
+   "key": "current_ctc",
+   "patterns": [
+    "current (ctc|salary|compensation|pay)"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": true
+  },
+  {
+   "key": "work_authorization",
+   "patterns": [
+    "authori[sz]ed to work",
+    "work permit",
+    "right to work"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "requires_sponsorship",
+   "patterns": [
+    "sponsorship"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "willing_to_relocate",
+   "patterns": [
+    "relocat"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": false
+  },
+  {
+   "key": "linkedin_url",
+   "patterns": [
+    "linkedin"
+   ],
+   "value": "",
+   "source": "profile",
+   "sensitive": false
+  },
+  {
+   "key": "github_url",
+   "patterns": [
+    "github"
+   ],
+   "value": "",
+   "source": "profile",
+   "sensitive": false
+  },
+  {
+   "key": "portfolio_url",
+   "patterns": [
+    "portfolio",
+    "personal (website|site)",
+    "^website$"
+   ],
+   "value": "",
+   "source": "profile",
+   "sensitive": false
+  },
+  {
+   "key": "eeo_choice",
+   "patterns": [
+    "gender",
+    "ethnicity",
+    "race",
+    "veteran",
+    "disability"
+   ],
+   "value": "",
+   "source": "user_confirmed",
+   "sensitive": true
+  }
+ ]
+}

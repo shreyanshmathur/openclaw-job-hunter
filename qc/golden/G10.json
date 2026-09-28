@@ -1,0 +1,51 @@
+{
+ "id": "G10",
+ "channel": "email_cold",
+ "subject": "Hourly invoice exports",
+ "body": "Hi Sam,\n\nThe Quarry Labs changelog from early September says invoice exports now run hourly instead of nightly. I made the same move at Tidewater Freight.\n\nWe went from nightly to 15-minute billing exports there, and late invoices fell from 4% to 1%. Your Data Engineer opening lists the export pipeline as the first project.\n\nWould a 15 minute call next week help? If someone else owns this hire, a name is plenty.\n\nThanks,",
+ "recipient": {
+  "first_name": "Sam",
+  "last_name": "Patel",
+  "title": "Engineering Manager",
+  "company": "Quarry Labs",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Quarry Labs changelog, 2026-09-05: moved invoice exports from nightly batch to hourly; export failures dropped to 0.5%.",
+   "snippet": "moved invoice exports from nightly batch to hourly; export failures dropped to 0.5%",
+   "source_type": "company_site",
+   "source_url": "https://quarrylabs.example/changelog",
+   "published_at": "2026-09-05",
+   "retrieved_at": "2026-09-24"
+  },
+  "R2": {
+   "text": "Quarry Labs job post, Data Engineer, posted 2026-09-08: the first project is the export pipeline.",
+   "snippet": "Data Engineer: the first project is the export pipeline",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/quarry/data-engineer",
+   "published_at": "2026-09-08",
+   "retrieved_at": "2026-09-24"
+  }
+ },
+ "profile_facts": {
+  "P1": "Moved the billing export pipeline at Tidewater Freight from nightly to 15-minute runs; late invoices fell from 4% to 1%."
+ },
+ "hook": {
+  "anchor": "invoice exports",
+  "source_type": "company_site",
+  "source_url": "https://quarrylabs.example/changelog",
+  "snippet": "moved invoice exports from nightly batch to hourly; export failures dropped to 0.5%",
+  "published_at": "2026-09-05",
+  "retrieved_at": "2026-09-24",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "late invoices fell from 4% to 1%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "changelog hook, matching proof"
+}

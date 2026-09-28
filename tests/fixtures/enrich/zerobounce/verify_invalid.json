@@ -1,0 +1,34 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "account": "example.person",
+  "address": "example.person@kestrel.example",
+  "city": null,
+  "country": null,
+  "did_you_mean": null,
+  "domain": "kestrel.example",
+  "domain_age_days": "4000",
+  "firstname": null,
+  "free_email": false,
+  "gender": null,
+  "lastname": null,
+  "mx_found": "true",
+  "mx_record": "mx.kestrel.example",
+  "processed_at": "2026-09-28 10:00:00.000",
+  "region": null,
+  "smtp_provider": "example",
+  "status": "invalid",
+  "sub_status": "mailbox_not_found",
+  "zipcode": null
+ },
+ "expect": {
+  "credits": 1.0,
+  "outcome": "invalid",
+  "verification": "invalid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "verify",
+ "status": 200
+}

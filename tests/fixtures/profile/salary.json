@@ -1,0 +1,30 @@
+{
+ "role_titles": [
+  "Data Analyst",
+  "Business Analyst"
+ ],
+ "city": "springfield",
+ "retrieved_at": "2026-09-27",
+ "sources": [
+  {
+   "url": "https://salaries.example.org/data-analyst-springfield",
+   "title": "Data Analyst salaries in Springfield",
+   "currency": "USD",
+   "period": "year",
+   "low": 55000,
+   "high": 80000,
+   "experience_band": "2 to 4 years",
+   "note": "median 68000"
+  },
+  {
+   "url": "https://jobs.example.net/salary/business-analyst",
+   "title": "Business Analyst pay",
+   "currency": "USD",
+   "period": "year",
+   "low": 58000,
+   "high": 82000,
+   "experience_band": "3 years",
+   "note": ""
+  }
+ ]
+}

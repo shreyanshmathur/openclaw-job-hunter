@@ -1,0 +1,24 @@
+[
+ {
+  "last_updated": 1790208000,
+  "legal": "Fictional legal notice for tests: credit and link back to Remote OK."
+ },
+ {
+  "slug": "remote-data-analyst-harbor-finch-1100231",
+  "id": "1100231",
+  "epoch": 1790208000,
+  "date": "2026-09-24T00:00:00+00:00",
+  "company": "Harbor Finch",
+  "position": "Data Analyst",
+  "tags": [
+   "data",
+   "sql"
+  ],
+  "description": "<p>Worldwide remote. SQL and Python.</p>",
+  "location": "Worldwide",
+  "salary_min": 30000,
+  "salary_max": 45000,
+  "apply_url": "https://remoteOK.com/remote-jobs/1100231/apply",
+  "url": "https://remoteOK.com/remote-jobs/remote-data-analyst-harbor-finch-1100231"
+ }
+]

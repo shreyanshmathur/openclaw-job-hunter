@@ -1,0 +1,27 @@
+From: Mail Delivery Subsystem <mailer-daemon@mail.example.com>
+To: sam.lee.sender@example.com
+Subject: Delivery Status Notification (Delay)
+Date: Tue, 29 Sep 2026 10:05:00 +0000
+Message-ID: <dsn-delay-1@mx.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; boundary="b2"; report-type=delivery-status
+
+--b2
+Content-Type: text/plain; charset="UTF-8"
+
+Message not delivered yet. Gmail will keep trying to deliver your message to alex.rivera@kestrel.example
+for another 45 hours.
+
+--b2
+Content-Type: message/delivery-status
+
+Final-Recipient: rfc822; alex.rivera@kestrel.example
+Action: delayed
+Status: 4.4.1
+
+--b2
+Content-Type: text/rfc822-headers
+
+Message-ID: <{TOKEN}@jobhunter.invalid>
+
+--b2--

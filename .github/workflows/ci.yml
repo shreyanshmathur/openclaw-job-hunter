@@ -1,0 +1,54 @@
+# CI for openclaw-job-hunter (design 10.1 and 13.2): Python tests, guard plugin tests, repo text and leak
+# checks, gitignore check, skill sync check, driver manifest check, bash 3.2 syntax and the fake-openclaw
+# install test.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Python version (system python3, 3.9 or newer)
+        run: /usr/bin/python3 --version
+
+      - name: Repo text rules (ASCII, no home paths, no spaced dashes in templates)
+        run: /usr/bin/python3 tools/textcheck.py
+
+      - name: Personal data and secrets
+        run: /usr/bin/python3 tools/leakcheck.py
+
+      - name: No personal or runtime files tracked
+        run: /usr/bin/python3 tools/check_gitignore.py
+
+      - name: Skill and template consistency
+        run: /usr/bin/python3 tools/sync_skills.py --check
+
+      - name: Page driver manifest is up to date
+        run: /usr/bin/python3 tools/gen_drivers.py --check
+
+      - name: Bash 3.2 syntax
+        run: |
+          /bin/bash --version | head -n 1
+          for f in install.sh uninstall.sh jobhunter macos/stay-awake.sh tools/install_hooks.sh; do
+            /bin/bash -n "$f"
+          done
+
+      - name: Python tests (includes the fake-openclaw install test)
+        run: /usr/bin/python3 -m unittest discover -s tests -p 'test_*.py' -t . -v
+
+      - name: Guard plugin tests
+        working-directory: openclaw/plugins/jobhunter-guard
+        run: node --test 'test/*.test.ts'

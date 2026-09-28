@@ -1,0 +1,44 @@
+[
+ {
+  "id": "5d3c1a2b-0000-4000-8000-000000000001",
+  "text": "Business Analyst, Supply Chain",
+  "categories": {
+   "location": "Bengaluru",
+   "commitment": "Full-time",
+   "team": "Analytics",
+   "allLocations": [
+    "Bengaluru"
+   ]
+  },
+  "createdAt": 1790208000000,
+  "workplaceType": "hybrid",
+  "descriptionPlain": "Tidemark Analytics builds planning tools for retailers.",
+  "lists": [
+   {
+    "text": "What you will do",
+    "content": "<li>Own weekly demand reports</li><li>3+ years with SQL</li>"
+   }
+  ],
+  "additionalPlain": "Hybrid in Bengaluru.",
+  "hostedUrl": "https://jobs.lever.co/tidemark/5d3c1a2b-0000-4000-8000-000000000001",
+  "applyUrl": "https://jobs.lever.co/tidemark/5d3c1a2b-0000-4000-8000-000000000001/apply",
+  "salaryRange": {
+   "min": 1800000,
+   "max": 2600000,
+   "currency": "INR",
+   "interval": "per-year-salary"
+  }
+ },
+ {
+  "id": "5d3c1a2b-0000-4000-8000-000000000002",
+  "text": "Analytics Intern",
+  "categories": {
+   "location": "Bengaluru",
+   "commitment": "Internship"
+  },
+  "createdAt": 1790208000000,
+  "workplaceType": "on-site",
+  "descriptionPlain": "Six month internship.",
+  "hostedUrl": "https://jobs.lever.co/tidemark/5d3c1a2b-0000-4000-8000-000000000002"
+ }
+]

@@ -1,0 +1,2475 @@
+{
+ "_comment": "INT recording of the default web_ui email route (skills jobhunter-gate and jobhunter-gmail-web) in the tool-call shapes OpenClaw hands the guard, for tests/test_e2e_web_email.py. `pages` are recorded-shape Gmail pages (fictional people, reserved .example domains) in the fake DOM of tests/test_drivers_static.py; the test runs the real drivers on them and puts each driver's output into the evaluate result it belongs to ({LIST_...}, {COMPOSE_OUT}, ...). {URL}, {RECIPIENT}, {SUBJECT}, {BODY_TYPED} and the other names are filled in by the test. Steps with an expect code are mutations the guard must refuse; they never run. `send` confirms with the Sent-folder read-back ({READBACK}, --observed-file); `sent_changed` is the same send whose Sent copy differs from the approved text, so `gate confirm` exits 6 and the token is unknown.",
+ "pages": {
+  "inbox": {
+   "host": "mail.google.com",
+   "href": "{URL_INBOX}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "cls": "TC",
+         "text": "No new mail!"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "search_empty": {
+   "host": "mail.google.com",
+   "href": "{URL}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "cls": "TC",
+         "text": "No messages matched your search. Try using search options such as sender, date, size and more."
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "compose": {
+   "host": "mail.google.com",
+   "href": "{URL_INBOX}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "cls": "TC",
+         "text": "No new mail!"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "dialog",
+        "aria-label": "New Message"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "cls": "aoD",
+         "children": [
+          {
+           "tag": "span",
+           "attrs": {
+            "email": "{RECIPIENT}",
+            "name": "{RECIPIENT}"
+           },
+           "text": "{RECIPIENT}"
+          }
+         ]
+        },
+        {
+         "tag": "input",
+         "attrs": {
+          "name": "subjectbox",
+          "type": "text",
+          "aria-label": "Subject"
+         },
+         "value": "{SUBJECT}"
+        },
+        {
+         "tag": "div",
+         "attrs": {
+          "contenteditable": "true",
+          "role": "textbox",
+          "aria-label": "Message Body"
+         },
+         "text": "{BODY_TYPED}"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "sent_toast": {
+   "host": "mail.google.com",
+   "href": "{URL_INBOX}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "alert"
+       },
+       "text": "Message sent"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "cls": "TC",
+         "text": "No new mail!"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "sent_search_hit": {
+   "host": "mail.google.com",
+   "href": "{URL_SENT_CHECK}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "table",
+         "children": [
+          {
+           "tag": "tr",
+           "cls": "zA yO",
+           "children": [
+            {
+             "tag": "td",
+             "cls": "yX",
+             "children": [
+              {
+               "tag": "span",
+               "attrs": {
+                "email": "{RECIPIENT}",
+                "name": "{RECIPIENT}"
+               },
+               "text": "To: {RECIPIENT}"
+              }
+             ]
+            },
+            {
+             "tag": "td",
+             "cls": "xY",
+             "children": [
+              {
+               "tag": "span",
+               "cls": "bog",
+               "attrs": {
+                "data-legacy-thread-id": "{THREAD_ID}"
+               },
+               "text": "{SUBJECT}"
+              },
+              {
+               "tag": "span",
+               "cls": "y2",
+               "text": " - {SNIPPET}"
+              }
+             ]
+            },
+            {
+             "tag": "td",
+             "cls": "xW",
+             "children": [
+              {
+               "tag": "span",
+               "attrs": {
+                "title": "{SENT_TITLE}"
+               },
+               "text": "{SENT_SHORT}"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "text": "1-1 of 1"
+      }
+     ]
+    }
+   ]
+  },
+  "sent_message": {
+   "host": "mail.google.com",
+   "href": "{URL_THREAD}",
+   "title": "Inbox - {OWNER} - Gmail",
+   "children": [
+    {
+     "tag": "body",
+     "children": [
+      {
+       "tag": "a",
+       "attrs": {
+        "aria-label": "Google Account: Sam Lee ({OWNER})"
+       },
+       "text": "S"
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "navigation"
+       },
+       "children": [
+        {
+         "tag": "div",
+         "text": "Compose"
+        },
+        {
+         "tag": "a",
+         "text": "Inbox"
+        },
+        {
+         "tag": "a",
+         "text": "Sent"
+        }
+       ]
+      },
+      {
+       "tag": "div",
+       "attrs": {
+        "role": "main"
+       },
+       "children": [
+        {
+         "tag": "h2",
+         "cls": "hP",
+         "attrs": {
+          "data-legacy-thread-id": "{THREAD_ID}"
+         },
+         "text": "{SUBJECT}"
+        },
+        {
+         "tag": "div",
+         "cls": "adn ads",
+         "attrs": {
+          "data-message-id": "#msg-f:17{THREAD_ID}",
+          "data-legacy-message-id": "{THREAD_ID}"
+         },
+         "children": [
+          {
+           "tag": "span",
+           "cls": "gD",
+           "attrs": {
+            "email": "{OWNER}",
+            "name": "Sam Lee"
+           },
+           "text": "Sam Lee"
+          },
+          {
+           "tag": "div",
+           "cls": "iw",
+           "children": [
+            {
+             "tag": "span",
+             "cls": "g2",
+             "attrs": {
+              "email": "{RECIPIENT}",
+              "name": "{RECIPIENT}"
+             },
+             "text": "{RECIPIENT}"
+            }
+           ]
+          },
+          {
+           "tag": "span",
+           "cls": "g3",
+           "attrs": {
+            "title": "{SENT_TITLE}"
+           },
+           "text": "{SENT_SHORT}"
+          },
+          {
+           "tag": "div",
+           "cls": "a3s",
+           "hidden": false,
+           "children": [
+            {
+             "tag": "div",
+             "text": "{BODY_TYPED}"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "send": {
+  "name": "web_email_send",
+  "agent": "jobhunter-outreach",
+  "session": "agent:jobhunter-outreach:cron:e2e-web-email",
+  "steps": [
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py preflight --lane outreach",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "CYCLE": "cycle_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:detect_page}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{DETECT_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/detect-1.json",
+     "content": "{DETECT_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} detect --file {WS}/work/{CYCLE}/detect-1.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_identity}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{IDENTITY_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/identity.json",
+     "content": "{IDENTITY_OUT}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} identity check --platform gmail --file {WS}/work/{CYCLE}/identity.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck-plan --kind cold_email --contact {CONTACT}",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_TO}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_TO}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_COMPANY}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_COMPANY}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_OUTBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_OUTBOX}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SCHEDULED}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SCHEDULED}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/precheck.json",
+     "content": "{PRECHECK_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck --kind cold_email --platform gmail --contact {CONTACT} --file {WS}/work/{CYCLE}/precheck.json",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "PRECHECK": "precheck_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: Compose (a fill step) before gate reserve"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform gmail --kind write",
+     "timeoutSeconds": 90
+    },
+    "repeat_while": "remaining_s"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate reserve --kind cold_email --draft {DRAFT} --precheck {PRECHECK} --platform gmail --contact {CONTACT}",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "TOKEN": "token"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} draft show {DRAFT} --field send_text",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "APPROVED": "value"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- dialog \"New Message\" [ref=e30]\n  - combobox \"To recipients\" [ref=e31]\n  - textbox \"Subject\" [ref=e32]\n  - textbox \"Message Body\" [ref=e33]\n  - button \"Send\" [ref=e34]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e31",
+     "text": "{RECIPIENT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e32",
+     "text": "{SUBJECT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e33",
+     "text": "{BODY_TYPED}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NOT_ARMED",
+    "note": "mutation: Send before gate arm"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_compose}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{COMPOSE_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "content": "{OBSERVED}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate arm {TOKEN} --observed-file {WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NOT_ARMED",
+    "note": "mutation: Send without the dwell"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform gmail --kind dwell",
+     "timeoutSeconds": 90
+    },
+    "repeat_while": "remaining_s"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- alert \"Message sent\" [ref=e40]\n- link \"View message\" [ref=e41]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_toast}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{TOAST_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_CHECK}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_CHECK}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{SENT_LIST}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_CHECK}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_THREAD}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- heading \"{SUBJECT}\" [level=2] [ref=e60]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_THREAD}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_message}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{SENT_MESSAGE}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_THREAD}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/evidence-{TOKEN}.txt",
+     "content": "{EVIDENCE}"
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/ref-{TOKEN}.json",
+     "content": "{\"url\": \"{URL_THREAD}\"}"
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/readback-{TOKEN}.txt",
+     "content": "{READBACK}"
+    },
+    "note": "the readback_text of the newest message from the owner in the Sent copy (read_gmail_message.js)"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate confirm {TOKEN} --evidence-file {WS}/work/{CYCLE}/evidence-{TOKEN}.txt --platform-ref-file {WS}/work/{CYCLE}/ref-{TOKEN}.json --observed-file {WS}/work/{CYCLE}/readback-{TOKEN}.txt",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: a second Send"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}",
+     "timeoutSeconds": 90
+    }
+   }
+  ]
+ },
+ "mismatch": {
+  "name": "web_email_mismatch",
+  "agent": "jobhunter-outreach",
+  "session": "agent:jobhunter-outreach:cron:e2e-web-email",
+  "steps": [
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py preflight --lane outreach",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "CYCLE": "cycle_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:detect_page}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{DETECT_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/detect-1.json",
+     "content": "{DETECT_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} detect --file {WS}/work/{CYCLE}/detect-1.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_identity}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{IDENTITY_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/identity.json",
+     "content": "{IDENTITY_OUT}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} identity check --platform gmail --file {WS}/work/{CYCLE}/identity.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck-plan --kind cold_email --contact {CONTACT}",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_TO}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_TO}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_COMPANY}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_COMPANY}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_OUTBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_OUTBOX}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SCHEDULED}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SCHEDULED}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/precheck.json",
+     "content": "{PRECHECK_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck --kind cold_email --platform gmail --contact {CONTACT} --file {WS}/work/{CYCLE}/precheck.json",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "PRECHECK": "precheck_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: Compose (a fill step) before gate reserve"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform gmail --kind write",
+     "timeoutSeconds": 90
+    },
+    "repeat_while": "remaining_s"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate reserve --kind cold_email --draft {DRAFT} --precheck {PRECHECK} --platform gmail --contact {CONTACT}",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "TOKEN": "token"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} draft show {DRAFT} --field send_text",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "APPROVED": "value"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- dialog \"New Message\" [ref=e30]\n  - combobox \"To recipients\" [ref=e31]\n  - textbox \"Subject\" [ref=e32]\n  - textbox \"Message Body\" [ref=e33]\n  - button \"Send\" [ref=e34]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e31",
+     "text": "{RECIPIENT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e32",
+     "text": "{SUBJECT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e33",
+     "text": "{BODY_TYPED}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NOT_ARMED",
+    "note": "mutation: Send before gate arm"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_compose}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{COMPOSE_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "content": "{OBSERVED}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate arm {TOKEN} --observed-file {WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "timeoutSeconds": 90
+    },
+    "jh_code": "E_OBSERVED_MISMATCH",
+    "note": "the compose window does not hold the approved text: the token fails, nothing is sent"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: Send after the refusal"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "close"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "closed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}",
+     "timeoutSeconds": 90
+    }
+   }
+  ]
+ },
+ "sent_changed": {
+  "name": "web_email_sent_changed",
+  "agent": "jobhunter-outreach",
+  "session": "agent:jobhunter-outreach:cron:e2e-web-email-sent",
+  "steps": [
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py preflight --lane outreach",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "CYCLE": "cycle_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:detect_page}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{DETECT_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/detect-1.json",
+     "content": "{DETECT_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} detect --file {WS}/work/{CYCLE}/detect-1.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_identity}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{IDENTITY_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/identity.json",
+     "content": "{IDENTITY_OUT}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} identity check --platform gmail --file {WS}/work/{CYCLE}/identity.json",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck-plan --kind cold_email --contact {CONTACT}",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_TO}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_TO}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_TO}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_COMPANY}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SENT_COMPANY}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_COMPANY}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_OUTBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_OUTBOX}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_OUTBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SCHEDULED}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{LIST_SCHEDULED}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SCHEDULED}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/precheck.json",
+     "content": "{PRECHECK_FILE}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate precheck --kind cold_email --platform gmail --contact {CONTACT} --file {WS}/work/{CYCLE}/precheck.json",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "PRECHECK": "precheck_id"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_INBOX}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- button \"Compose\" [ref=e5]\n- link \"Inbox\" [ref=e6]\n- link \"Sent\" [ref=e7]\n- main \"No new mail!\" [ref=e8]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: Compose (a fill step) before gate reserve"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform gmail --kind write",
+     "timeoutSeconds": 90
+    },
+    "repeat_while": "remaining_s"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate reserve --kind cold_email --draft {DRAFT} --precheck {PRECHECK} --platform gmail --contact {CONTACT}",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "TOKEN": "token"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} draft show {DRAFT} --field send_text",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "APPROVED": "value"
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e5"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- dialog \"New Message\" [ref=e30]\n  - combobox \"To recipients\" [ref=e31]\n  - textbox \"Subject\" [ref=e32]\n  - textbox \"Message Body\" [ref=e33]\n  - button \"Send\" [ref=e34]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e31",
+     "text": "{RECIPIENT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e32",
+     "text": "{SUBJECT}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "type",
+     "ref": "e33",
+     "text": "{BODY_TYPED}",
+     "slowly": true
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "typed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NOT_ARMED",
+    "note": "mutation: Send before gate arm"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_compose}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{COMPOSE_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "content": "{OBSERVED}"
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate arm {TOKEN} --observed-file {WS}/work/{CYCLE}/observed-{TOKEN}.txt",
+     "timeoutSeconds": 90
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NOT_ARMED",
+    "note": "mutation: Send without the dwell"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} pace wait --platform gmail --kind dwell",
+     "timeoutSeconds": 90
+    },
+    "repeat_while": "remaining_s"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- alert \"Message sent\" [ref=e40]\n- link \"View message\" [ref=e41]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_toast}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{TOAST_OUT}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_INBOX}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_SENT_CHECK}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- main \"Search results\" [ref=e50]\n- button \"Compose\" [ref=e5]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_CHECK}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_list}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{SENT_LIST}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_SENT_CHECK}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "navigate",
+     "targetUrl": "{URL_THREAD}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "- heading \"{SUBJECT}\" [level=2] [ref=e60]"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_THREAD}"
+     }
+    }
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "evaluate",
+     "fn": "{DRIVER:read_gmail_message}"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "{SENT_MESSAGE}"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_THREAD}"
+     }
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/evidence-{TOKEN}.txt",
+     "content": "{EVIDENCE}"
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/ref-{TOKEN}.json",
+     "content": "{\"url\": \"{URL_THREAD}\"}"
+    }
+   },
+   {
+    "tool": "write",
+    "params": {
+     "path": "{WS}/work/{CYCLE}/readback-{TOKEN}.txt",
+     "content": "{READBACK}"
+    },
+    "note": "the readback_text of the newest message from the owner in the Sent copy (read_gmail_message.js)"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate confirm {TOKEN} --evidence-file {WS}/work/{CYCLE}/evidence-{TOKEN}.txt --platform-ref-file {WS}/work/{CYCLE}/ref-{TOKEN}.json --observed-file {WS}/work/{CYCLE}/readback-{TOKEN}.txt",
+     "timeoutSeconds": 90
+    },
+    "jh_code": "E_OBSERVED_MISMATCH",
+    "note": "the Sent copy is not the approved text: exit 6, the token is unknown now and reconcile decides"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "act",
+     "kind": "click",
+     "ref": "e34"
+    },
+    "expect": "G_NO_TOKEN",
+    "note": "mutation: send again after the mismatch"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} gate confirm {TOKEN} --evidence-file {WS}/work/{CYCLE}/evidence-{TOKEN}.txt --platform-ref-file {WS}/work/{CYCLE}/ref-{TOKEN}.json",
+     "timeoutSeconds": 90
+    },
+    "jh_code": "E_BAD_TRANSITION",
+    "note": "mutation: confirm without the read-back after the mismatch"
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py --cycle {CYCLE} reconcile list --route browser",
+     "timeoutSeconds": 90
+    },
+    "save": {
+     "RECON": "tasks"
+    },
+    "note": "reconcile owns the unknown token: the Sent, Outbox and Scheduled searches"
+   },
+   {
+    "tool": "browser",
+    "params": {
+     "profile": "jobhunter",
+     "action": "close"
+    },
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "closed"
+      }
+     ],
+     "details": {
+      "ok": true,
+      "targetId": "t1",
+      "url": "{URL_THREAD}"
+     }
+    }
+   },
+   {
+    "tool": "exec",
+    "params": {
+     "command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}",
+     "timeoutSeconds": 90
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "offset": 0,
+ "limit": 100,
+ "totalFound": 1,
+ "content": [
+  {
+   "id": "744000012345678",
+   "name": "Data Analyst",
+   "uuid": "0000",
+   "refNumber": "REF1",
+   "company": {
+    "identifier": "HarborFinch",
+    "name": "Harbor Finch"
+   },
+   "releasedDate": "2026-09-23T08:00:00.000Z",
+   "location": {
+    "city": "Bengaluru",
+    "region": "KA",
+    "country": "in",
+    "remote": false,
+    "hybrid": true
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "label": "Associate"
+   }
+  }
+ ]
+}

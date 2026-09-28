@@ -1,0 +1,124 @@
+{
+ "version": 1,
+ "profile_version": "0000000000000000000000000000000000000000000000000000000000000000",
+ "fields": {
+  "role_families": {
+   "value": [
+    {
+     "name": "Data analytics",
+     "titles": [
+      "Data Analyst",
+      "Business Analyst"
+     ],
+     "include": [
+      "analyst",
+      "analytics"
+     ],
+     "exclude": [
+      "director",
+      "intern"
+     ]
+    }
+   ],
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "roles_avoid": {
+   "value": [
+    "director",
+    "intern"
+   ],
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "seniority": {
+   "value": {
+    "min": "associate",
+    "max": "senior"
+   },
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "experience_years": {
+   "value": 3.0,
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "salary": {
+   "value": {
+    "currency": "USD",
+    "period": "year",
+    "floor": 60000,
+    "target": 72000,
+    "may_state_expected_in_forms": true
+   },
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "notice_period_days": {
+   "value": 30,
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "locations": {
+   "value": {
+    "cities": [
+     "springfield",
+     "remote"
+    ],
+    "work_modes": [
+     "remote",
+     "hybrid"
+    ],
+    "relocate": false
+   },
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "work_authorization": {
+   "value": {
+    "US": "citizen",
+    "other": "needs_sponsorship"
+   },
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "company_exclusions_note": {
+   "value": "current employer added to exclusions",
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "sites_enabled": {
+   "value": [
+    "ats_forms"
+   ],
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "email_outreach": {
+   "value": true,
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  },
+  "linkedin": {
+   "value": {
+    "enabled": false
+   },
+   "source": "user_confirmed",
+   "confirmed_at": "2026-09-27T05:00:00Z"
+  }
+ },
+ "facts": {
+  "P1": {
+   "text": "Built the COD return-risk model at Tidemark Logistics; RTO fell from 18% to 13% in two quarters.",
+   "source": "resume.txt, Experience, role 1, bullet 2"
+  },
+  "P2": {
+   "text": "Built weekly returns forecasts in SQL and Python for 40 warehouses at Tidemark Logistics.",
+   "source": "resume.txt, Experience, role 1, bullet 1"
+  }
+ },
+ "answers": {},
+ "inferred": {},
+ "open_questions": []
+}

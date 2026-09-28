@@ -1,0 +1,48 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "data": {
+   "accept_all": false,
+   "email": "example.person@kestrel.example",
+   "first_name": "Example",
+   "full_name": "Example Person",
+   "last_name": "Person",
+   "linkedin": "https://www.linkedin.com/in/example-person",
+   "phone_data": {
+    "number": "+10000000000",
+    "valid": true
+   },
+   "phone_number": "+10000000000",
+   "position": "Engineering Manager",
+   "score": 95,
+   "sources": [
+    {
+     "extracted_on": "2026-05-01",
+     "last_seen_on": "2026-09-01",
+     "still_on_page": true,
+     "uri": "https://kestrel.example/about",
+     "website_url": "kestrel.example"
+    },
+    {
+     "still_on_page": true,
+     "uri": "https://www.linkedin.com/in/example-person"
+    }
+   ],
+   "verification": {
+    "date": "2026-09-20",
+    "status": "valid"
+   }
+  }
+ },
+ "expect": {
+  "credits": 1.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_linkedin",
+ "status": 200
+}

@@ -1,0 +1,27 @@
+{
+ "jobs": [
+  {
+   "id": 4100001,
+   "title": "Data Analyst",
+   "updated_at": "2026-09-28T10:00:00-04:00",
+   "first_published": "2026-09-27T09:00:00-04:00",
+   "location": {"name": "Remote"},
+   "absolute_url": "https://growthvalley.example/careers?gh_jid=4100001",
+   "company_name": "Growth Valley",
+   "internal_job_id": 9001,
+   "metadata": null
+  },
+  {
+   "id": 4100002,
+   "title": "Director of Sales",
+   "updated_at": "2026-09-28T10:00:00-04:00",
+   "first_published": "2026-09-27T09:00:00-04:00",
+   "location": {"name": "Remote"},
+   "absolute_url": "https://job-boards.greenhouse.io/growthvalley/jobs/4100002",
+   "company_name": "Growth Valley",
+   "internal_job_id": 9002,
+   "metadata": null
+  }
+ ],
+ "meta": {"total": 2}
+}

@@ -1,0 +1,2 @@
+{"kind": "followup_email", "platform": "gmail", "observed_at": "2026-09-29T08:58:00Z",
+ "checks": [{"name": "thread_has_reply", "value": true}, {"name": "company_inbound_since_first", "value": 0}]}

@@ -1,0 +1,22 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "_unverified": true,
+ "body": {
+  "contact": {
+   "domain": "kestrel.example",
+   "email": "example.person@kestrel.example",
+   "name": "Example Person"
+  }
+ },
+ "expect": {
+  "credits": 1.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

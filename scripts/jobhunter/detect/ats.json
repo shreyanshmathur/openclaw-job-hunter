@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "platform": "ats",
+  "hosts": ["greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com", "smartrecruiters.com", "workable.com", "recruitee.com", "bamboohr.com"],
+  "notes": "Signatures for ATS application forms (design 4.5). A visible CAPTCHA or an account wall trips no breaker: the verdict is stop for this job only (trip false, job_needs_human names the job set-status reason). HTTP 429 trips the ats scope. Same regex rules as linkedin.json.",
+  "signatures": [
+    {"id": "ats_captcha", "verdict": "stop", "trip": false, "job_needs_human": "captcha_visible", "text": "captcha|verify (that )?you.re (a )?human|i.m not a robot"},
+    {"id": "ats_account_wall", "verdict": "stop", "trip": false, "job_needs_human": "account_required", "text": "create an account|create account to apply|sign up to apply|log ?in to apply"},
+    {"id": "ats_http_block", "verdict": "stop", "trip": true, "reason_code": "ats_blocked", "http_status": [429]}
+  ],
+  "error_after_click": [
+    {"id": "ats_error_generic", "text": "there was an error|please try again|could not be submitted|submission failed|something went wrong"}
+  ]
+}

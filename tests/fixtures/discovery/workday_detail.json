@@ -1,0 +1,17 @@
+{
+ "jobPostingInfo": {
+  "id": "abc",
+  "title": "Data Analyst II",
+  "jobDescription": "<p>Kestrel Freight needs an analyst for route planning.</p>",
+  "location": "Bengaluru",
+  "postedOn": "Posted 3 Days Ago",
+  "startDate": "2026-09-24",
+  "timeType": "Full time",
+  "jobReqId": "JR-004512",
+  "canApply": true,
+  "remoteType": "Hybrid"
+ },
+ "hiringOrganization": {
+  "name": "Kestrel Freight"
+ }
+}

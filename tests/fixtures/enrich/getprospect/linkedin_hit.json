@@ -1,0 +1,30 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "_unverified": true,
+ "body": {
+  "company": [
+   {
+    "name": "Kestrel Commerce"
+   }
+  ],
+  "email": "example.person@kestrel.example",
+  "emailCheckedAt": "2026-09-01",
+  "firstName": "Example",
+  "geolocation": {
+   "country": "Example"
+  },
+  "lastName": "Person",
+  "status": "valid"
+ },
+ "expect": {
+  "credits": 1.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_linkedin",
+ "status": 200
+}

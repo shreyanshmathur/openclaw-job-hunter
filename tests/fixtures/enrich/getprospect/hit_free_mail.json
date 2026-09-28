@@ -1,0 +1,20 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "_unverified": true,
+ "body": {
+  "email": "example.person@mail.example",
+  "free_email": true,
+  "status": "valid"
+ },
+ "expect": {
+  "credits": 1.0,
+  "free_mail_flag": true,
+  "outcome": "hit",
+  "verification": "valid"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

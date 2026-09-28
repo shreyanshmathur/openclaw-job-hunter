@@ -1,0 +1,25 @@
+{
+ "id": "744000012345678",
+ "name": "Data Analyst",
+ "releasedDate": "2026-09-23T08:00:00.000Z",
+ "jobAd": {
+  "sections": {
+   "companyDescription": {
+    "title": "Company",
+    "text": "<p>Harbor Finch runs clinics.</p>"
+   },
+   "jobDescription": {
+    "title": "Job",
+    "text": "<p>Analyse patient flow with SQL.</p>"
+   },
+   "qualifications": {
+    "title": "You",
+    "text": "<ul><li>2+ years of analytics</li></ul>"
+   },
+   "additionalInformation": {
+    "title": "More",
+    "text": "<p>Hybrid role.</p>"
+   }
+  }
+ }
+}

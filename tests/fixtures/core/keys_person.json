@@ -1,0 +1,14 @@
+{
+  "same_person": [
+    {"name": "gmail dots, googlemail and +tag", "inputs": [{"email": "alex.rivera@{gmail}"}, {"email": "AlexRivera+jobs@{googlemail}"}, {"email": "a.l.e.x.rivera@{gmail}"}]},
+    {"name": "+tag on a company domain", "inputs": [{"email": "alex.rivera@kestrel.example"}, {"email": "alex.rivera+hiring@kestrel.example"}]},
+    {"name": "vanity slug variants", "inputs": [{"linkedin_url": "https://www.linkedin.com/in/example-alex-rivera/"}, {"linkedin_url": "https://in.linkedin.com/in/Example-Alex-Rivera?trk=x"}, {"linkedin_url": "linkedin.com/in/example%2Dalex%2Drivera"}]},
+    {"name": "name at a company", "inputs": [{"full_name": "Alex Rivera", "company_uid": "KAAAAAAA"}, {"full_name": "Dr. Alex J. Rivera", "company_uid": "KAAAAAAA"}]}
+  ],
+  "different": [
+    [{"email": "alex.rivera@kestrel.example"}, {"email": "alexrivera@kestrel.example"}],
+    [{"full_name": "Alex Rivera", "company_uid": "KAAAAAAA"}, {"full_name": "Alex Rivera", "company_uid": "KBBBBBBB"}]
+  ],
+  "needs_vanity": ["https://www.{li_in}/ACoAABcdEfGh123", "https://www.linkedin.com/pub/alex-rivera/1/2/3", "https://www.linkedin.com/sales/lead/ACwAAA123,NAME_SEARCH,abc"],
+  "rejected": ["https://lnkd.in/abc123", "https://www.linkedin.com/company/kestrel", "not-an-email@", "https://example.com/in/alex"]
+}

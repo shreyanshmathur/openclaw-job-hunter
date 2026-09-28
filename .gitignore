@@ -1,0 +1,40 @@
+# personal data and runtime state (never commit)
+/private/
+# named on their own as well (already covered by /private/): email finder API keys and per-site browser consent
+/private/enrich_keys.json
+/private/consent.json
+/state/
+/logs/
+/exports/
+/resumes/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+.env
+.env.*
+secrets.json
+*.pdf
+*.docx
+*.png
+*.jpg
+*.jpeg
+*.har
+# live agent workspaces must never exist inside the repo (they are rendered to WS_ROOT)
+/workspaces/
+/agent-templates/**/AGENTS.md
+/agent-templates/**/SKILL.md
+/agent-templates/**/memory/
+/agent-templates/**/.git/
+/shared-skills/*/SKILL.md
+/skills-src/*/SKILL.md
+# node and python noise
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+# allow committed fixtures and docs images explicitly
+!/tests/fixtures/**
+!/openclaw/plugins/jobhunter-guard/test/fixtures/**
+!/docs/img/**

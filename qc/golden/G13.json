@@ -1,0 +1,45 @@
+{
+ "id": "G13",
+ "channel": "email_cold",
+ "subject": "Forecasting at Lumen",
+ "body": "Hi Priya,\n\nYour profile says the Head of Data at Lumen Grocers leads forecasting and reporting. That means you own how the whole company plans stock.\n\nAt Fernleaf Grocers I rebuilt demand forecasting at store-zone level, and stockouts in new zones fell from 11% to 6% in one quarter.\n\nWould a 15 minute call next week be useful? If someone else owns this hire, a name is plenty.\n\nThanks,",
+ "recipient": {
+  "first_name": "Priya",
+  "last_name": "Menon",
+  "title": "Head of Data",
+  "company": "Lumen Grocers",
+  "locale": "IN"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Priya Menon LinkedIn profile: Head of Data at Lumen Grocers, leads forecasting and reporting.",
+   "snippet": "Head of Data at Lumen Grocers, leads forecasting and reporting",
+   "source_type": "linkedin_profile",
+   "source_url": "https://www.linkedin.com/in/example-person",
+   "published_at": null,
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "At Fernleaf Grocers, rebuilt demand forecasting at store-zone level; stockouts in new zones fell from 11% to 6% in one quarter.",
+  "P2": "3 years as a data analyst at Fernleaf Grocers.",
+  "P3": "Wrote a one-page note on zone-level feature selection, published at https://example.com/zone-notes"
+ },
+ "hook": {
+  "anchor": "leads forecasting and reporting",
+  "source_type": "linkedin_profile",
+  "source_url": "https://www.linkedin.com/in/example-person",
+  "snippet": "Head of Data at Lumen Grocers, leads forecasting and reporting",
+  "published_at": null,
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "fell from 11% to 6%",
+   "fact_id": "P1"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "restates the recipient's own job as the hook"
+}

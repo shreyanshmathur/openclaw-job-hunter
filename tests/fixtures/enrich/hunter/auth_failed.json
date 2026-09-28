@@ -1,0 +1,21 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "errors": [
+   {
+    "code": 401,
+    "details": "No user found for the API key supplied",
+    "id": "authentication_failed"
+   }
+  ]
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "auth_failed"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 401
+}

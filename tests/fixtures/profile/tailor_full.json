@@ -1,0 +1,44 @@
+{
+ "job_uid": "JAAAAAAA",
+ "mode": "full",
+ "summary": {
+  "text": "Analyst who builds forecasting and risk models in SQL and Python.",
+  "fact_ids": [
+   "P2",
+   "P1"
+  ]
+ },
+ "sections_order": [
+  "summary",
+  "experience",
+  "skills",
+  "projects",
+  "education"
+ ],
+ "experience": [
+  {
+   "role_id": "E1",
+   "bullets": [
+    {
+     "from": "E1.B2",
+     "text": "Built a return-risk model for COD orders that cut RTO from 18% to 13% in two quarters."
+    },
+    {
+     "from": "E1.B1",
+     "text": "Forecast weekly returns for 40 warehouses using SQL and Python."
+    }
+   ]
+  }
+ ],
+ "projects": [
+  {
+   "project_id": "PR1",
+   "include": true
+  }
+ ],
+ "skills_order": [
+  "Python",
+  "SQL",
+  "Forecasting"
+ ]
+}

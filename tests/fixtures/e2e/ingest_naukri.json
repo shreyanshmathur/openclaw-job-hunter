@@ -1,0 +1,23 @@
+{
+ "source": "naukri",
+ "discovered_via": "browser",
+ "jobs": [
+  {
+   "source_url": "https://www.naukri.com/job-listings-data-analyst-kestrel-commerce-remote-2-to-4-years-290926000001",
+   "apply_url": "https://www.naukri.com/job-listings-data-analyst-kestrel-commerce-remote-2-to-4-years-290926000001",
+   "company": "Kestrel Commerce",
+   "company_domain": "kestrel.example",
+   "title": "Data Analyst",
+   "location": "Remote",
+   "work_mode": "remote",
+   "remote_scope": "US",
+   "employment_type": "full_time",
+   "posted_at": "2026-09-27",
+   "years": {"min": 2, "max": 4},
+   "salary": {"min": 65000, "max": 80000, "currency": "USD", "period": "year"},
+   "apply_route_hint": "board_inapp",
+   "jd_text": "Kestrel Commerce needs a Data Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US.",
+   "native_ids": {}
+  }
+ ]
+}

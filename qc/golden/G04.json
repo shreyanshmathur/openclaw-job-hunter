@@ -1,0 +1,48 @@
+{
+ "id": "G04",
+ "channel": "li_connect",
+ "subject": null,
+ "body": "Hi Priya, your post on stockouts in new zones matched what we saw at Fernleaf, where they fell from 11% to 6%. I'd like to follow your team's work at Lumen.",
+ "recipient": {
+  "first_name": "Priya",
+  "last_name": "Menon",
+  "title": "Head of Data",
+  "company": "Lumen Grocers",
+  "locale": "IN"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Lumen Grocers engineering blog, 2026-09-02: we still forecast demand per city, and stockouts in new zones run at 9%.",
+   "snippet": "we still forecast demand per city, and stockouts in new zones run at 9%",
+   "source_type": "engineering_blog",
+   "source_url": "https://lumen.example/blog/zone-forecasts",
+   "published_at": "2026-09-02",
+   "retrieved_at": "2026-09-25"
+  },
+  "R2": {
+   "text": "Lumen Grocers job post, Senior Data Analyst, posted 2026-09-10: owns demand forecasting for new zones.",
+   "snippet": "Senior Data Analyst: owns demand forecasting for new zones",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/lumen/senior-data-analyst",
+   "published_at": "2026-09-10",
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "At Fernleaf Grocers, rebuilt demand forecasting at store-zone level; stockouts in new zones fell from 11% to 6% in one quarter.",
+  "P2": "3 years as a data analyst at Fernleaf Grocers.",
+  "P3": "Wrote a one-page note on zone-level feature selection, published at https://example.com/zone-notes"
+ },
+ "hook": {
+  "anchor": "stockouts in new zones",
+  "source_type": "engineering_blog",
+  "source_url": "https://lumen.example/blog/zone-forecasts",
+  "snippet": "we still forecast demand per city, and stockouts in new zones run at 9%",
+  "published_at": "2026-09-02",
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R1"
+ },
+ "claims": [],
+ "field_char_limit": null,
+ "note": "short, specific connection note"
+}

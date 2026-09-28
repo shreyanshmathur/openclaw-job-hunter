@@ -1,0 +1,40 @@
+{
+ "source": "wellfound",
+ "discovered_via": "browser",
+ "jobs": [
+  {
+   "source_url": "https://wellfound.com/jobs/2000001-data-analyst",
+   "apply_url": "https://growthvalley.example/careers?gh_jid=4100001",
+   "company": "Growth Valley",
+   "company_domain": "growthvalley.example",
+   "title": "Data Analyst",
+   "location": "Remote",
+   "work_mode": "remote",
+   "remote_scope": "US",
+   "employment_type": "full_time",
+   "posted_at": "2026-09-27",
+   "years": {"min": 2, "max": 4},
+   "salary": {"min": 65000, "max": 80000, "currency": "USD", "period": "year"},
+   "apply_route_hint": "ats_form",
+   "jd_text": "Growth Valley needs a Data Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US.",
+   "native_ids": {}
+  },
+  {
+   "source_url": "https://wellfound.com/jobs/2000002-data-analyst-growth-valley",
+   "apply_url": "https://boards.greenhouse.io/embed/job_app?for=growthvalley&token=4100001",
+   "company": "GrowthValley Pvt Ltd",
+   "company_domain": null,
+   "title": "Data Analyst",
+   "location": "Remote",
+   "work_mode": "remote",
+   "remote_scope": "US",
+   "employment_type": "full_time",
+   "posted_at": "2026-09-27",
+   "years": {"min": 2, "max": 4},
+   "salary": {"min": 65000, "max": 80000, "currency": "USD", "period": "year"},
+   "apply_route_hint": "ats_form",
+   "jd_text": "Growth Valley needs a Data Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US.",
+   "native_ids": {}
+  }
+ ]
+}

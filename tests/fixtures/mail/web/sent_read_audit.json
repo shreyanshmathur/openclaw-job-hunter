@@ -1,0 +1,8 @@
+{"purpose": "audit", "observed_at": "2026-09-30T03:05:00Z", "query": "in:sent newer_than:2d", "complete": true,
+ "messages": [
+  {"date": "2026-09-29T10:00:00Z", "to": ["alex.rivera@kestrel.example"], "subject": "Pincode-level RTO models",
+   "url": "https://mail.google.com/mail/u/0/#sent/FMfcgzQXJWDsKmbhRqLvzNcXbQkqlnpB"},
+  {"date": "2026-09-29", "to": ["Morgan.Lee@harbor-analytics.example"], "cc": [], "subject": "Quick question about the data team"},
+  {"date": "2026-09-29T18:30:00Z", "to": "friend@example.org", "subject": "Dinner on Friday"},
+  {"date": "2026-09-20T08:00:00Z", "to": ["morgan.lee@harbor-analytics.example"], "subject": "Older than the window"}
+ ]}

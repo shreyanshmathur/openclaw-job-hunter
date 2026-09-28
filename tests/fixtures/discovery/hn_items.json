@@ -1,0 +1,23 @@
+{
+ "id": 45100000,
+ "title": "Ask HN: Who is hiring? (September 2026)",
+ "children": [
+  {
+   "id": 45100001,
+   "created_at": "2026-09-02T15:00:00.000Z",
+   "author": "example_user",
+   "text": "Wrenfield | Data Analyst | Bengaluru or REMOTE (India) | Full-time<p>We build pricing tools. 2+ years with SQL. Email jobs@wrenfield.example with a short note.</p>"
+  },
+  {
+   "id": 45100002,
+   "created_at": "2026-09-02T16:00:00.000Z",
+   "author": "example_user2",
+   "text": "Ferncrest | Staff Backend Engineer | ONSITE San Francisco<p>Go and Postgres.</p>"
+  },
+  {
+   "id": 45100003,
+   "created_at": "2026-09-02T16:30:00.000Z",
+   "text": null
+  }
+ ]
+}

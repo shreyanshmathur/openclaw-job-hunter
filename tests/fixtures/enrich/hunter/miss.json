@@ -1,0 +1,39 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "data": {
+   "accept_all": false,
+   "company": "Kestrel Commerce",
+   "domain": "kestrel.example",
+   "email": null,
+   "first_name": "Example",
+   "last_name": "Person",
+   "linkedin_url": "https://www.linkedin.com/in/example-person",
+   "phone_number": "+10000000000",
+   "position": "Engineering Manager",
+   "score": null,
+   "sources": [],
+   "twitter": null,
+   "verification": {
+    "date": "2026-09-20",
+    "status": "unknown"
+   }
+  },
+  "meta": {
+   "params": {
+    "domain": "kestrel.example",
+    "first_name": "Example",
+    "last_name": "Person"
+   }
+  }
+ },
+ "expect": {
+  "credits": 0.0,
+  "outcome": "miss"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

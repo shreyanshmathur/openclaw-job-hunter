@@ -1,0 +1,23 @@
+{
+ "source": "naukri",
+ "discovered_via": "browser",
+ "jobs": [
+  {
+   "source_url": "https://www.naukri.com/job-listings-data-analyst-growthvalley-pvt-ltd-remote-2-to-4-years-290926000002",
+   "apply_url": null,
+   "company": "GrowthValley Pvt Ltd",
+   "company_domain": null,
+   "title": "Data Analyst",
+   "location": "Remote",
+   "work_mode": "remote",
+   "remote_scope": "US",
+   "employment_type": "full_time",
+   "posted_at": "2026-09-28",
+   "years": {"min": 2, "max": 4},
+   "salary": {"min": null, "max": null, "currency": null, "period": null},
+   "apply_route_hint": "board_inapp",
+   "jd_text": "GrowthValley is hiring a Data Analyst with 2 to 4 years of SQL and Python for returns forecasting. Remote.",
+   "native_ids": {"board_job_id": "290926000002"}
+  }
+ ]
+}

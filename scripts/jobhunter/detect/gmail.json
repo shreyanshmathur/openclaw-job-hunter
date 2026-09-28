@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "platform": "gmail",
+  "hosts": ["mail.google.com", "accounts.google.com"],
+  "notes": "Stop signatures for the Gmail web route (design 4.5). Same regex rules as linkedin.json. A Google sign-in or account-chooser page, including the password step (/challenge/pwd), is an expired session (gmail_logged_out: log in or copy the login again); any other /challenge/ page, or the verification texts, is gmail_security, which wins when both match (detect.SEVERITY).",
+  "signatures": [
+    {"id": "gm_sending_limit", "verdict": "stop", "trip": true, "reason_code": "gmail_sending_limit", "text": "reached a limit for sending mail|sending limit|messages you sent couldn.t be delivered"},
+    {"id": "gm_security_text", "verdict": "stop", "trip": true, "reason_code": "gmail_security", "text": "unusual activity|verify it.s you|verify your identity|captcha|phone number to verify|account (has been )?(disabled|suspended)|critical security alert"},
+    {"id": "gm_signin_url", "verdict": "stop", "trip": true, "reason_code": "gmail_logged_out", "url": "accounts\\.google\\.com/(signin|servicelogin|v3/signin|accountchooser)"},
+    {"id": "gm_challenge_url", "verdict": "stop", "trip": true, "reason_code": "gmail_security", "url": "/challenge/([a-oq-z]|p[^w]|pw[^d])"},
+    {"id": "gm_http_block", "verdict": "stop", "trip": true, "reason_code": "gmail_security", "http_status": [429]}
+  ],
+  "error_after_click": [
+    {"id": "gm_error_generic", "text": "message not sent|couldn.t send|could not be sent|a server error|oops"}
+  ]
+}

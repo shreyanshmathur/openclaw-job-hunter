@@ -1,0 +1,23 @@
+{
+ "source": "wellfound",
+ "discovered_via": "browser",
+ "jobs": [
+  {
+   "source_url": "https://wellfound.com/jobs/3000001-business-analyst",
+   "apply_url": "https://jobs.lever.co/ferncliff/5f3c1c2e-0000-4000-8000-000000000001/apply",
+   "company": "Ferncliff Labs",
+   "company_domain": "ferncliff.example",
+   "title": "Business Analyst",
+   "location": "Remote",
+   "work_mode": "remote",
+   "remote_scope": "US",
+   "employment_type": "full_time",
+   "posted_at": "2026-09-30",
+   "years": {"min": 2, "max": 4},
+   "salary": {"min": 65000, "max": 80000, "currency": "USD", "period": "year"},
+   "apply_route_hint": "ats_form",
+   "jd_text": "Ferncliff Labs needs a Business Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US.",
+   "native_ids": {}
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+  "description": "Recorded fake replies cycle (read only): the invitation manager shows the invitation gone and the profile shows 1st degree, so the agent records the acceptance with reply record. Browser calls are recorded in the shapes the jobhunter-guard plugin accepts: act kinds with refs from the latest snapshot of the same tab, upload with paths and a ref, drivers as act kind evaluate whose fn is the exact driver file text ({DRIVER:<name>} stands for the text of drivers/<name>.js).",
+  "agent": "jobhunter-outreach",
+  "lane": "replies",
+  "steps": [
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py preflight --lane replies", "timeoutSeconds": 90}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py thread list --needs-check", "timeoutSeconds": 90}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.linkedin.com/mynetwork/invitation-manager/sent/"}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": "{DRIVER:detect_page}"}, "result": {"detect_file": {"platform": "linkedin", "url": "https://www.linkedin.com/mynetwork/invitation-manager/sent/", "title": "Invitations | LinkedIn", "http_status": null, "text": "Sent People (0)"}, "hint": "clear", "matched": [], "family": "linkedin"}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": "{DRIVER:read_sent_invites}"}, "result": {"on_sent_page": true, "people_count": 0, "invites": [], "page_url": "https://www.linkedin.com/mynetwork/invitation-manager/sent/"}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py usage gauge --platform linkedin --metric li_invites_sent_7d --value 0", "timeoutSeconds": 90}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.linkedin.com/in/example-alex-rivera/"}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": "{DRIVER:detect_page}"}, "result": {"detect_file": {"platform": "linkedin", "url": "https://www.linkedin.com/in/example-alex-rivera/", "title": "Alex Rivera | LinkedIn", "http_status": null, "text": "Alex Rivera 1st Message More"}, "hint": "clear", "matched": [], "family": "linkedin"}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": "{DRIVER:read_li_invite_dialog}"}, "result": {"dialog_open": false, "profile": {"name": "Alex Rivera", "vanity_slug": "example-alex-rivera", "degree": "1st", "primary_button": "Message", "more_menu_has_connect": false, "open_to_work": false}}},
+    {"tool": "write", "params": {"path": "{WS}/work/{CYCLE}/accepted.json", "content": {"thread_key": "{THREAD}", "event": "invite_accepted", "observed_at": "{NOW}"}}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py reply record --file {WS}/work/{CYCLE}/accepted.json", "timeoutSeconds": 90}},
+    {"tool": "browser", "params": {"profile": "jobhunter", "action": "close"}},
+    {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py cycle end --cycle {CYCLE}", "timeoutSeconds": 90}}
+  ]
+}

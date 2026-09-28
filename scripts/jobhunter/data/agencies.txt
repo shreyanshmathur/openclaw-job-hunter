@@ -1,0 +1,41 @@
+# Staffing and recruitment agencies, as normalized name keys (keys.norm_name). A company whose name key is
+# listed here is marked is_agency = 1 with agency_source = 'bundled_list' (2.4.2). Only this list or a human
+# (companies set-agency, PIN) can set the flag.
+randstad
+adecco
+manpower
+manpowergroup
+teamlease
+teamleaseservices
+quesscorp
+quess
+kellyservices
+kforce
+roberthalf
+michaelpage
+pagepersonnel
+hays
+abcconsultants
+cielhr
+xpheno
+careernet
+allegis
+allegisgroup
+teksystems
+insightglobal
+collabera
+aerotek
+experis
+spherion
+hudson
+kornferry
+heidrickandstruggles
+egonzehnder
+spencerstuart
+russellreynolds
+mafoi
+globalhunt
+antal
+antalinternational
+talent500
+hirect

@@ -1,0 +1,33 @@
+{
+ "_note": "fake /usr/bin/security transcripts for the keystore runner; fake keys only",
+ "add_ok": {
+  "rc": 0,
+  "stderr": "",
+  "stdout": ""
+ },
+ "add_refused": {
+  "rc": 1,
+  "stderr": "security: interactive mode is not available\n",
+  "stdout": ""
+ },
+ "delete_ok": {
+  "rc": 0,
+  "stderr": "",
+  "stdout": ""
+ },
+ "find_absent": {
+  "rc": 44,
+  "stderr": "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n",
+  "stdout": ""
+ },
+ "find_locked": {
+  "rc": 36,
+  "stderr": "security: User interaction is not allowed.\n",
+  "stdout": ""
+ },
+ "find_ok": {
+  "rc": 0,
+  "stderr": "",
+  "stdout": "FAKE-KEY-0000000000000000\n"
+ }
+}

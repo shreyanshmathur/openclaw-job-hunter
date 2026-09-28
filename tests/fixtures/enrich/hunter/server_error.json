@@ -1,0 +1,20 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "errors": [
+   {
+    "code": 503,
+    "id": "service_unavailable"
+   }
+  ]
+ },
+ "expect": {
+  "credits": 1.0,
+  "outcome": "server_error"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 503
+}

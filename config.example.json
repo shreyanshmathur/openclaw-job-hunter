@@ -1,0 +1,230 @@
+{
+  "schema_version": 2,
+  "timezone": "auto",
+  "locale": "auto",
+  "owner": {
+    "first_name": "",
+    "last_name": "",
+    "gmail_address": "you@example.com",
+    "linkedin_name": "",
+    "linkedin_profile_url": "https://www.linkedin.com/in/your-handle",
+    "signature": {"full_name": "", "phone": "", "links": []},
+    "notify": {"channel": "whatsapp", "to": "+10000000000", "desktop": true, "quiet_hours": ["22:00", "08:00"]}
+  },
+
+  "approval": {
+    "mode": "inherit",
+    "per_channel": {"linkedin": "human"},
+    "approval_ttl_hours": 72,
+    "always_human": ["positive_or_ambiguous_reply", "mentions_salary", "referral_ask", "sensitive_form_field"],
+    "suggest_auto_after": {"min_days": 14, "min_human_reviewed": 50, "min_agreement": 0.95}
+  },
+
+  "channels": {
+    "applications": {"enabled": true},
+    "email_outreach": {"enabled": true},
+    "linkedin": {
+      "enabled": true,
+      "account_type": "free",
+      "writes": {"invites": true, "messages": true, "easy_apply": false, "inmail": false, "withdraw": true},
+      "invite_note_policy": "note_while_quota_else_no_note"
+    }
+  },
+
+  "active_hours": {"browser_days": [1, 2, 3, 4, 5], "browser_window": ["08:30", "20:30"],
+                   "api_window": ["00:00", "23:59"], "battery_floor_pct": 25},
+
+  "dispatch": {
+    "mode": "dispatcher",
+    "lanes": {
+      "scout":     {"cycles_per_day": [2, 3], "window": ["10:00", "19:00"], "days": [1, 2, 3, 4, 5], "min_spacing_minutes": 150, "skip_probability": 0.1},
+      "evaluator": {"cycles_per_day": [6, 10], "window": ["08:30", "22:30"], "days": [1, 2, 3, 4, 5, 6, 7], "min_spacing_minutes": 45, "skip_probability": 0.0},
+      "applier":   {"cycles_per_day": [3, 5], "window": ["09:30", "18:30"], "days": [1, 2, 3, 4, 5], "min_spacing_minutes": 75, "skip_probability": 0.1},
+      "outreach":  {"cycles_per_day": [3, 5], "window": ["09:30", "18:00"], "days": [1, 2, 3, 4, 5], "min_spacing_minutes": 75, "skip_probability": 0.1},
+      "replies":   {"cycles_per_day": [1, 2], "window": ["11:00", "20:00"], "days": [1, 2, 3, 4, 5, 6, 7], "min_spacing_minutes": 240, "skip_probability": 0.0}
+    }
+  },
+
+  "gmail": {
+    "route": "web_ui",
+    "tier": "inherit",
+    "ceilings": {
+      "conservative": {"cold_day": 15, "followup_day": 8, "total_day": 25, "cold_week": 60, "hour": 3, "cycle": 2,
+                       "min_gap_minutes": 10, "gap_jitter_minutes": [0, 10], "company_cooldown_days": 90},
+      "moderate":     {"cold_day": 20, "followup_day": 12, "total_day": 35, "cold_week": 100, "hour": 5, "cycle": 3,
+                       "min_gap_minutes": 6, "gap_jitter_minutes": [0, 9], "company_cooldown_days": 60}
+    },
+    "warmup": {"week1_cold_day": 5, "step_per_week": 5},
+    "followup_after_business_days": [5, 7],
+    "address_grades_allowed": ["A", "B"],
+    "active_days": [1, 2, 3, 4, 5],
+    "sender_window": ["08:00", "21:00"],
+    "recipient_window": ["08:30", "17:30"],
+    "preferred_recipient_window": ["08:00", "11:30"],
+    "preferred_days": [2, 3, 4],
+    "bounce_stop": {"per_24h": 2, "pause_hours": 24, "rolling_window_sends": 100,
+                    "rolling_rate_pause": 0.02, "rolling_rate_stop": 0.05},
+    "complaint_stop": {"per_30d": 2, "first_complaint_cut_pct": 50, "cut_days": 7},
+    "reply_rate_floor": {"after_sends": 100, "min_rate": 0.02},
+    "attach_resume_on_cold": false,
+    "max_links": 2,
+    "opt_out_line": false,
+    "fetch_every_minutes": 30,
+    "confirmation_check_hours": 48
+  },
+
+  "linkedin": {
+    "tier": "inherit",
+    "active": {"days": [1, 2, 3, 4, 5], "start_window": ["09:00", "10:00"], "end_window": ["17:30", "19:00"],
+               "midday_gap_minutes": [30, 60], "never_between": ["20:00", "08:30"]},
+    "delays_sec": {"write": [90, 300], "write_floor": 45, "profile_view": [20, 90], "profile_view_floor": 15,
+                   "easy_apply_floor": 180, "easy_apply": [240, 420], "search_page": [8, 30],
+                   "between_cycles_min": [45, 120], "post_accept_message_days": [1, 3], "followup_days": [7, 10]},
+    "ceilings": {
+      "conservative": {"invites": {"cycle": 2, "hour": 3, "day": 8, "week": 35}, "notes_free_month": 3,
+                       "messages": {"cycle": 2, "hour": 3, "day": 10, "week": 50}, "inmail": {"day": 1},
+                       "easy_apply": {"cycle": 2, "hour": 2, "day": 5, "week": 25},
+                       "withdraw": {"cycle": 3, "day": 5}, "profile_views": {"cycle": 8, "hour": 12, "day": 40, "week": 200},
+                       "people_search": {"day": 5, "month": 100}, "content_search": {"day": 3, "week": 10},
+                       "job_search_pages": {"day": 30},
+                       "writes_total_day": 25, "actions_total_day": 100, "pending_invites_stop": 150, "cycles_day": 4},
+      "moderate":     {"invites": {"cycle": 3, "hour": 5, "day": 15, "week": 60}, "notes_free_month": 3,
+                       "messages": {"cycle": 4, "hour": 6, "day": 20, "week": 90}, "inmail": {"day": 2},
+                       "easy_apply": {"cycle": 3, "hour": 3, "day": 10, "week": 50},
+                       "withdraw": {"cycle": 5, "day": 10}, "profile_views": {"cycle": 12, "hour": 20, "day": 70, "week": 350},
+                       "people_search": {"day": 10, "month": 150}, "content_search": {"day": 5, "week": 20},
+                       "job_search_pages": {"day": 60},
+                       "writes_total_day": 45, "actions_total_day": 180, "pending_invites_stop": 250, "cycles_day": 6}
+    },
+    "warmup_weeks": [
+      {"invites": 3, "messages": 4, "profile_views": 15, "easy_apply": 2, "people_search": 3, "content_search": 1, "inmail": 0},
+      {"invites": 5, "messages": 6, "profile_views": 25, "easy_apply": 3, "people_search": 4, "content_search": 2, "inmail": 0},
+      {"invites": 6, "messages": 8, "profile_views": 30, "easy_apply": 4, "people_search": 5, "content_search": 3, "inmail": 0}
+    ],
+    "adaptive": {"acceptance_window_days": 30, "min_invites_aged_7d": 20,
+                 "half_below": 0.40, "pause_below": 0.25, "pause_days": 14},
+    "withdraw_older_than_days": 21,
+    "note_max_chars": {"free": 180, "premium": 280},
+    "engagement_likes_comments": 0,
+    "max_invites_per_company_week": 2
+  },
+
+  "boards": {
+    "global": {"apps_day": 25, "apps_week": 120, "apps_hour": 6},
+    "per_company": {"apps_day": 1, "apps_30d": 2, "apps_90d": 3, "same_role_jaccard_block": 0.6,
+                    "second_role_max_jaccard": 0.3, "second_role_min_gap_days": 1},
+    "per_agency": {"emails_day": 1, "emails_30d": 3, "apps_day": 2, "apps_30d": 6},
+    "site_gap_minutes": [4, 9],
+    "daily_jitter_pct": 20,
+    "sites": {
+      "ats_forms":     {"discover": "api", "apply": "browser", "day": 12, "week": 60, "hour": 4, "risk": "low"},
+      "workday":       {"discover": "api", "apply": "human_queue", "risk": "low"},
+      "yc":            {"discover": "api", "apply": "off", "day": 3, "week": 5, "hour": 1, "risk": "medium"},
+      "instahyre":     {"discover": "off", "apply": "off", "pages_day": 20, "day": 8, "week": 40, "hour": 3, "risk": "medium"},
+      "foundit":       {"discover": "off", "apply": "off", "pages_day": 20, "day": 6, "week": 30, "hour": 2, "risk": "medium"},
+      "naukri":        {"discover": "off", "apply": "off", "pages_day": 20, "day": 5, "week": 30, "hour": 2, "month_stop": 130, "risk": "high"},
+      "cutshort":      {"discover": "off", "apply": "off", "pages_day": 10, "day": 2, "week": 12, "hour": 1, "risk": "high"},
+      "hirist":        {"discover": "off", "apply": "off", "pages_day": 10, "day": 4, "week": 20, "hour": 2, "risk": "high"},
+      "iimjobs":       {"discover": "off", "apply": "off", "pages_day": 10, "day": 4, "week": 20, "hour": 2, "risk": "high"},
+      "wellfound":     {"discover": "off", "apply": "off", "pages_day": 10, "day": 3, "week": 15, "hour": 1, "risk": "medium"},
+      "linkedin_jobs": {"discover": "off", "apply": "via_linkedin_channel", "pages_day": 15, "risk": "high"},
+      "linkedin_posts":{"discover": "off", "apply": "email_only", "risk": "high"},
+      "indeed":        {"discover": "off", "apply": "never", "pages_day": 10, "risk": "high"},
+      "glassdoor":     {"discover": "off", "apply": "never", "pages_day": 5, "risk": "high"}
+    }
+  },
+
+  "sources": {
+    "api": {
+      "greenhouse": true, "lever": true, "ashby": true, "smartrecruiters": true, "workable": true,
+      "recruitee": true, "bamboohr": true, "workday": true, "yc": true,
+      "himalayas": true, "remoteok": true, "remotive": true, "weworkremotely": true, "workingnomads": true,
+      "hn_whoishiring": true, "jobicy": false, "serpapi_google_jobs": false
+    },
+    "poll_hours": {"ats": 12, "remote_boards": 6, "yc": 24, "hn": 24, "serpapi": 24},
+    "remotive_max_calls_day": 4,
+    "per_host_min_interval_ms": 1000,
+    "max_age_days": 30,
+    "targets_file": "private/targets.csv",
+    "user_agent": "openclaw-job-hunter/2.0 (personal job search; +https://github.com/<owner>/openclaw-job-hunter)"
+  },
+
+  "evaluator": {
+    "thresholds": {"apply": 70, "borderline": 55},
+    "years_tolerance": {"below": 1, "above": 3},
+    "weights": {"role_family": 0.25, "skills": 0.25, "seniority": 0.15, "domain": 0.10, "location": 0.10,
+                "compensation": 0.10, "company": 0.05},
+    "batch_size": 15,
+    "feasibility_alert": {"min_evaluations": 50, "gate_share": 0.40}
+  },
+
+  "outreach": {
+    "per_job_max_contacts": 1,
+    "prefer_email_over_linkedin": true,
+    "research": {"max_page_loads": 9, "hook_max_age_days": 180, "hook_preferred_age_days": 90, "facts_max_age_days": 14},
+    "targets": ["hiring_manager", "recruiter", "founder"],
+    "referral_ask_only_after_reply": true,
+    "target_skip_days": 30
+  },
+
+  "enrich": {
+    "enabled": false,
+    "key_store": "auto",
+    "chain": ["prospeo", "hunter", "tomba", "getprospect"],
+    "verifiers": ["zerobounce", "hunter"],
+    "reserve_chain": ["anymailfinder", "findymail"],
+    "max_finders_per_person": 2,
+    "max_lookups_per_day": 8,
+    "max_lookups_per_cycle": 2,
+    "max_unsent_found": 10,
+    "min_confidence": 90,
+    "use_linkedin_identifier": false,
+    "timeout_s": 12,
+    "retention_days": 90,
+    "max_result_age_days": 180,
+    "max_share_of_cold_sends": 0.5,
+    "bounce_strikes": {"per_provider_30d": 2, "all_providers_30d": 3},
+    "skip_locales": [],
+    "providers": {
+      "prospeo":       {"enabled": true,  "budget_31d": 90, "day_credits": 4, "day_requests": 8,  "min_interval_s": 5},
+      "hunter":        {"enabled": true,  "budget_31d": 45, "day_credits": 3, "day_requests": 10, "min_interval_s": 2},
+      "tomba":         {"enabled": true,  "budget_31d": 22, "day_credits": 1, "day_requests": 2,  "min_interval_s": 31},
+      "getprospect":   {"enabled": true,  "budget_31d": 45, "day_credits": 2, "day_requests": 6,  "min_interval_s": 3},
+      "zerobounce":    {"enabled": true,  "budget_31d": 90, "day_credits": 4, "day_requests": 6,  "min_interval_s": 2},
+      "anymailfinder": {"enabled": false, "budget_31d": 0, "budget_lifetime": 0, "day_credits": 1, "day_requests": 2, "min_interval_s": 5},
+      "findymail":     {"enabled": false, "budget_31d": 0, "budget_lifetime": 0, "day_credits": 1, "day_requests": 2, "min_interval_s": 5},
+      "apollo":        {"enabled": false, "budget_31d": 0, "day_credits": 2, "day_requests": 4,  "min_interval_s": 5}
+    }
+  },
+
+  "qc": {
+    "max_rewrites": 2,
+    "max_human_edits": 3,
+    "lint": {"max_soft_hits": 2, "max_warnings": 2, "li_connect_hard": 200,
+             "number_whitelist": ["10", "15", "20", "30"], "allowed_link_hosts": []},
+    "review": {"agent": "jobhunter-qc", "timeout_s": 240, "max_tries": 2,
+               "min_weighted": 4.0, "min_core": 4, "min_any": 3},
+    "golden_min_agreement": 18
+  },
+
+  "resume": {
+    "tailoring": "light",
+    "formats": ["pdf", "docx"],
+    "pdf_engine": "stdlib",
+    "page_size": "A4",
+    "max_pages": 2,
+    "filename": "{first}_{last}_Resume",
+    "date_format": "MMM YYYY",
+    "range_word": "to",
+    "present_word": "Present"
+  },
+
+  "sheets": {"enabled": true, "person_name_style": "first_last_initial", "skipped_tab_days": 30,
+             "max_ops_per_post": 400, "store_message_text": true, "resync_overlap_minutes": 10},
+
+  "exclusions": {"min_keep_ratio": 0.5},
+  "clock": {"max_skew_minutes": 10, "max_backward_minutes": 5},
+  "browser": {"profile": "jobhunter", "max_tabs": 5, "lease_minutes": 35, "require_display": true,
+              "type_slowly": true, "dwell_seconds": [5, 40]},
+  "dns": {"doh_url": "https://dns.google/resolve"}
+}

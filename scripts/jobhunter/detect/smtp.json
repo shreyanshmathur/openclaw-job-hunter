@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "platform": "gmail",
+  "notes": "SMTP and IMAP reply signatures for the code-owned email route (design 2.3.1, 4.5). The regex in 'smtp' is matched case-insensitively against '<reply code> <reply text>' (IMAP: the error text). Same regex rules as linkedin.json.",
+  "signatures": [
+    {"id": "smtp_daily_limit", "verdict": "stop", "trip": true, "reason_code": "gmail_sending_limit", "smtp": "5\\.4\\.5|daily user sending limit|sending limit exceeded"},
+    {"id": "smtp_rate_deferral", "verdict": "stop", "trip": true, "reason_code": "gmail_sending_limit", "smtp": "^421|4\\.7\\.[0-9]+|temporarily deferred|rate limit"},
+    {"id": "smtp_policy_auth", "verdict": "stop", "trip": true, "reason_code": "gmail_auth_failed", "smtp": "^535|5\\.7\\.[0-9]+|authentication failed|application-specific password required|username and password not accepted"},
+    {"id": "imap_auth", "verdict": "stop", "trip": true, "reason_code": "gmail_auth_failed", "smtp": "authenticationfailed|invalid credentials|web login required"}
+  ],
+  "error_after_click": []
+}

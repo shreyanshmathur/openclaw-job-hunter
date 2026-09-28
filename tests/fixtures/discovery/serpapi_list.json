@@ -1,0 +1,29 @@
+{
+ "search_metadata": {
+  "status": "Success"
+ },
+ "jobs_results": [
+  {
+   "title": "Data Analyst",
+   "company_name": "Birchwood Health",
+   "location": "Bengaluru, Karnataka, India",
+   "via": "LinkedIn",
+   "description": "Analyse patient outcomes with SQL.",
+   "job_id": "eyJqb2JfdGl0bGUiOiJ0ZXN0In0=",
+   "detected_extensions": {
+    "posted_at": "3 days ago",
+    "schedule_type": "Full-time"
+   },
+   "apply_options": [
+    {
+     "title": "LinkedIn",
+     "link": "https://www.linkedin.com/jobs/view/4100200300"
+    },
+    {
+     "title": "Birchwood Health careers",
+     "link": "https://job-boards.greenhouse.io/birchwoodhealth/jobs/5550001"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "email": {
+   "email": "example.person@kestrel.example",
+   "revealed": true,
+   "status": "UNVERIFIED"
+  },
+  "error": false,
+  "person": {
+   "full_name": "Example Person",
+   "job_title": "Engineering Manager",
+   "linkedin_url": "https://www.linkedin.com/in/example-person"
+  }
+ },
+ "expect": {
+  "credits": 0.0,
+  "email": "example.person@kestrel.example",
+  "outcome": "hit",
+  "verification": "unknown"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "find_name_domain",
+ "status": 200
+}

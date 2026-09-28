@@ -1,0 +1,48 @@
+{
+  "platform": "linkedin",
+  "hosts": [
+    "linkedin.com"
+  ],
+  "signatures": [
+    {
+      "code": "li_checkpoint",
+      "verdict": "stop",
+      "url_regex": "/(checkpoint|challenge|authwall)(/|\\?|$)"
+    },
+    {
+      "code": "li_security_check",
+      "verdict": "stop",
+      "text_regex": [
+        "let's do a quick security check",
+        "(?i)verify your identity",
+        "unusual activity"
+      ]
+    },
+    {
+      "code": "li_invite_limit",
+      "verdict": "stop",
+      "scope": "linkedin.invites",
+      "text_regex": "weekly invitation limit|you're out of invitations"
+    },
+    {
+      "id": "li_login_title",
+      "verdict": "stop",
+      "trip": true,
+      "reason_code": "li_logged_out",
+      "title": "^linkedin login|^sign in \\| linkedin"
+    },
+    {
+      "code": "li_http_999",
+      "verdict": "stop",
+      "http_status": [
+        999,
+        429
+      ]
+    },
+    {
+      "code": "li_send_error",
+      "verdict": "after_click_error",
+      "text_regex": "something went wrong"
+    }
+  ]
+}

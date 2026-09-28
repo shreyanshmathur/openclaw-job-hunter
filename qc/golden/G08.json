@@ -1,0 +1,58 @@
+{
+ "id": "G08",
+ "channel": "email_application",
+ "subject": "Backend Engineer, Payments: Jordan Reyes",
+ "body": "Hello Northwind Pay hiring team,\n\nYour July post-mortem on the card retry spike described a problem I fixed at Tidewater Freight in 2025. Retries were piling up behind one slow partner bank. Per-bank retry budgets fixed it, and duplicate charge complaints fell from about 30 a week to 3.\n\nThat is why the Backend Engineer, Payments role stood out. For the last 4 years I've built Go payment services at Tidewater Freight, including the mandate retry service, which handles about 1 million requests a day. The post asks for recurring card mandates and Go, which is my daily work.\n\nMy tailored resume is attached. My notice period is 30 days, and I'd be glad to walk through the retry design in an interview.\n\nRegards,",
+ "recipient": {
+  "first_name": "",
+  "last_name": "",
+  "company": "Northwind Pay",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Northwind Pay job post, Backend Engineer, Payments, posted 2026-09-12. Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "snippet": "Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/northwind/backend-payments",
+   "published_at": "2026-09-12",
+   "retrieved_at": "2026-09-25"
+  },
+  "R2": {
+   "text": "Northwind Pay engineering blog, 2026-07-15: post-mortem of the card retry spike, where retries piled up behind one slow issuing bank.",
+   "snippet": "post-mortem of the card retry spike, where retries piled up behind one slow issuing bank",
+   "source_type": "engineering_blog",
+   "source_url": "https://northwind.example/eng/card-retry-spike",
+   "published_at": "2026-07-15",
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "4 years building Go payment services at Tidewater Freight.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P3": "Notice period: 30 days.",
+  "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
+  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+ },
+ "hook": {
+  "anchor": "card retry spike",
+  "source_type": "engineering_blog",
+  "source_url": "https://northwind.example/eng/card-retry-spike",
+  "snippet": "post-mortem of the card retry spike, where retries piled up behind one slow issuing bank",
+  "published_at": "2026-07-15",
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R2"
+ },
+ "claims": [
+  {
+   "text": "30 a week to 3",
+   "fact_id": "P5"
+  },
+  {
+   "text": "1 million",
+   "fact_id": "P2"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "application email with hook and logistics"
+}

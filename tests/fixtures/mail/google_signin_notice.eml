@@ -1,0 +1,9 @@
+From: Google <{GOOGLE}>
+To: sam.lee.sender@example.com
+Subject: Security alert
+Date: Tue, 29 Sep 2026 08:40:00 +0000
+Message-ID: <sec-2@mail.example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+An app password was used to sign in to your account.

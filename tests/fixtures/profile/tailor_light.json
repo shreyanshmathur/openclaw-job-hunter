@@ -1,0 +1,48 @@
+{
+ "job_uid": "JAAAAAAA",
+ "mode": "light",
+ "summary": {
+  "text": "Analyst who builds forecasting and risk models in SQL and Python.",
+  "fact_ids": [
+   "P2",
+   "P1"
+  ]
+ },
+ "sections_order": [
+  "summary",
+  "experience",
+  "skills",
+  "projects",
+  "education"
+ ],
+ "experience": [
+  {
+   "role_id": "E1",
+   "bullets": [
+    {
+     "from": "E1.B2",
+     "text": null
+    },
+    {
+     "from": "E1.B1",
+     "text": null
+    },
+    {
+     "from": "E1.B3",
+     "text": null
+    }
+   ]
+  }
+ ],
+ "projects": [
+  {
+   "project_id": "PR1",
+   "include": true
+  }
+ ],
+ "skills_order": [
+  "Python",
+  "SQL",
+  "Forecasting"
+ ]
+}

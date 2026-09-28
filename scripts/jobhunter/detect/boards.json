@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "platform": "site:*",
+  "hosts": ["naukri.com", "instahyre.com", "foundit.in", "wellfound.com", "cutshort.io", "hirist.tech", "iimjobs.com", "workatastartup.com", "indeed.com", "glassdoor.com", "glassdoor.co.in"],
+  "notes": "Stop signatures for job boards (design 4.5, row 'Any job site'). The breaker scope is the payload platform (site:<name>). Same regex rules as linkedin.json. A login wall or login page is an expired session (site_logged_out: log in or copy the login again); a CAPTCHA, block or verification is site_challenge, which wins when both match (detect.SEVERITY).",
+  "signatures": [
+    {"id": "site_captcha", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "text": "captcha|verify (that )?you.re (a )?human|are you a robot|security check|press and hold"},
+    {"id": "site_unusual", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "text": "unusual activity|unusual traffic|access denied|temporarily blocked|too many requests"},
+    {"id": "site_verification", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "text": "verify your (account|identity|mobile|email)|enter the otp|one.time password"},
+    {"id": "site_limit", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "text": "limit reached|daily limit|reached (the|your) limit"},
+    {"id": "site_login_wall", "verdict": "stop", "trip": true, "reason_code": "site_logged_out", "text": "log ?in to continue|sign in to (apply|continue|view)|please log ?in|session (has )?expired"},
+    {"id": "site_login_url", "verdict": "stop", "trip": true, "reason_code": "site_logged_out", "url": "/(n?login|signin|sign-in|log-in)([/?#]|$)"},
+    {"id": "site_challenge_url", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "url": "/captcha|/challenge|/checkpoint|/blocked"},
+    {"id": "site_http_block", "verdict": "stop", "trip": true, "reason_code": "site_challenge", "http_status": [429, 999, 403]}
+  ],
+  "error_after_click": [
+    {"id": "site_error_generic", "text": "something went wrong|try again later|could not (apply|submit)|failed to (apply|submit)|an error occurred"}
+  ]
+}

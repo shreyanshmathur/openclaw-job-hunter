@@ -1,0 +1,55 @@
+{
+ "id": "G05",
+ "channel": "li_message",
+ "subject": null,
+ "body": "Thanks for connecting, Dana. I applied for the Backend Engineer, Payments role at Northwind Pay on 20 September. The recurring card mandates part of the post is close to my work at Tidewater Freight, where I led the mandate retry service in Go. Are you the right person to ask about it? If someone else is, a name is plenty.",
+ "recipient": {
+  "first_name": "Dana",
+  "last_name": "Cruz",
+  "title": "Talent Partner",
+  "company": "Northwind Pay",
+  "locale": "US"
+ },
+ "research_facts": {
+  "R1": {
+   "text": "Northwind Pay job post, Backend Engineer, Payments, posted 2026-09-12. Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "snippet": "Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+   "source_type": "job_post",
+   "source_url": "https://jobs.example.com/northwind/backend-payments",
+   "published_at": "2026-09-12",
+   "retrieved_at": "2026-09-25"
+  },
+  "R2": {
+   "text": "Northwind Pay engineering blog, 2026-07-15: post-mortem of the card retry spike, where retries piled up behind one slow issuing bank.",
+   "snippet": "post-mortem of the card retry spike, where retries piled up behind one slow issuing bank",
+   "source_type": "engineering_blog",
+   "source_url": "https://northwind.example/eng/card-retry-spike",
+   "published_at": "2026-07-15",
+   "retrieved_at": "2026-09-25"
+  }
+ },
+ "profile_facts": {
+  "P1": "4 years building Go payment services at Tidewater Freight.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P3": "Notice period: 30 days.",
+  "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
+  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+ },
+ "hook": {
+  "anchor": "recurring card mandates",
+  "source_type": "job_post",
+  "source_url": "https://jobs.example.com/northwind/backend-payments",
+  "snippet": "Meet the hiring team: Dana Cruz, Talent Partner. Requirements: recurring card mandates, Go, Postgres.",
+  "published_at": "2026-09-12",
+  "retrieved_at": "2026-09-25",
+  "fact_id": "R1"
+ },
+ "claims": [
+  {
+   "text": "led the mandate retry service in Go",
+   "fact_id": "P2"
+  }
+ ],
+ "field_char_limit": null,
+ "note": "one question and an exit"
+}

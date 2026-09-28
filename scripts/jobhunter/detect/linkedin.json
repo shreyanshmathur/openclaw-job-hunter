@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "platform": "linkedin",
+  "hosts": ["linkedin.com", "www.linkedin.com"],
+  "notes": "Stop signatures for LinkedIn pages (design 4.5). Every regex is matched case-insensitively against the field it names (url, title or text) and uses only syntax that Python re and JavaScript RegExp read the same way: no inline flags, no lookbehind, no named groups. A signature matches when its regex matches or the HTTP status is listed. 'trip': true trips reason_code's breaker. error_after_click lists page errors that make gate unknown record failed_after_click.",
+  "signatures": [
+    {"id": "li_checkpoint_url", "verdict": "stop", "trip": true, "reason_code": "li_challenge", "url": "/checkpoint/|/challenge|/authwall"},
+    {"id": "li_security_text", "verdict": "stop", "trip": true, "reason_code": "li_challenge", "text": "security verification|quick security check|captcha|verify (that )?you.re (a )?human|enter the (verification )?code|we sent (you )?a code|sign-in security prompt"},
+    {"id": "li_restricted_text", "verdict": "stop", "trip": true, "reason_code": "li_restricted", "text": "unusual activity|temporarily restricted|restricted your account|verify your identity|government.issued (photo )?id|upload (a |your )?(photo of your )?id"},
+    {"id": "li_login_url", "verdict": "stop", "trip": true, "reason_code": "li_logged_out", "url": "linkedin\\.com/(login|signup|uas/login|m/login)"},
+    {"id": "li_login_title", "verdict": "stop", "trip": true, "reason_code": "li_logged_out", "title": "^linkedin login|^sign in \\| linkedin|^log in or sign up"},
+    {"id": "li_invite_limit", "verdict": "stop", "trip": true, "reason_code": "li_invite_limit", "text": "weekly invitation limit|reached the weekly limit for invitations|invitation limit|you.re out of invitations|you.re out of"},
+    {"id": "li_email_needed", "verdict": "stop", "trip": true, "reason_code": "li_email_needed", "text": "email address needed|enter their email|to verify this member knows you"},
+    {"id": "li_commercial_limit", "verdict": "stop", "trip": true, "reason_code": "li_commercial_limit", "text": "commercial use limit|monthly limit for (profile )?searches"},
+    {"id": "li_easy_apply_limit", "verdict": "stop", "trip": true, "reason_code": "li_easy_apply_limit", "text": "reached today.s easy apply limit|easy apply limit|temporary pause on (your )?appl"},
+    {"id": "li_messaging_blocked", "verdict": "stop", "trip": true, "reason_code": "li_messaging_blocked", "text": "messaging (is |has been )?(blocked|restricted)|unable to send (the |your )?message|message limit reached"},
+    {"id": "li_http_block", "verdict": "stop", "trip": true, "reason_code": "li_http_429", "http_status": [429, 999]}
+  ],
+  "error_after_click": [
+    {"id": "li_error_generic", "text": "something went wrong|try again later|couldn.t (send|complete)|failed to send|an error occurred|message (could not|couldn.t) be sent"}
+  ]
+}

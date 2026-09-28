@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "source": "writing-qc section 5 (tone for India and international recipients). Pick the profile by the recipient's locale and company type; when unsure use default.",
+  "profiles": {
+    "default": {
+      "greeting": "Hi <first name>,",
+      "name_use": "first name when they sign with it",
+      "register": "direct, warm, brief",
+      "logistics": "state only what the role needs (notice period for recruiters)",
+      "salary": "never in cold messages",
+      "sign_off": ["Thanks,", "Best,"]
+    },
+    "IN_startup": {
+      "applies_to": "India: startups, product companies, MNC tech",
+      "greeting": "Hi <first name>,",
+      "name_use": "first name if they sign with it",
+      "register": "direct, warm, brief",
+      "logistics": "notice period (30, 60 or 90 days is normal and recruiters ask), current city, relocation",
+      "salary": "never in cold messages",
+      "sign_off": ["Thanks,", "Best,"]
+    },
+    "IN_traditional": {
+      "applies_to": "India: traditional firms, PSU, government, some family businesses",
+      "greeting": "Dear Ms. <last name>, or Dear Dr. <last name>,",
+      "name_use": "surname with title",
+      "register": "polite, fuller sentences, still brief",
+      "logistics": "notice period, current city, relocation",
+      "salary": "never",
+      "sign_off": ["Regards,"]
+    },
+    "US": {
+      "greeting": "Hi <first name>,",
+      "name_use": "first name",
+      "register": "very short, confident but not boastful; numbers matter more than titles",
+      "logistics": "work authorization and time zone if relevant; notice period only if asked",
+      "salary": "never",
+      "sign_off": ["Thanks,", "Best,"]
+    },
+    "UK": {
+      "greeting": "Hi <first name>,",
+      "name_use": "first name",
+      "register": "understated; no superlatives at all",
+      "logistics": "work authorization and time zone if relevant",
+      "salary": "never",
+      "sign_off": ["Thanks,", "Best,"]
+    },
+    "EU_formal": {
+      "applies_to": "Germany, Japan, some banks on first contact",
+      "greeting": "Dear Ms. <last name>,",
+      "name_use": "surname with title until they switch",
+      "register": "formal first contact, still brief",
+      "logistics": "work authorization and time zone",
+      "salary": "never",
+      "sign_off": ["Best regards,", "Regards,"]
+    },
+    "EU_direct": {
+      "applies_to": "the Netherlands and similar very direct cultures",
+      "greeting": "Hi <first name>,",
+      "name_use": "first name",
+      "register": "very direct, no ceremony",
+      "logistics": "work authorization and time zone",
+      "salary": "never",
+      "sign_off": ["Thanks,", "Best,"]
+    }
+  },
+  "always": [
+    "Name the recipient's time zone for calls (mornings your time).",
+    "Write dates as 21 September, never 09/21 or 21/09.",
+    "Never mention salary in outreach; forms that ask use the stored answer in the form's currency.",
+    "Mirror how they sign their own posts or emails."
+  ],
+  "phrases_to_remove": [
+    {"phrase": "do the needful", "say_instead": "name the specific action"},
+    {"phrase": "kindly revert", "say_instead": "reply"},
+    {"phrase": "revert back", "say_instead": "reply"},
+    {"phrase": "PFA", "say_instead": "I've attached"},
+    {"phrase": "please find attached herewith", "say_instead": "I've attached"},
+    {"phrase": "Respected Sir/Madam", "say_instead": "Hi <first name>,"},
+    {"phrase": "Greetings of the day", "say_instead": "(nothing)"},
+    {"phrase": "I am having 5 years of experience", "say_instead": "I have 5 years"},
+    {"phrase": "good name", "say_instead": "name"},
+    {"phrase": "prepone", "say_instead": "move earlier"},
+    {"phrase": "discuss about", "say_instead": "discuss"},
+    {"phrase": "passed out", "say_instead": "graduated"},
+    {"phrase": "updated resume", "say_instead": "resume"},
+    {"phrase": "fresher", "say_instead": "recent graduate"},
+    {"phrase": "Sir / Ma'am in the body", "say_instead": "the person's name"},
+    {"phrase": "humbly request, your kind self, I would be highly obliged", "say_instead": "a plain request"}
+  ]
+}

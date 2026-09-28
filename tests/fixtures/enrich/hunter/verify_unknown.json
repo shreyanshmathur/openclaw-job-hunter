@@ -1,0 +1,36 @@
+{
+ "_note": "hand-written from the documented schema; fictional person at a reserved .example domain",
+ "body": {
+  "data": {
+   "accept_all": false,
+   "block": false,
+   "disposable": false,
+   "email": "example.person@kestrel.example",
+   "gibberish": false,
+   "mx_records": true,
+   "regexp": true,
+   "result": "deliverable",
+   "score": 91,
+   "smtp_check": true,
+   "smtp_server": true,
+   "sources": [],
+   "status": "unknown",
+   "webmail": false
+  },
+  "meta": {
+   "params": {
+    "email": "example.person@kestrel.example"
+   }
+  }
+ },
+ "expect": {
+  "credits": 0.5,
+  "outcome": "hit",
+  "verification": "unknown"
+ },
+ "headers": {
+  "Content-Type": "application/json"
+ },
+ "op": "verify",
+ "status": 200
+}

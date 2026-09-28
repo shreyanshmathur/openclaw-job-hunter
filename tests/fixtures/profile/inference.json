@@ -1,0 +1,259 @@
+{
+ "facts": {
+  "P1": {
+   "text": "Built the COD return-risk model at Tidemark Logistics; RTO fell from 18% to 13% in two quarters.",
+   "source": "resume.txt, Experience, role 1, bullet 2"
+  },
+  "P2": {
+   "text": "Built weekly returns forecasts in SQL and Python for 40 warehouses at Tidemark Logistics.",
+   "source": "resume.txt, Experience, role 1, bullet 1"
+  },
+  "P3": {
+   "text": "Automated the carrier scorecard in Tableau, saving 6 hours a week.",
+   "source": "resume.txt, Experience, role 1, bullet 3"
+  },
+  "P4": {
+   "text": "B.Sc. Statistics from Springfield State University, 2022.",
+   "source": "resume.txt, Education"
+  },
+  "P5": {
+   "text": "Built a delivery time estimator in Python as a side project.",
+   "source": "extra_info.md, Projects"
+  }
+ },
+ "base_resume": {
+  "version": 1,
+  "contact": {
+   "full_name": "Alex Rivera",
+   "first_name": "Alex",
+   "last_name": "Rivera",
+   "email": "alex.rivera@example.com",
+   "phone": "+1 555 0100",
+   "location": "Springfield",
+   "links": [
+    {
+     "label": "linkedin.com/in/example-alex",
+     "url": "https://www.linkedin.com/in/example-alex"
+    },
+    {
+     "label": "github.com/example-alex",
+     "url": "https://github.com/example-alex"
+    }
+   ]
+  },
+  "headline": "Data Analyst, logistics and e-commerce",
+  "summary": "Data analyst with 3 years of forecasting and risk modelling work in logistics.",
+  "sections_order": [
+   "summary",
+   "experience",
+   "projects",
+   "skills",
+   "education",
+   "certifications"
+  ],
+  "experience": [
+   {
+    "role_id": "E1",
+    "employer": "Tidemark Logistics",
+    "title": "Data Analyst",
+    "location": "Springfield",
+    "dates": {
+     "start": "2022-07",
+     "end": "present"
+    },
+    "bullets": [
+     {
+      "id": "E1.B1",
+      "text": "Built weekly returns forecasts in SQL and Python for 40 warehouses."
+     },
+     {
+      "id": "E1.B2",
+      "text": "Built the COD return-risk model; RTO fell from 18% to 13% in two quarters."
+     },
+     {
+      "id": "E1.B3",
+      "text": "Automated the carrier scorecard in Tableau, saving the operations team 6 hours a week."
+     },
+     {
+      "id": "E1.B4",
+      "text": "Ran pricing experiments with the growth team across 3 cities."
+     }
+    ]
+   },
+   {
+    "role_id": "E2",
+    "employer": "Kestrel Commerce",
+    "title": "Business Analyst Intern",
+    "location": null,
+    "dates": {
+     "start": "2021-01",
+     "end": "2021-06"
+    },
+    "bullets": [
+     {
+      "id": "E2.B1",
+      "text": "Cleaned seller onboarding data and built an Excel tracker used by 12 account managers."
+     },
+     {
+      "id": "E2.B2",
+      "text": "Wrote the monthly seller health report for the category team."
+     }
+    ]
+   }
+  ],
+  "projects": [
+   {
+    "project_id": "PR1",
+    "name": "Delivery time estimator",
+    "role": null,
+    "link": "https://github.com/example-alex/eta",
+    "dates": {
+     "start": "2021-09",
+     "end": "2021-12"
+    },
+    "bullets": [
+     {
+      "id": "PR1.B1",
+      "text": "Gradient boosted model in Python that predicts delivery days from pincode pairs."
+     }
+    ]
+   }
+  ],
+  "education": [
+   {
+    "edu_id": "ED1",
+    "institution": "Springfield State University",
+    "degree": "B.Sc. Statistics",
+    "location": null,
+    "dates": {
+     "start": "2018-08",
+     "end": "2022-05"
+    },
+    "details": [
+     "Final year project on demand forecasting."
+    ]
+   }
+  ],
+  "certifications": [
+   {
+    "cert_id": "C1",
+    "name": "Example Analytics Certificate",
+    "issuer": "Example Institute",
+    "date": "2023-03"
+   }
+  ],
+  "skills": [
+   "SQL",
+   "Python",
+   "Tableau",
+   "Excel",
+   "Forecasting",
+   "A/B testing"
+  ],
+  "languages": [],
+  "dash_conversions": [
+   {
+    "location": "Experience, role 1, dates",
+    "original": "Jul 2022 \u2013 Present",
+    "replacement": "dates {start: 2022-07, end: present}"
+   },
+   {
+    "location": "Experience, role 1, bullet 2",
+    "original": "COD return-risk model \u2014 RTO fell",
+    "replacement": "COD return-risk model; RTO fell"
+   }
+  ]
+ },
+ "experience_years": {
+  "value": 3.0,
+  "arithmetic": "Jul 2022 to Sep 2026 is 4.2 years; the 2021 internship is excluded; rounded down to 3 years of full-time analytics work"
+ },
+ "role_families": [
+  {
+   "name": "Data analytics",
+   "titles": [
+    "Data Analyst",
+    "Business Analyst"
+   ],
+   "include": [
+    "analyst",
+    "analytics"
+   ],
+   "exclude": [
+    "intern"
+   ],
+   "evidence_fact_ids": [
+    "P1",
+    "P2"
+   ],
+   "rationale": "Three years of forecasting and risk models in SQL and Python."
+  },
+  {
+   "name": "Operations analytics",
+   "titles": [
+    "Operations Analyst",
+    "Supply Chain Analyst"
+   ],
+   "include": [
+    "operations analyst",
+    "supply chain"
+   ],
+   "exclude": [],
+   "evidence_fact_ids": [
+    "P3"
+   ],
+   "rationale": "Carrier scorecards and warehouse forecasts."
+  },
+  {
+   "name": "Product analytics",
+   "titles": [
+    "Product Analyst"
+   ],
+   "include": [
+    "product analyst"
+   ],
+   "exclude": [],
+   "evidence_fact_ids": [
+    "P2"
+   ],
+   "rationale": "Pricing experiments with a growth team."
+  }
+ ],
+ "salary_band": {
+  "currency": "USD",
+  "period": "year",
+  "floor": 60000,
+  "target": 72000,
+  "stretch": 85000,
+  "confidence": "medium",
+  "basis": [
+   {
+    "kind": "salary_page",
+    "url": "https://salaries.example.org/data-analyst-springfield",
+    "note": "range for 2 to 4 years"
+   },
+   {
+    "kind": "model_estimate",
+    "note": "model estimate, not verified"
+   }
+  ]
+ },
+ "locations_guess": [
+  "springfield",
+  "remote"
+ ],
+ "work_mode_guess": [
+  "remote",
+  "hybrid"
+ ],
+ "notice_period_guess": null,
+ "languages": [
+  "English"
+ ],
+ "open_questions": [
+  {
+   "id": "OQ1",
+   "text": "Did you lead the pricing experiments or support them?"
+  }
+ ]
+}

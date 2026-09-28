@@ -1,0 +1,1081 @@
+#!/bin/bash
+# ./jobhunter: the control wrapper for people (design 10.8). Run ./jobhunter help for the list.
+# Every openclaw call uses the binary and profile recorded in private/home.json. Commands marked (PIN) read
+# your owner PIN with the echo off and pass it to jh.py on stdin (--pin-stdin). Agents cannot run this file.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$0")" && pwd)"
+JH="$REPO/scripts/jh.py"
+export PATH="$HOME/.openclaw/bin:$HOME/.openclaw/tools/node/bin:$HOME/.local/bin:$PATH"
+TAB="$(printf '\t')"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+is_tty() { [ -t 0 ]; }
+
+PY="$(command -v python3 2>/dev/null || echo /usr/bin/python3)"
+JH_HOME_EXISTS=0; JH_OC_BIN=""; JH_OC_PROFILE=""; JH_PY=""; JH_WS_ROOT=""; JH_INSTALL_ID=""
+load_home_env() {
+  local txt="" line=""
+  txt="$("$PY" "$JH" --human install shell-env 2>&1)" || die "cannot read private/home.json: $txt"
+  while IFS= read -r line; do
+    case "$line" in JH_[A-Z_]*=*) eval "$line" ;; esac
+  done <<EOF
+$txt
+EOF
+  if [ -n "$JH_PY" ] && [ -x "$JH_PY" ]; then PY="$JH_PY"; fi
+}
+load_home_env
+OC="$JH_OC_BIN"
+if [ -z "$OC" ] || [ ! -x "$OC" ]; then OC="$(command -v openclaw 2>/dev/null || echo "$HOME/.openclaw/bin/openclaw")"; fi
+OC_ARGS=()
+if [ -n "$JH_OC_PROFILE" ]; then OC_ARGS=(--profile "$JH_OC_PROFILE"); fi
+oc()  { "$OC" ${OC_ARGS[@]+"${OC_ARGS[@]}"} "$@"; }
+jh()  { "$PY" "$JH" --human "$@"; }
+TMPD=""
+tmpdir() {
+  if [ -z "$TMPD" ]; then TMPD="$(mktemp -d "${TMPDIR:-/tmp}/jobhunter.XXXXXX")"; trap 'rm -rf "$TMPD"' EXIT; fi
+}
+
+PIN=""
+read_pin() {
+  [ -n "$PIN" ] && return 0
+  is_tty || die "this command needs your owner PIN at a terminal"
+  printf 'Owner PIN: ' >&2
+  IFS= read -r -s PIN || PIN=""
+  printf '\n' >&2
+  [ -n "$PIN" ] || die "no PIN given"
+}
+# jh_pin <jh.py args...>: human class call. Interactive questions of the command read the terminal.
+jh_pin() { read_pin; printf '%s\n' "$PIN" | "$PY" "$JH" --human --pin-stdin "$@"; }
+
+need_home() { [ "$JH_HOME_EXISTS" = "1" ] || die "not installed yet: run ./install.sh first"; }
+
+# run_jh <jh.py command words and args...>: any jh.py command a person may run (the commands that product
+# messages and docs name, such as qc golden, answers add, eval requeue, companies split or profile answer).
+# Commands that need the owner (acl.json human_only, or people only) ask for the PIN; the rest run as
+# system calls. Agent and automation commands are refused.
+run_jh() {
+  need_home
+  local how=""
+  how="$("$PY" "$JH" --human install route -- "$@" 2>&1)" || die "$how"
+  case "$how" in
+    pin\ *) jh_pin "$@" ;;
+    open\ *) jh "$@" ;;
+    *) die "$how" ;;
+  esac
+}
+
+# onboard_has <key>: `profile status` lists that input file (salary_research, inference, base_resume)
+onboard_has() {
+  "$PY" "$JH" profile status 2>/dev/null | "$PY" -c 'import json,sys
+try:
+    f = (json.load(sys.stdin).get("data") or {}).get("input_files") or {}
+except Exception:
+    f = {}
+sys.exit(0 if f.get(sys.argv[1]) else 1)' "$1"
+}
+
+job_ids() { "$PY" "$JH" --human install job-ids "$@"; }
+
+cron_each() {  # cron_each enable|disable <job-ids --which ...>
+  local action="$1" ids="" id="" n=0
+  shift
+  ids="$(job_ids "$@")" || die "$ids"
+  while IFS= read -r id <&3; do
+    [ -n "$id" ] || continue
+    oc cron "$action" "$id" >/dev/null || die "openclaw cron $action $id failed"
+    n=$((n + 1))
+  done 3<<EOF
+$ids
+EOF
+  say "$action: $n automations"
+}
+
+usage() {
+  cat <<'EOF'
+./jobhunter <command>
+
+Everyday
+  status                        what ran, what waits for you, breakers, usage against limits
+  inbox                         approvals, questions and tasks waiting for you
+  approve <code>                approve a draft (PIN)          skip <code> [reason] (PIN)
+  edit <code>                   edit a draft in your editor, then send it back through QC (PIN)
+  pause [area]                  stop now: all (default), linkedin, gmail, applications, site:<name>
+  resume [area]                 start again (PIN)
+  stop-now                      pause, close the agent browser, mark in-flight actions as unknown
+  run <lane>                    run one cycle now: scout, evaluator, applier, outreach, replies
+  logs [lane]                   recent runs and log lines
+
+Setup
+  init                          first run wizard (your details, resume, preferences, sites, email, sheet)
+  profile                       answer or change your preferences again (PIN)
+  resume base-review | resume base-build   review and build the base resume (the resume steps, not unpause)
+  pin set | pin reset           set or change the owner PIN; reset a forgotten PIN
+  mail connect (PIN) | mail test   optional app password route; email uses Gmail in the browser by default
+  sheet connect (PIN) | sheet sync
+  browser consent [site ...]    choose the sites whose Chrome logins the agent may use (PIN; each defaults to No)
+  browser forget <site>|--all   take a site back: consent off and its cookies cleared from the agent's browser
+  browser sites                 which sites the agent may use
+  browser check [site ...]      read-only login check of the sites you allowed
+  browser login <site>          log in by hand inside the agent's browser (a site you allowed)
+  browser import                macOS: copy the allowed sites' Chrome cookies again (after a logout)
+  linkedin enable (PIN) | linkedin disable
+  doctor                        check everything
+  update                        git pull, re-run the installer, migrate
+  uninstall                     remove what this clone installed
+
+Limits and authority (PIN unless noted)
+  config lower <path> <value>   tighten a limit (no PIN)
+  config raise <path> <value>   loosen a limit up to the hard maximum
+  config validate | config show see what the config file asks for and what is used (no PIN)
+  approval human | approval auto
+  qc golden                     calibrate the reviewer (needed before approval auto)
+  tier <gmail|linkedin> <conservative|moderate>   (also: tier set --platform <p> --tier <t>)
+  breaker reset <scope>
+  reconcile not-sent <token>
+  exclusions deactivate
+  forget --email <address>      delete what is stored about one person (keeps a do-not-contact marker)
+
+More (PIN when the command needs the owner)
+  profile answer --field <id> --value <text>   answer a question from inbox (form questions too)
+  profile questions | profile status | profile show
+  answers add --key <k> --value <v> [--sensitive]
+  mail connect --store file     keep the app password in private/secrets.json instead of the Keychain
+  enrich connect <provider>     optional email finder key from your own account (PIN, terminal; docs/EMAIL-FINDER.md)
+  enrich disconnect <p>|--all   remove email finder keys (PIN)      enrich budget   credits used and left
+  mail import-history --days 365
+  sheet ping | sheet sync --full
+  eval requeue --since-profile-change
+  approvals                     the drafts waiting for you (same as approvals list)
+  companies split <uid> --keys <k1,k2> | contacts split <uid> --keys <k1,k2>
+  export                        write your data to exports/
+  Any other jh.py command a person may run works the same way: ./jobhunter <command> [args]
+EOF
+}
+
+# ------------------------------------------------------------------ commands
+cmd_status() {
+  need_home
+  jh status || true
+  tmpdir
+  if oc cron list --all --json >"$TMPD/cron.json" 2>/dev/null; then
+    say ""
+    say "Automations"
+    "$PY" "$JH" --human install cron-summary --file "$TMPD/cron.json" || true
+  else
+    say "openclaw cron list failed (is the Gateway running?)"
+  fi
+  say ""
+  oc gateway status 2>&1 | sed -n '1,6p' || true
+}
+
+# scope_arg [area | --scope <area>] [--reason <text>]: the area of pause, resume and unpause (default all)
+AREA=""; REASON=""
+scope_arg() {
+  AREA=""; REASON=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --scope) [ $# -ge 2 ] || die "--scope needs an area"; AREA="$2"; shift ;;
+      --scope=*) AREA="${1#--scope=}" ;;
+      --reason) [ $# -ge 2 ] || die "--reason needs a text"; REASON="$2"; shift ;;
+      -*) die "unknown option: $1" ;;
+      *) [ -z "$AREA" ] || die "one area at a time"; AREA="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$AREA" ] || AREA="all"
+}
+
+cmd_pause() {
+  need_home
+  scope_arg "$@"
+  jh pause --scope "$AREA" --reason "${REASON:-paused from the terminal}"
+  if [ "$AREA" = "all" ]; then cron_each disable --which pause; fi
+}
+
+cmd_resume() {
+  need_home
+  # `resume base-review`, `resume base-build`: the resume commands of jh.py, not an area to unpause
+  case "${1:-}" in
+    ""|all|linkedin|gmail|applications|site:*|--scope|--scope=*) ;;
+    *)
+      if "$PY" "$JH" --human install route -- resume "$@" >/dev/null 2>&1; then run_jh resume "$@"; return; fi ;;
+  esac
+  scope_arg "$@"
+  jh_pin unpause --scope "$AREA"
+  if [ "$AREA" = "all" ]; then cron_each enable --which resume; fi
+}
+
+cmd_stop_now() {
+  need_home
+  cmd_pause all || true
+  oc browser --browser-profile jobhunter stop >/dev/null 2>&1 || true
+  local agent="" out="" token=""
+  for agent in jobhunter-applier jobhunter-outreach; do
+    out="$("$PY" "$JH" gate status --agent "$agent" 2>/dev/null || true)"
+    token="$(printf '%s' "$out" | "$PY" -c 'import json,sys
+try:
+    o = (json.load(sys.stdin).get("data") or {}).get("open") or {}
+    print(o.get("token", "") if o.get("status") in ("reserved", "armed") else "")
+except Exception:
+    print("")')"
+    if [ -n "$token" ]; then
+      jh gate unknown "$token" || say "NOTE: could not mark $token unknown"
+    fi
+  done
+  say "stopped: paused, browser closed, in-flight actions marked unknown"
+}
+
+cmd_run() {
+  need_home
+  local lane="${1:-}" id=""
+  [ -n "$lane" ] || die "usage: ./jobhunter run scout|evaluator|applier|outreach|replies"
+  id="$(job_ids --which lane --lane "$lane")" || die "$id"
+  oc cron run "$id" --wait --wait-timeout 30m
+}
+
+cmd_logs() {
+  need_home
+  local lane="${1:-}" id="" f=""
+  if [ -n "$lane" ]; then
+    id="$(job_ids --which lane --lane "$lane")" || die "$id"
+    oc cron runs "$id" --limit 20 || true
+  fi
+  if [ -f "$REPO/logs/jh.log" ]; then say "--- logs/jh.log"; tail -n 30 "$REPO/logs/jh.log"; fi
+  for f in "$REPO"/logs/guard-*.jsonl; do
+    [ -f "$f" ] || continue
+    say "--- ${f#$REPO/}"; tail -n 10 "$f"
+  done
+}
+
+cmd_edit() {
+  local code="${1:-}"
+  [ -n "$code" ] || die "usage: ./jobhunter edit <code> [--text-file <file>]"
+  if [ "${2:-}" = "--text-file" ]; then
+    [ -n "${3:-}" ] || die "usage: ./jobhunter edit <code> --text-file <file>"
+    jh_pin edit "$code" --text-file "$3"
+    return
+  fi
+  tmpdir
+  local f="$TMPD/edit-$code.txt"
+  "$PY" "$JH" --human draft show "$code" --field body >"$f" || die "draft $code not found"
+  "${EDITOR:-vi}" "$f"
+  jh_pin edit "$code" --text-file "$f"
+}
+
+cmd_pin() {
+  case "${1:-}" in
+    set)
+      if [ -f "$REPO/private/owner_pin.json" ]; then
+        is_tty || die "changing the PIN needs a terminal"
+        local old="" new="" again=""
+        printf 'Current PIN: ' >&2; IFS= read -r -s old; printf '\n' >&2
+        printf 'New PIN (6 to 12 digits): ' >&2; IFS= read -r -s new; printf '\n' >&2
+        printf 'New PIN again: ' >&2; IFS= read -r -s again; printf '\n' >&2
+        [ "$new" = "$again" ] || die "the two new PINs differ"
+        # --pin-stdin consumes the first line (the current PIN); auth set-pin then reads the new PIN twice
+        printf '%s\n%s\n%s\n' "$old" "$new" "$again" | "$PY" "$JH" --human --pin-stdin auth set-pin
+      else
+        is_tty || die "setting the PIN needs a terminal"
+        "$PY" "$JH" --human auth set-pin
+      fi ;;
+    reset)
+      is_tty || die "resetting the PIN needs a terminal"
+      say "This deletes the stored PIN hash so you can set a new one. Agents cannot run this wrapper."
+      printf 'Type the full path of this repo (%s) to confirm: ' "$REPO"
+      local ans=""
+      IFS= read -r ans || true
+      [ "$ans" = "$REPO" ] || die "path did not match; nothing changed"
+      rm -f "$REPO/private/owner_pin.json"
+      say "PIN removed. Set a new one now."
+      "$PY" "$JH" --human auth set-pin ;;
+    *) die "usage: ./jobhunter pin set|reset" ;;
+  esac
+}
+
+# ------------------------------------------------------------------ browser sites, consent and logins
+# The agents browse in their own OpenClaw browser profile, jobhunter. A site's login reaches it only with your
+# consent for that site: private/consent.json, written by the human-only `browser consent grant|revoke` commands
+# (your PIN; they also stop and restart the site's breaker). Preflight, gate reserve and the guard refuse every
+# site without an active consent row. The cookie copy is OpenClaw's `browser import-profile --domains` (macOS),
+# limited to the domains of the sites you allowed; OpenClaw has no per-domain cookie delete, so taking a site
+# back clears every cookie of the jobhunter profile and copies the sites you still allow again.
+consent_intro() {
+  say "How the agent uses your logins (please read):"
+  say "  - The agent works in its own browser profile named jobhunter. Your normal Chrome is never opened,"
+  say "    driven or changed by the agent."
+  say "  - For each site you allow, only that site's login cookies are copied from the Chrome profile you pick"
+  say "    into the jobhunter profile (macOS), or you log in by hand inside the jobhunter window."
+  say "    Gmail is the exception: its login is your whole Google account session (read the Gmail question)."
+  say "  - The cookies stay on this computer, in OpenClaw's browser folder. Nothing is sent anywhere else."
+  say "  - No password is asked for or stored. The agent never types a password and stops at any login,"
+  say "    CAPTCHA or verification page, then tells you."
+  say "  - Take a site back any time: ./jobhunter browser forget <site> (or --all) clears its cookies."
+  say "Every question defaults to No: press Enter to keep a site off."
+}
+
+# consent_rows [site...]: lines "site TAB status TAB domains TAB label" (status none, granted, declined, revoked)
+consent_rows() {
+  local -a sel=()
+  local s=""
+  for s in "$@"; do sel+=(--site "$s"); done
+  "$PY" "$JH" --human install consent-sites ${sel[@]+"${sel[@]}"}
+}
+
+site_allowed() {  # site_allowed <site>: 0 when the site has an active consent row
+  local rows="" site="" status="" rest=""
+  rows="$(consent_rows "$1" 2>/dev/null)" || return 1
+  while IFS="$TAB" read -r site status rest; do
+    [ "$site" = "$1" ] && [ "$status" = "granted" ] && return 0
+  done <<EOF
+$rows
+EOF
+  return 1
+}
+
+# choose_chrome_profile: sets CHROME_DIR and CHROME_NAME from Chrome's Local State (display names). You type the
+# number yourself (there is no default), and a work or school profile needs the typed word work.
+CHROME_DIR=""; CHROME_NAME=""
+choose_chrome_profile() {
+  CHROME_DIR=""; CHROME_NAME=""
+  local list="" line="" pick="" work="" ans=""
+  if ! list="$("$PY" "$JH" --human install chrome-profiles 2>&1)"; then
+    say "NOTE: $list"
+    return 1
+  fi
+  say "Your Chrome profiles (read from Chrome's Local State file; nothing else of Chrome is read):"
+  say "$list"
+  while :; do
+    printf 'Copy the logins from which Chrome profile? Type its number (Enter to cancel): '
+    pick=""; IFS= read -r pick || pick=""
+    [ -n "$pick" ] || return 1
+    case "$pick" in *[!0-9]*) say "type the number shown in front of the profile"; continue ;; esac
+    if ! line="$("$PY" "$JH" --human install chrome-profiles --pick "$pick" 2>&1)"; then say "$line"; continue; fi
+    IFS="$TAB" read -r CHROME_DIR work CHROME_NAME <<EOF
+$line
+EOF
+    if [ "$work" = "1" ]; then
+      say "\"$CHROME_NAME\" looks like a work or school profile. Its logins may belong to your employer or school."
+      printf 'Type work to use it anyway, or press Enter to pick another profile: '
+      ans=""; IFS= read -r ans || ans=""
+      if [ "$ans" != "work" ]; then CHROME_DIR=""; CHROME_NAME=""; continue; fi
+    fi
+    return 0
+  done
+}
+
+# login_check <site>: read-only check in the jobhunter profile (opens the site's page, reads where it landed, the
+# title and the Gmail account address, then closes the tab). Sets LC_VERDICT: ok, logged_out, checkpoint,
+# mismatch or unknown. It never clicks, types or solves anything.
+LC_VERDICT=""
+login_check() {
+  local site="$1" url="" fn="" res="" text=""
+  LC_VERDICT="unknown"
+  tmpdir
+  url="$("$PY" "$JH" --human install login-probe --site "$site" --url 2>&1)" || { say "CHECK $url"; return 0; }
+  fn="$("$PY" "$JH" --human install login-probe 2>&1)" || { say "CHECK $fn"; return 0; }
+  oc browser --browser-profile jobhunter start >/dev/null 2>&1 || true
+  if ! oc browser --browser-profile jobhunter open "$url" --label jh-login-check >/dev/null 2>&1; then
+    say "CHECK $site: the agent's browser did not open (see ./jobhunter doctor)"
+    return 0
+  fi
+  oc browser --browser-profile jobhunter wait --load domcontentloaded --target-id jh-login-check --timeout-ms 30000 \
+    >/dev/null 2>&1 || true
+  oc browser --browser-profile jobhunter wait --time 3000 --target-id jh-login-check >/dev/null 2>&1 || true
+  oc browser --browser-profile jobhunter --json evaluate --target-id jh-login-check --fn "$fn" \
+    >"$TMPD/probe-$site.json" 2>/dev/null || : >"$TMPD/probe-$site.json"
+  oc browser --browser-profile jobhunter close jh-login-check >/dev/null 2>&1 || true
+  res="$("$PY" "$JH" --human install login-check --site "$site" --file "$TMPD/probe-$site.json" 2>&1)" \
+    || res="unknown${TAB}$site: the check could not be read"
+  IFS="$TAB" read -r LC_VERDICT text <<EOF
+$res
+EOF
+  case "$LC_VERDICT" in
+    ok) say "ok    $text" ;;
+    logged_out) say "LOGIN $text. Log in by hand: ./jobhunter browser login $site" ;;
+    checkpoint) say "STOP  $text."
+                say "      Nothing more is checked. Then run: ./jobhunter browser check $site" ;;
+    mismatch) say "STOP  $text."
+              say "      Log in to the right account (./jobhunter browser login gmail), change your sender address"
+              say "      (./jobhunter init), or take Gmail back (./jobhunter browser forget gmail)." ;;
+    *) LC_VERDICT="unknown"; say "CHECK $text. Look at the jobhunter window, then run ./jobhunter browser check $site" ;;
+  esac
+}
+
+# login_checks <site,site,...>: stops at the first CAPTCHA, verification prompt or wrong account (returns 1)
+login_checks() {
+  local list="$1" site="" bad=0
+  local -a all=()
+  IFS=',' read -r -a all <<<"$list" || true
+  for site in ${all[@]+"${all[@]}"}; do
+    [ -n "$site" ] || continue
+    login_check "$site"
+    case "$LC_VERDICT" in checkpoint|mismatch) return 1 ;; ok) ;; *) bad=1 ;; esac
+  done
+  return "$bad"
+}
+
+open_login_page() {  # open_login_page <site>: a tab of the jobhunter profile at the site's login page
+  local url=""
+  case "$1" in
+    linkedin) url="https://www.linkedin.com/login" ;;
+    gmail) url="https://mail.google.com/" ;;
+    *) url="$("$PY" "$JH" --human install login-probe --site "$1" --url 2>&1)" || die "$url" ;;
+  esac
+  oc browser --browser-profile jobhunter start >/dev/null
+  oc browser --browser-profile jobhunter open "$url" >/dev/null
+  say "A window of the agent's jobhunter browser profile is open at $url."
+  say "Log in there yourself (the agent never types passwords), then close the tab."
+}
+
+# reimport_after_clear <lines>: clears every cookie of the jobhunter profile, then copies again the sites you
+# still allow (lines "import TAB domains TAB chrome folder" and "manual TAB site" from consent-revoke).
+reimport_after_clear() {
+  local lines="$1" kind="" a="" b="" manual=""
+  oc browser --browser-profile jobhunter start >/dev/null 2>&1 || true
+  if oc browser --browser-profile jobhunter cookies clear >/dev/null 2>&1; then
+    say "cleared every cookie of the agent's jobhunter browser profile"
+  else
+    say "WARNING: the cookies could not be cleared (is the Gateway running?). The consent is already taken back, so"
+    say "         the agent may not use the site. Clear them later with: ./jobhunter browser forget --all"
+    return 1
+  fi
+  while IFS="$TAB" read -r kind a b <&3; do
+    case "$kind" in
+      import)
+        if [ "$(uname -s)" = "Darwin" ] && oc browser import-profile --browser chrome --system "$b" --into jobhunter \
+            --domains "$a" >/dev/null 2>&1; then
+          say "copied again for the sites you still allow: $a"
+        else
+          say "NOTE: could not copy $a again; log in by hand: ./jobhunter browser login <site>"
+        fi ;;
+      manual) manual="${manual:+$manual }$a" ;;
+    esac
+  done 3<<EOF
+$lines
+EOF
+  if [ -n "$manual" ]; then say "Log in again by hand for the sites you still allow: $manual (./jobhunter browser login <site>)"; fi
+  return 0
+}
+
+# browser_consent [--new] [site...]: the consent step (./jobhunter init, install.sh and ./jobhunter browser consent)
+browser_consent() {
+  need_home
+  is_tty || die "choosing the sites the agent may use needs a terminal: ./jobhunter browser consent"
+  [ -f "$REPO/private/owner_pin.json" ] || die "set your owner PIN first: ./jobhunter pin set"
+  local only_new=0 a="" rows="" site="" status="" doms="" label="" yn="" asked=0
+  local grant="" decline="" gdoms="" withdrawn="" method="manual_login"
+  local -a sel=() rec=() glist=()
+  for a in "$@"; do
+    case "$a" in
+      --new) only_new=1 ;;
+      -*) die "usage: ./jobhunter browser consent [site ...]" ;;
+      *) sel+=("$a") ;;
+    esac
+  done
+  rows="$(consent_rows ${sel[@]+"${sel[@]}"} 2>&1)" || die "$rows"
+  consent_intro
+  while IFS="$TAB" read -r site status doms label <&3; do
+    [ -n "$site" ] || continue
+    if [ "$only_new" = "1" ] && [ "$status" != "none" ]; then
+      say "SKIP $label: answered before ($status). Change it: ./jobhunter browser consent $site"
+      continue
+    fi
+    asked=1
+    say ""
+    case "$site" in
+      gmail) say "Gmail: the agent reads your inbox and Sent folder and sends only the emails that passed QC and"
+             say "  your approval rules, from your own Gmail. This is how email works without any password."
+             say "  What Yes gives the agent's profile: your Google account session. Google signs you in on"
+             say "  google.com, so the google.com cookies are copied (or made when you log in by hand), not only"
+             say "  Gmail's. That session could open other Google services (Drive, Docs, Sheets, account settings)."
+             say "  The guard lets the agents use only mail.google.com and blocks every other Google service and"
+             say "  Gmail's settings pages."
+             say "  Take it back any time: ./jobhunter browser forget gmail (PIN) clears those cookies from the"
+             say "  agent's profile. Signing the session out on Google's Your devices page also ends it; a copied"
+             say "  session is the same one your Chrome uses, so that signs your Chrome out of Google too." ;;
+      linkedin) say "LinkedIn: automated use breaks LinkedIn's User Agreement and can get your account restricted."
+                say "  Allowing the login does not turn LinkedIn on: that still needs ./jobhunter linkedin enable"
+                say "  and its typed acknowledgement (docs/SAFETY-AND-TOS.md)." ;;
+      *) say "$label: the agent searches jobs there and, where you turned it on, applies." ;;
+    esac
+    if [ "$status" = "granted" ]; then say "  (allowed now; answer No to take it back)"; fi
+    printf 'Allow the agent to use your %s login? [y/N] ' "$label"
+    yn=""; IFS= read -r yn || yn=""
+    case "$yn" in
+      y|Y|yes|YES|Yes) grant="${grant:+$grant,}$site"; gdoms="${gdoms:+$gdoms,}$doms" ;;
+      *) decline="${decline:+$decline,}$site"
+         if [ "$status" = "granted" ]; then withdrawn="${withdrawn:+$withdrawn,}$site"; fi ;;
+    esac
+  done 3<<EOF
+$rows
+EOF
+  [ "$asked" = "1" ] || { say "SKIP every site is answered (./jobhunter browser consent asks again)"; return 0; }
+  if [ -n "$grant" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then
+      say ""
+      say "How should the allowed logins reach the agent's browser?"
+      say "  c: copy them from one of your Chrome profiles (you choose which)"
+      say "  m: log in by hand inside the agent's browser window"
+      printf 'Copy from Chrome (c) or log in by hand (m)? [c] '
+      yn=""; IFS= read -r yn || yn=""
+      case "$yn" in m|M) method="manual_login" ;; *) method="chrome_import" ;; esac
+    else
+      say "On Linux and WSL nothing is copied: you log in by hand inside the agent's browser window."
+    fi
+    if [ "$method" = "chrome_import" ] && ! choose_chrome_profile; then
+      say "No Chrome profile chosen: you log in by hand inside the agent's browser window instead."
+      method="manual_login"
+    fi
+  fi
+  say ""
+  if [ -n "$grant" ]; then
+    rec=(browser consent grant --method "$method")
+    IFS=',' read -r -a glist <<<"$grant" || true
+    for site in "${glist[@]}"; do rec+=(--site "$site"); done
+    if [ "$method" = "chrome_import" ]; then rec+=(--chrome-profile "$CHROME_DIR" --chrome-profile-name "$CHROME_NAME"); fi
+    jh_pin "${rec[@]}" || die "your consent was not recorded, and nothing was copied"
+  fi
+  if [ -n "$withdrawn" ]; then
+    rec=(browser consent revoke)
+    IFS=',' read -r -a glist <<<"$withdrawn" || true
+    for site in "${glist[@]}"; do rec+=(--site "$site"); done
+    jh_pin "${rec[@]}" || die "taking back $withdrawn failed; run ./jobhunter browser forget $withdrawn"
+  fi
+  # a No is recorded too, so ./jobhunter init does not ask about that site again (it gives no access)
+  if [ -n "$decline" ]; then
+    jh_pin install consent-record --decline "$decline" --method manual_login >/dev/null \
+      || say "NOTE: your No answers were not recorded; the sites stay off"
+  fi
+  if [ -n "$withdrawn" ]; then
+    say "Taking back: $withdrawn"
+    reimport_after_clear "$("$PY" "$JH" --human install consent-imports 2>/dev/null)" || true
+  fi
+  if [ -z "$grant" ]; then
+    say "No site is allowed: the agent uses none of your logins. Discovery through public job APIs still runs."
+    return 0
+  fi
+  if [ "$method" = "chrome_import" ]; then
+    say "Copying only the cookies of $gdoms from Chrome profile \"$CHROME_NAME\" into the jobhunter profile."
+    say "(macOS may ask for your login password so Chrome's cookie store can be read: that window is macOS's own.)"
+    if ! oc browser import-profile --browser chrome --system "$CHROME_DIR" --into jobhunter --domains "$gdoms"; then
+      say "NOTE: the copy failed. Log in by hand instead: ./jobhunter browser login <site>"
+    fi
+  else
+    IFS=',' read -r -a glist <<<"$grant" || true
+    for site in ${glist[@]+"${glist[@]}"}; do
+      open_login_page "$site"
+      printf 'Press Enter when you are logged in to %s (or have closed the tab): ' "$site"
+      yn=""; IFS= read -r yn || true
+    done
+  fi
+  say ""
+  say "Login check (read only):"
+  if ! login_checks "$grant"; then
+    say "Some sites need you (see above). The agent does not use a site until its check passes and its lane runs."
+  fi
+}
+
+browser_forget() {  # browser_forget <site> [site...] | --all: consent off (PIN), then the cookies are cleared
+  need_home
+  [ $# -gt 0 ] || die "usage: ./jobhunter browser forget <site> [site ...] | --all"
+  local a=""
+  local -a args=(browser consent revoke)
+  for a in "$@"; do
+    case "$a" in
+      --all) args=(browser consent revoke --all); break ;;
+      -*) die "usage: ./jobhunter browser forget <site> [site ...] | --all" ;;
+      *) args+=(--site "$a") ;;
+    esac
+  done
+  jh_pin "${args[@]}" || die "the consent was not taken back; nothing was cleared"
+  reimport_after_clear "$("$PY" "$JH" --human install consent-imports 2>/dev/null)"
+}
+
+cmd_browser() {
+  need_home
+  local sub="${1:-}" lines="" kind="" a="" b="" n=0 site="" status="" doms="" label=""
+  [ $# -gt 0 ] && shift
+  case "$sub" in
+    consent) browser_consent "$@" ;;
+    forget) browser_forget "$@" ;;
+    sites|status)
+      lines="$(consent_rows 2>&1)" || die "$lines"
+      while IFS="$TAB" read -r site status doms label; do
+        [ -n "$site" ] || continue
+        case "$status" in granted) status="allowed" ;; none) status="not asked yet (off)" ;; declined) status="off" ;;
+          revoked) status="taken back (off)" ;; esac
+        printf '  %-24s %s\n' "$label" "$status"
+      done <<EOF
+$lines
+EOF
+      say "Change: ./jobhunter browser consent [site]   Take back: ./jobhunter browser forget <site>|--all" ;;
+    check)
+      if [ $# -eq 0 ]; then
+        lines="$(consent_rows 2>&1)" || die "$lines"
+        while IFS="$TAB" read -r site status doms label; do
+          if [ "$status" = "granted" ]; then set -- "$@" "$site"; fi
+        done <<EOF
+$lines
+EOF
+        [ $# -gt 0 ] || die "no site is allowed yet: ./jobhunter browser consent"
+      fi
+      for site in "$@"; do
+        site_allowed "$site" || die "the agent may not use $site: allow it first with ./jobhunter browser consent $site"
+      done
+      local IFS_OLD="$IFS"; IFS=','; lines="$*"; IFS="$IFS_OLD"
+      login_checks "$lines" ;;
+    login)
+      site="${1:-}"
+      [ -n "$site" ] || die "usage: ./jobhunter browser login <site> (a site you allowed: ./jobhunter browser sites)"
+      [ "$site" != "workatastartup" ] || site="yc"
+      site_allowed "$site" || die "the agent may not use $site yet. Allow it first: ./jobhunter browser consent $site"
+      open_login_page "$site"
+      if is_tty; then
+        printf 'Press Enter when you are logged in: '
+        IFS= read -r a || true
+        login_check "$site"
+      fi ;;
+    import)
+      [ "$(uname -s)" = "Darwin" ] || die "copying Chrome logins works on macOS only; use ./jobhunter browser login <site>"
+      lines="$("$PY" "$JH" --human install consent-imports 2>&1)" || die "$lines"
+      while IFS="$TAB" read -r kind a b <&3; do
+        [ "$kind" = "import" ] || continue
+        say "Copying only the cookies of $a from Chrome profile folder \"$b\" (the sites you allowed)."
+        oc browser import-profile --browser chrome --system "$b" --into jobhunter --domains "$a" \
+          || say "NOTE: the copy failed; log in by hand: ./jobhunter browser login <site>"
+        n=$((n + 1))
+      done 3<<EOF
+$lines
+EOF
+      [ "$n" -gt 0 ] || die "no allowed site is set to be copied from Chrome: ./jobhunter browser consent" ;;
+    *) die "usage: ./jobhunter browser consent [site ...] | forget <site>|--all | sites | check [site ...] | login <site> | import" ;;
+  esac
+}
+
+cmd_linkedin() {
+  case "${1:-}" in
+    enable)
+      cat "$REPO/docs/SAFETY-AND-TOS.md" 2>/dev/null | sed -n '1,40p' || true
+      say ""
+      say "LinkedIn's User Agreement forbids automated activity. Your account can be restricted or banned."
+      local ack="" kind="" years=""
+      printf 'Type exactly: I understand LinkedIn may restrict my account\n> '
+      IFS= read -r ack || true
+      printf 'Account type (free or premium): '; IFS= read -r kind || true
+      printf 'Account age in whole years: '; IFS= read -r years || true
+      jh_pin linkedin enable --ack "$ack" --account-type "$kind" --account-age-years "$years" ;;
+    disable) jh linkedin disable ;;
+    *) die "usage: ./jobhunter linkedin enable|disable" ;;
+  esac
+}
+
+cmd_approval() {
+  case "${1:-}" in
+    human) jh_pin approval set human ;;
+    auto)
+      local ack=""
+      say "Auto mode sends every message that passes QC without showing it to you first."
+      printf 'Type exactly: I accept that messages that pass QC are sent without my review\n> '
+      IFS= read -r ack || true
+      jh_pin approval set auto --ack "$ack" ;;
+    *) die "usage: ./jobhunter approval human|auto" ;;
+  esac
+}
+
+cmd_doctor() {
+  need_home
+  local bad=0 out=""
+  check() {  # check <label> <command...>
+    local label="$1"; shift
+    if out="$("$@" 2>&1)"; then say "ok    $label"; else say "FAIL  $label"; printf '%s\n' "$out" | sed -n '1,6p' | sed 's/^/      /'; bad=1; fi
+  }
+  check "jh.py selftest" "$PY" "$JH" --human selftest
+  check "config validate" "$PY" "$JH" --human config validate
+  check "guard heartbeat" "$PY" "$JH" --human install wait-guard --timeout 0
+  check "openclaw doctor (read only)" oc doctor --lint
+  check "openclaw skills check" oc skills check --agent jobhunter-applier
+  check "browser profile jobhunter" oc browser --browser-profile jobhunter doctor
+  if [ "$(uname -s)" != "Darwin" ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    say "WARN  no display: browser lanes stay off on this host"
+  fi
+  local mstate=""
+  mstate="$("$PY" "$JH" --human install mail-state 2>/dev/null)" || mstate=""
+  case "$mstate" in
+    *route=web_ui*)
+      if site_allowed gmail; then say "skip  mail test (gmail.route is web_ui: Gmail in the agent's browser sends email)"
+      else say "WARN  email is off: gmail.route is web_ui and Gmail is not allowed (./jobhunter browser consent gmail)"; fi ;;
+    *connected=1*) check "mail test" "$PY" "$JH" --human mail test ;;
+    *) say "skip  mail test (email is not connected yet: ./jobhunter mail connect)" ;;
+  esac
+  check "sheet ping" "$PY" "$JH" --human sheet ping
+  local allowed="" site="" status="" rest=""
+  while IFS="$TAB" read -r site status rest; do
+    if [ "$status" = "granted" ]; then allowed="${allowed:+$allowed, }$site"; fi
+  done <<EOF
+$(consent_rows 2>/dev/null || true)
+EOF
+  say "info  sites the agent may use: ${allowed:-none} (./jobhunter browser sites; login check: ./jobhunter browser check)"
+  check "chat channel" oc channels status --probe
+  if out="$(oc config get skills.workshop.autonomous.mode 2>/dev/null)" && printf '%s' "$out" | grep -q auto; then
+    say "WARN  Skill Workshop autonomous mode is auto: it may edit skills of the jobhunter agents weekly."
+    say "      Consider: openclaw config set skills.workshop.autonomous.mode propose"
+  fi
+  if out="$(oc config get plugins.entries.memory-core --json 2>/dev/null)" && printf '%s' "$out" | grep -qi dreaming; then
+    say "WARN  memory dreaming is configured; make sure it does not target jobhunter-* agents."
+  fi
+  if [ "$bad" = "1" ]; then say "doctor: some checks failed (see docs/TROUBLESHOOTING.md)"; return 1; fi
+  say "doctor: all checks passed"
+}
+
+cmd_update() {
+  local before="" after=""
+  before="$(cat "$REPO/sheets/Code.gs" 2>/dev/null | cksum || true)"
+  git -C "$REPO" pull --ff-only
+  "$REPO/install.sh" --no-smoke "$@"
+  "$PY" "$JH" --human selftest --offline
+  after="$(cat "$REPO/sheets/Code.gs" 2>/dev/null | cksum || true)"
+  if [ "$before" != "$after" ]; then
+    say "sheets/Code.gs changed: paste it into Apps Script and redeploy (docs/GOOGLE-SHEETS.md, \"Updating the script later\")."
+  fi
+}
+
+# ------------------------------------------------------------------ init wizard (design 8)
+wizard_step() { printf '\n== %s\n' "$1"; }
+agent_turn() {  # agent_turn <agent> <session key> <message file>
+  oc agent --agent "$1" --session-key "$2" --message-file "$3" --json --timeout 900
+}
+ask_line() {  # ask_line <prompt> -> REPLY_LINE
+  REPLY_LINE=""
+  printf '%s' "$1"
+  IFS= read -r REPLY_LINE || REPLY_LINE=""
+}
+REPLY_LINE=""
+
+# The guard's owner fallback and the failure alerts are rendered from owner.notify (design 1.4, 10.3 step 10
+# and 13). The installer ran before the wizard set a real number, so apply both again now.
+apply_owner_target() {
+  local p="" lines="" line="" n=0
+  if p="$("$PY" "$JH" --human install render-guard-config 2>&1)" && oc config patch --file "$p" >/dev/null 2>&1; then
+    oc plugins reload jobhunter-guard >/dev/null 2>&1 || true
+    say "the guard now knows your chat number"
+  else
+    say "NOTE: the guard config was not updated; run ./install.sh again later so owner messages reach you"
+  fi
+  lines="$("$PY" "$JH" --human install render-crons --alerts 2>/dev/null)" || lines=""
+  while IFS= read -r line <&3; do
+    [ -n "$line" ] || continue
+    eval "set -- $line"
+    [ "${1:-}" = "cron" ] || continue
+    if oc "$@" >/dev/null 2>&1; then n=$((n + 1)); fi
+  done 3<<LINES
+$lines
+LINES
+  say "failure alerts: $n"
+}
+
+wizard_owner() {  # name, Gmail address, signature and chat number in private/config.json (owner.*)
+  local missing="" out=""
+  local -a args=()
+  missing="$("$PY" "$JH" --human install owner --missing 2>&1)" || die "$missing"
+  if [ -z "$missing" ]; then say "SKIP your details are set (owner in private/config.json)"; return 0; fi
+  say "These go into private/config.json (never committed): your name signs every email, the Gmail address is"
+  say "the one email is sent from, and the chat number is where drafts and alerts reach you."
+  case "$missing" in *first_name*|*last_name*)
+    ask_line 'Your first name: '; args+=(--first-name "$REPLY_LINE")
+    ask_line 'Your last name: '; args+=(--last-name "$REPLY_LINE")
+    ask_line 'Phone number for your email signature (Enter for none): '; args+=(--phone "$REPLY_LINE") ;;
+  esac
+  case "$missing" in *gmail_address*)
+    ask_line 'The Gmail address you send from: '; args+=(--gmail "$REPLY_LINE") ;;
+  esac
+  case "$missing" in *first_name*|*signature_links*)
+    ask_line 'Links for your signature, full https:// addresses separated by spaces (Enter for none): '
+    if [ -z "$REPLY_LINE" ]; then args+=(--no-links); else
+      local l=""
+      local -a parts=()
+      read -r -a parts <<<"$REPLY_LINE" || true
+      for l in ${parts[@]+"${parts[@]}"}; do args+=(--link "$l"); done
+    fi ;;
+  esac
+  case "$missing" in *notify*)
+    say "Notifications and approvals in chat (read docs/SAFETY-AND-TOS.md; a separate number is recommended)."
+    ask_line 'Chat app: whatsapp, telegram or none [whatsapp]: '
+    local chan="${REPLY_LINE:-whatsapp}"
+    args+=(--notify-channel "$chan")
+    if [ "$chan" != "none" ]; then
+      ask_line "Your $chan number or address (numbers in international form: + country code, then the number): "
+      args+=(--notify-to "$REPLY_LINE")
+    fi ;;
+  esac
+  out="$("$PY" "$JH" --human install owner ${args[@]+"${args[@]}"} 2>&1)" \
+    || die "$out (run ./jobhunter init again, or edit owner in private/config.json)"
+  say "$out"
+  case "$out" in *"chat number changed"*) apply_owner_target ;; esac
+}
+
+cmd_init() {
+  is_tty || die "the wizard needs a terminal"
+  need_home
+  local onb="$REPO/state/onboarding"
+  mkdir -p "$onb"
+
+  wizard_step "1. Owner PIN"
+  if [ -f "$REPO/private/owner_pin.json" ]; then say "SKIP PIN is set"; else
+    say "The owner PIN stays on this computer; it is not an account password. You type it to approve drafts,"
+    say "allow sites and raise limits. The agent never knows it, so it cannot approve its own drafts or raise"
+    say "its own limits."
+    cmd_pin set
+  fi
+
+  wizard_step "2. Folders and config"
+  "$PY" "$JH" --human init
+
+  wizard_step "3. About you (name, Gmail address, chat number)"
+  wizard_owner
+
+  wizard_step "4. Resume"
+  local found="" f="" path="" ext=""
+  for f in "$REPO"/private/resume/original.*; do
+    if [ -f "$f" ]; then found="$f"; fi
+  done
+  if [ -n "$found" ]; then
+    say "SKIP resume imported (${found#$REPO/}); run ./jobhunter profile to change answers"
+  else
+    printf 'Path to your resume (PDF or DOCX): '
+    IFS= read -r path || true
+    path="${path/#\~/$HOME}"
+    [ -f "$path" ] || die "file not found: $path"
+    case "$path" in *.pdf|*.PDF|*.docx|*.DOCX) ;; *) die "use a PDF or DOCX file" ;; esac
+    # profile import copies it to private/resume/original.<ext> and extracts the text
+    jh_pin profile import --resume "$path"
+    say "If the text quality is poor, paste your resume text into private/resume/resume.txt and run this again."
+  fi
+
+  wizard_step "5. Extra information"
+  if [ ! -f "$REPO/private/extra_info.md" ] && [ -f "$REPO/private.example/extra_info.example.md" ]; then
+    cp "$REPO/private.example/extra_info.example.md" "$REPO/private/extra_info.md"
+    chmod 600 "$REPO/private/extra_info.md"
+  fi
+  printf 'Open private/extra_info.md to add projects, numbers, links and tools? [Y/n] '
+  local yn=""
+  IFS= read -r yn || true
+  case "$yn" in n|N|no) say "SKIP extra information" ;; *)
+    if [ "$(uname -s)" = "Darwin" ] && [ -z "${EDITOR:-}" ]; then open -W -e "$REPO/private/extra_info.md"
+    else "${EDITOR:-vi}" "$REPO/private/extra_info.md"; fi ;;
+  esac
+
+  # Steps 6 and 7 are done when their files exist (profile status input_files), not when the agent turn exits
+  # 0: a turn can end without recording anything, and a marker would then skip the step on every re-run.
+  wizard_step "6. Salary research (scout, public pages only)"
+  if onboard_has salary_research; then say "SKIP salary research recorded"; else
+    local titles="" city="" wd="$JH_WS_ROOT/scout/work/onboarding"
+    printf 'Job titles you are aiming for (comma separated): '; IFS= read -r titles || true
+    printf 'City (or remote): '; IFS= read -r city || true
+    mkdir -p "$wd"
+    "$PY" -c 'import json,sys; json.dump({"role_titles": [t.strip() for t in sys.argv[1].split(",") if t.strip()], "city": sys.argv[2].strip()}, open(sys.argv[3], "w"), indent=1)' \
+      "$titles" "$city" "$wd/salary_inputs.json"
+    { printf 'Run the onboarding salary research as described in your skill jobhunter-salary.\n\n'
+      cat "$JH_WS_ROOT/scout/ref/salary_research.md" 2>/dev/null || true
+    } >"$wd/prompt.md"
+    if ! agent_turn jobhunter-scout onboarding-salary "$wd/prompt.md" >/dev/null; then
+      say "NOTE: the salary research turn failed; the profile will say model estimate, not verified (./jobhunter init tries again)"
+    elif onboard_has salary_research; then say "DONE salary research"
+    else say "NOTE: the salary research turn recorded nothing; the profile will say model estimate, not verified (./jobhunter init tries again)"; fi
+  fi
+
+  wizard_step "7. Profile inference (evaluator)"
+  if onboard_has inference && onboard_has base_resume; then say "SKIP profile inferred"; else
+    local wd="$JH_WS_ROOT/evaluator/work/onboarding"
+    mkdir -p "$wd"
+    # profile import and profile salary-record already put resume.txt and salary.json here; the extra
+    # information may have been edited after the import
+    if [ -f "$REPO/private/resume/resume.txt" ]; then cp "$REPO/private/resume/resume.txt" "$wd/resume.txt"; fi
+    if [ -f "$REPO/private/extra_info.md" ]; then cp "$REPO/private/extra_info.md" "$wd/extra_info.md"; fi
+    { printf 'Run the onboarding profile inference as described in your skill jobhunter-profile.\n\n'
+      cat "$JH_WS_ROOT/evaluator/ref/profile_inference.md" 2>/dev/null || true
+    } >"$wd/prompt.md"
+    agent_turn jobhunter-evaluator onboarding-infer "$wd/prompt.md" >/dev/null \
+      || die "profile inference failed (the evaluator turn did not finish); run ./jobhunter init again"
+    if ! onboard_has inference || ! onboard_has base_resume; then
+      die "profile inference recorded nothing (no private/profile_inference.json or private/resume/base.json); run ./jobhunter init again (docs/TROUBLESHOOTING.md, First run wizard)"
+    fi
+    say "DONE profile inferred"
+  fi
+
+  wizard_step "8. Your preferences (interview)"
+  jh_pin profile interview
+
+  wizard_step "9. Feasibility check"
+  jh profile feasibility || true
+
+  wizard_step "10. Base resume"
+  jh_pin resume base-review
+  jh resume base-build
+
+  wizard_step "11. Sites the agent may use (your Chrome logins, asked per site)"
+  # Before any cookie is copied: the plain explanation, one question per site (default No), your choice of
+  # Chrome profile, then the copy of only those sites and a read-only login check.
+  browser_consent --new || say "NOTE: run ./jobhunter browser consent later"
+
+  wizard_step "12. Email"
+  local mstate=""
+  mstate="$("$PY" "$JH" --human install mail-state 2>/dev/null)" || mstate=""
+  case "$mstate" in
+    *route=app_password*)
+      if "$PY" "$JH" mail test >/dev/null 2>&1; then say "SKIP mail is connected (app password route)"; else
+        say "You picked the optional app password route (gmail.route = app_password, docs/EMAIL-SETUP.md)."
+        jh_pin mail connect || say "NOTE: run ./jobhunter mail connect later"
+      fi ;;
+    *)
+      say "Email is sent from your own Gmail inside the agent's browser (gmail.route = web_ui, the default)."
+      say "No password is needed. Every email still passes QC, your approval mode and the Gmail limits."
+      if site_allowed gmail; then say "Gmail: allowed (the login check is above)"
+      else say "Gmail is not allowed, so no email is sent. Allow it any time: ./jobhunter browser consent gmail"; fi
+      say "Optional instead: a Google app password (docs/EMAIL-SETUP.md), only if you want code to send over SMTP." ;;
+  esac
+  say "LinkedIn stays off unless you run ./jobhunter linkedin enable (read docs/SAFETY-AND-TOS.md first)."
+
+  wizard_step "13. History and exclusions"
+  if [ ! -f "$REPO/private/exclusions.csv" ] && [ -f "$REPO/private.example/exclusions.example.csv" ]; then
+    cp "$REPO/private.example/exclusions.example.csv" "$REPO/private/exclusions.csv"; chmod 600 "$REPO/private/exclusions.csv"
+  fi
+  say "Add people and companies you already contacted to private/exclusions.csv (see the examples in it)."
+  if [ ! -f "$onb/history.done" ]; then
+    printf 'Import your sent emails of the last 365 days so nobody is contacted twice? [Y/n] '
+    IFS= read -r yn || true
+    case "$yn" in n|N|no) say "SKIP history import" ;; *)
+      if jh_pin mail import-history --days 365; then : >"$onb/history.done"; fi ;;
+    esac
+  fi
+
+  wizard_step "14. Google Sheet"
+  if "$PY" "$JH" sheet ping >/dev/null 2>&1; then say "SKIP sheet is connected"; else
+    say "One click in your own Google account is needed here: when you run the Job Hunter script in YOUR sheet,"
+    say "Google shows an Allow screen once, so the script may edit that sheet. No other account access is given."
+    say "Follow docs/GOOGLE-SHEETS.md steps 1 to 4, then paste the web app URL and the secret."
+    printf 'Open a new Google Sheet (sheets.new) in your own Chrome now? [Y/n] '
+    IFS= read -r yn || yn=""
+    case "$yn" in n|N|no) ;; *)
+      if [ "$(uname -s)" = "Darwin" ]; then
+        open -a "Google Chrome" "https://sheets.new" >/dev/null 2>&1 || open "https://sheets.new" >/dev/null 2>&1 \
+          || say "Open https://sheets.new in your browser."
+      else
+        xdg-open "https://sheets.new" >/dev/null 2>&1 || say "Open https://sheets.new in your browser."
+      fi ;;
+    esac
+    jh_pin sheet connect || say "NOTE: run ./jobhunter sheet connect later"
+  fi
+
+  wizard_step "15. Check and go live"
+  cmd_doctor || true
+  say "When every check is ok: ./jobhunter resume"
+}
+
+# ------------------------------------------------------------------ dispatch
+# The commands above have their own steps (typed sentences, notes, cron switches, the editor). Everything else
+# is a jh.py command that a person may run, passed through run_jh (PIN when it needs the owner).
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift
+case "$cmd" in
+  help|-h|--help) usage ;;
+  status) cmd_status ;;
+  inbox) need_home; jh inbox ;;
+  pause) cmd_pause "$@" ;;
+  resume|unpause) cmd_resume "$@" ;;
+  stop-now) cmd_stop_now ;;
+  run) cmd_run "$@" ;;
+  logs) cmd_logs "$@" ;;
+  approve) [ $# -ge 1 ] || die "usage: ./jobhunter approve <code>"; jh_pin approve "$1" --by cli ;;
+  skip)
+    [ $# -ge 1 ] || die "usage: ./jobhunter skip <code> [reason]"
+    code="$1"; shift
+    if [ "${1:-}" = "--reason" ]; then shift; fi
+    if [ $# -gt 0 ]; then jh_pin skip "$code" --reason "$*"; else jh_pin skip "$code"; fi ;;
+  edit) cmd_edit "$@" ;;
+  init) cmd_init ;;
+  profile)
+    if [ $# -eq 0 ]; then need_home; jh_pin profile interview; jh profile feasibility || true
+    else run_jh profile "$@"; fi ;;
+  pin) cmd_pin "$@" ;;
+  mail)
+    sub="${1:-}"
+    [ $# -gt 0 ] && shift
+    case "$sub" in
+      connect) jh_pin mail connect "$@" ;;
+      test) jh mail test "$@" ;;
+      "") die "usage: ./jobhunter mail connect [--store file] | mail test | mail import-history --days <n>" ;;
+      *) run_jh mail "$sub" "$@" ;;
+    esac ;;
+  sheet)
+    sub="${1:-}"
+    [ $# -gt 0 ] && shift
+    case "$sub" in
+      connect) jh_pin sheet connect "$@" ;;
+      sync) jh sheet sync "$@" ;;
+      "") die "usage: ./jobhunter sheet connect | sheet sync [--full] | sheet ping" ;;
+      *) run_jh sheet "$sub" "$@" ;;
+    esac ;;
+  browser) cmd_browser "$@" ;;
+  enrich)
+    # optional email finder (docs/EMAIL-FINDER.md): keys and paid-tier lookups are owner actions (PIN)
+    sub="${1:-}"
+    case "$sub" in
+      connect)
+        is_tty || die "enrich connect needs a terminal: you type the key yourself, with the echo off"
+        need_home; jh_pin enrich "$@" ;;
+      disconnect|retry|test) need_home; jh_pin enrich "$@" ;;
+      find)
+        case " $* " in *" --i"*) need_home; jh_pin enrich "$@" ;; *) run_jh enrich "$@" ;; esac ;;
+      "") die "usage: ./jobhunter enrich connect <provider> | disconnect <provider>|--all | budget | show <contact> | retry <contact> | test <provider>" ;;
+      *) run_jh enrich "$@" ;;
+    esac ;;
+  linkedin) cmd_linkedin "$@" ;;
+  config)
+    case "${1:-}" in
+      lower) [ $# -eq 3 ] || die "usage: ./jobhunter config lower <dotted.path> <value>"; jh config lower "$2" "$3" ;;
+      raise) [ $# -eq 3 ] || die "usage: ./jobhunter config raise <dotted.path> <value>"; jh_pin config raise "$2" "$3" ;;
+      "") die "usage: ./jobhunter config lower|raise <dotted.path> <value> | config validate | config show" ;;
+      *) run_jh config "$@" ;;
+    esac ;;
+  approval)
+    if [ "${1:-}" = "set" ]; then shift; fi
+    cmd_approval "$@" ;;
+  tier)
+    if [ "${1:-}" = "set" ]; then shift; fi
+    case "${1:-}" in
+      --platform|--platform=*|--tier|--tier=*) jh_pin tier set "$@" ;;
+      *) [ $# -eq 2 ] || die "usage: ./jobhunter tier set gmail|linkedin conservative|moderate (PIN)"
+         jh_pin tier set --platform "$1" --tier "$2" ;;
+    esac ;;
+  breaker)
+    if [ "${1:-}" = "reset" ] && [ $# -eq 2 ]; then
+      printf 'Why is it safe to reset %s now? ' "$2"
+      note=""; IFS= read -r note || true
+      [ -n "$note" ] || die "a note is required"
+      jh_pin breaker reset --scope "$2" --note "$note"
+    else
+      run_jh breaker "$@"
+    fi ;;
+  reconcile)
+    if [ "${1:-}" = "not-sent" ]; then
+      [ $# -eq 2 ] || die "usage: ./jobhunter reconcile not-sent <token>"
+      jh_pin reconcile confirm-not-sent "$2"
+    else
+      run_jh reconcile "$@"
+    fi ;;
+  exclusions)
+    if [ "${1:-}" = "deactivate" ]; then jh_pin exclusions import --deactivate; else run_jh exclusions "$@"; fi ;;
+  approvals)
+    if [ $# -eq 0 ]; then run_jh approvals list; else run_jh approvals "$@"; fi ;;
+  forget)
+    [ $# -eq 2 ] || die "usage: ./jobhunter forget --email <address> | --linkedin <url> | --contact <id>"
+    jh_pin forget "$1" "$2" ;;
+  doctor) cmd_doctor ;;
+  update) cmd_update "$@" ;;
+  uninstall) exec "$REPO/uninstall.sh" "$@" ;;
+  *)
+    if [ "$JH_HOME_EXISTS" != "1" ]; then usage >&2; die "unknown command: $cmd"; fi
+    run_jh "$cmd" "$@" ;;
+esac

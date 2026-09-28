@@ -1,0 +1,1 @@
+{"platform": "smtp", "signatures": [{"code": "smtp_daily_limit", "verdict": "stop", "smtp_codes": ["5.4.5"]}]}

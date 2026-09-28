@@ -1,0 +1,9 @@
+type,value,reason
+# Copy this file to private/exclusions.csv (./jobhunter init does it) and add one line per target to never
+# contact. Lines starting with # are comments; the reason column is optional. Types: company, domain, email,
+# linkedin, job_url. The examples below are fictional; remove the leading # to use a line.
+# company,Kestrel Commerce,already in touch before the agent
+# domain,kestrel.example,current employer
+# email,recruiter@example.com,contacted in August
+# linkedin,https://www.linkedin.com/in/example-person,met at a meetup
+# job_url,https://jobs.lever.co/example/00000000-0000-0000-0000-000000000000,applied manually

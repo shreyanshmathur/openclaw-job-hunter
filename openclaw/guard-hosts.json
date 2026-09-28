@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "notes": "Host classes for the jobhunter-guard plugin (design 1.4 R4). A listed domain also covers its subdomains. Regexes are JavaScript syntax and are matched case-insensitively. platforms.<key>.scope is the breaker scope checked for that host; a token whose platform equals the key or one of its aliases may fill and commit on that host. platforms.<key>.consent is the site name that must have an active row in private/consent.json before any jobhunter agent may open or use these hosts (false: public pages that need no login and no consent, such as ATS forms); an entry without it needs consent under its key unless its scope is ats. Allowing Gmail copies the whole Google account session (every google.com cookie), so every google.com host except mail.google.com is never allowed (the last url_pattern); allowing YC copies the ycombinator.com session, so Hacker News is never allowed. never.url_patterns are matched against the URL as given and as the browser reads it (host lower-cased and percent-decoded).",
+  "never": {
+    "hosts": [
+      "docs.google.com", "sheets.google.com", "drive.google.com", "slides.google.com", "forms.google.com",
+      "script.google.com", "script.googleusercontent.com", "sites.google.com",
+      "accounts.google.com", "myaccount.google.com", "admin.google.com", "passwords.google.com",
+      "myactivity.google.com", "takeout.google.com", "payments.google.com", "pay.google.com",
+      "console.cloud.google.com", "cloud.google.com", "chromewebstore.google.com", "chrome.google.com",
+      "googleapis.com", "news.ycombinator.com"
+    ],
+    "url_patterns": [
+      "^https?://([a-z0-9-]+\\.)*linkedin\\.com/(mypreferences|psettings|settings|premium/cancel|help/linkedin/solve)(/|\\?|#|$)",
+      "^https?://mail\\.google\\.com/mail/(u/[0-9]+/)?#settings",
+      "^https?://(?!mail\\.google\\.com\\.?(:[0-9]*)?([/?#]|$))([a-z0-9-]+\\.)*google\\.com\\.?(:[0-9]*)?([/?#]|$)"
+    ],
+    "allowed_schemes": ["http", "https"],
+    "allow_about_blank": true,
+    "block_loopback": true,
+    "block_private_networks": true
+  },
+  "platforms": {
+    "linkedin": {"scope": "linkedin", "hosts": ["linkedin.com", "lnkd.in"], "aliases": [], "consent": "linkedin"},
+    "gmail": {"scope": "gmail", "hosts": ["mail.google.com"], "aliases": [], "consent": "gmail"},
+    "greenhouse": {"scope": "ats", "hosts": ["greenhouse.io"], "aliases": [], "consent": false},
+    "lever": {"scope": "ats", "hosts": ["lever.co"], "aliases": [], "consent": false},
+    "ashby": {"scope": "ats", "hosts": ["ashbyhq.com"], "aliases": [], "consent": false},
+    "workday": {"scope": "ats", "hosts": ["myworkdayjobs.com", "myworkdaysite.com"], "aliases": [], "consent": false},
+    "smartrecruiters": {"scope": "ats", "hosts": ["smartrecruiters.com"], "aliases": [], "consent": false},
+    "workable": {"scope": "ats", "hosts": ["workable.com"], "aliases": [], "consent": false},
+    "recruitee": {"scope": "ats", "hosts": ["recruitee.com"], "aliases": [], "consent": false},
+    "bamboohr": {"scope": "ats", "hosts": ["bamboohr.com"], "aliases": [], "consent": false},
+    "naukri": {"scope": "site:naukri", "hosts": ["naukri.com"], "aliases": ["site:naukri"], "consent": "naukri"},
+    "instahyre": {"scope": "site:instahyre", "hosts": ["instahyre.com"], "aliases": ["site:instahyre"], "consent": "instahyre"},
+    "foundit": {"scope": "site:foundit", "hosts": ["foundit.in"], "aliases": ["site:foundit"], "consent": "foundit"},
+    "wellfound": {"scope": "site:wellfound", "hosts": ["wellfound.com"], "aliases": ["site:wellfound"], "consent": "wellfound"},
+    "cutshort": {"scope": "site:cutshort", "hosts": ["cutshort.io"], "aliases": ["site:cutshort"], "consent": "cutshort"},
+    "hirist": {"scope": "site:hirist", "hosts": ["hirist.tech", "hirist.com"], "aliases": ["site:hirist"], "consent": "hirist"},
+    "iimjobs": {"scope": "site:iimjobs", "hosts": ["iimjobs.com"], "aliases": ["site:iimjobs"], "consent": "iimjobs"},
+    "yc": {"scope": "site:yc", "hosts": ["workatastartup.com"], "aliases": ["site:yc", "workatastartup"], "consent": "yc"},
+    "glassdoor": {"scope": "site:glassdoor", "hosts": ["glassdoor.com", "glassdoor.co.in"], "aliases": ["site:glassdoor"], "consent": "glassdoor"},
+    "indeed": {"scope": "site:indeed", "hosts": ["indeed.com"], "aliases": ["site:indeed"], "consent": "indeed"}
+  },
+  "harmless_names": [
+    "^\\W*(show|see|load) more\\b",
+    "^\\W*(show|see) (less|fewer)\\b",
+    "^next$",
+    "^previous$",
+    "^page \\d+$",
+    "^\\W*(show|see) all\\b",
+    "^(close|dismiss|not now|no thanks)$"
+  ],
+  "risky_names": "\\b(send|submit|apply|connect|message|post|follow|unfollow|like|comment|withdraw|accept|confirm|delete|remove|save|invite|share|repost|endorse|upload|pay|buy|purchase|subscribe|report|block)\\b",
+  "prepare_names": {
+    "li_invite": "^(connect|more|add a note|invite .+ to connect)$",
+    "li_message": "^message$",
+    "li_followup": "^message$",
+    "inmail": "^message$",
+    "referral_ask": "^message$",
+    "li_withdraw": "^(pending|more)$",
+    "application": "^(apply|apply now|easy apply|apply for this (job|position)|next|continue|review|(upload|attach|choose|select|browse)( (a|your))?( (resume|cv|resume/cv|file|files|document))?|add (a |your )?(resume|cv|file|document)|resume|cv|resume/cv)$",
+    "application_email": "^(compose|reply|attach files)$",
+    "cold_email": "^(compose|reply)$",
+    "followup_email": "^(compose|reply)$"
+  },
+  "multiline_notes": "A line break typed with slowly: true is an Enter press and counts as a submit, except in a textbox whose snapshot name matches multiline_names[<token kind>]. LinkedIn message boxes are not listed: LinkedIn can send on Enter.",
+  "multiline_names": {
+    "application": "^(cover letter|cover note|add a cover letter|additional information|note to (the )?hiring (team|manager))( \\(optional\\))?$",
+    "application_email": "^message body$",
+    "cold_email": "^message body$",
+    "followup_email": "^message body$"
+  }
+}

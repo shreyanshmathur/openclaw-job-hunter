@@ -1,0 +1,345 @@
+{
+ "note": "Fictional examples from writing-qc section 4 (all pass) and the bad example of 4.9 (32 blocks). The bad body carries a real U+2014, written as a JSON escape so this file stays ASCII.",
+ "now": "2026-09-27T00:00:00Z",
+ "contexts": {
+  "A": {
+   "profile_facts": {
+    "P1": "Built the return-to-origin (RTO) risk model for COD orders at Tidemark Logistics; RTO fell from 18% to 13% over two quarters.",
+    "P2": "4 years of analytics experience at Tidemark Logistics.",
+    "P3": "Wrote a one-page note on pincode-level feature selection, published at https://example.com/rto-notes",
+    "P4": "Applied to Kestrel Commerce Senior Data Analyst role on 21 September 2026."
+   },
+   "research_facts": {
+    "R1": "LinkedIn post by Meera Nair, 2026-09-18: pincode-level models beat our city-level RTO model last quarter.",
+    "R2": "Kestrel Commerce job post, Senior Data Analyst, Lakeside, 2026-09-15: owns returns forecasting and COD risk scoring."
+   },
+   "other_companies": [
+    "Parcelgram",
+    "Kestrel Pay"
+   ]
+  },
+  "B": {
+   "profile_facts": {
+    "P1": "Ran launch operations for 22 dark stores in 9 months at Fernleaf Grocers; shrinkage held under 1.5%."
+   },
+   "research_facts": {
+    "R1": "Parcelgram blog, 2026-08-12: the Series A will fund 40 new dark stores in Riverton by March 2027."
+   }
+  },
+  "C": {
+   "profile_facts": {
+    "P1": "4 years building Go payment services at Tidemark Logistics.",
+    "P2": "Led the UPI mandate retry service at Tidemark, about 2 million requests per day.",
+    "P3": "Notice period: 30 days.",
+    "P4": "Applied to Kestrel Pay Backend Engineer, Payments on 21 September 2026.",
+    "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate debit complaints fell from about 40 a week to 2.",
+    "P6": "B.Tech, Kaveri Institute of Technology, 2022."
+   },
+   "research_facts": {
+    "R1": "Kestrel Pay job post, Backend Engineer, Payments, Lakeside, posted 2026-09-10. Meet the hiring team: Sana Qureshi, Talent Partner. Requirements: experience with UPI AutoPay mandates, Go, Postgres.",
+    "R2": "Kestrel Pay engineering blog, 2026-07-22: post-mortem of the UPI timeout spike, where retries piled up behind one slow partner bank.",
+    "R3": "Dev Rao LinkedIn profile: Engineering Manager, Kestrel Pay. Education: Kaveri Institute of Technology."
+   }
+  }
+ },
+ "bad_expected_rules": [
+  "C-DASH",
+  "C-EXCLAMATION",
+  "P-PLACEHOLDER",
+  "B-OPENER",
+  "B-AI_VOCAB",
+  "B-CLOSER",
+  "B-INDIA",
+  "B-JOBSEEKER",
+  "W-SOFT",
+  "S-AS-A",
+  "S-NEG-PARALLEL",
+  "S-LONG-SENTENCE",
+  "L-QUESTIONS",
+  "L-SUBJECT-GENERIC",
+  "I-GREETING-NAME",
+  "I-WRONG-NAME",
+  "H-MISSING-ANCHOR",
+  "H-MISSING-SOURCE_URL",
+  "H-MISSING-SOURCE_TYPE",
+  "H-MISSING-SNIPPET",
+  "H-MISSING-RETRIEVED_AT",
+  "H-MISSING-FACT_ID"
+ ],
+ "bad_block_count": 32,
+ "cases": [
+  {
+   "name": "A_email_hm",
+   "ctx": "A",
+   "draft": {
+    "channel": "email_cold",
+    "subject": "Pincode-level RTO models",
+    "recipient": {
+     "first_name": "Meera",
+     "company": "Kestrel"
+    },
+    "body": "Hi Meera,\n\nYour post on 18 September said pincode-level models beat Kestrel's city-level RTO model. We saw the same pattern at Tidemark Logistics.\n\nI built Tidemark's return-risk model for COD orders, and RTO fell from 18% to 13% over two quarters. That is close to the returns forecasting work in your Senior Data Analyst opening, so I applied on 21 September.\n\nWould a 15 minute call next week be useful? If someone else owns this hire, a name is plenty.\n\nThanks,",
+    "hook": {
+     "anchor": "pincode-level models",
+     "source_url": "https://www.linkedin.com/posts/example-meera-activity-1",
+     "source_type": "linkedin_post",
+     "snippet": "LinkedIn post by Meera Nair, 2026-09-18: pincode-level models beat our city-level RTO model last quarter.",
+     "published_at": "2026-09-18",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R1"
+    },
+    "claims": [
+     {
+      "text": "RTO fell from 18% to 13%",
+      "fact_id": "P1"
+     }
+    ]
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "D1_connect",
+   "ctx": "A",
+   "draft": {
+    "channel": "li_connect",
+    "recipient": {
+     "first_name": "Meera",
+     "company": "Kestrel"
+    },
+    "body": "Hi Meera, your post on pincode-level models matched what we saw at Tidemark, where COD returns fell from 18% to 13%. I'd like to follow your team's work at Kestrel.",
+    "hook": {
+     "anchor": "pincode-level models",
+     "source_url": "https://www.linkedin.com/posts/example-meera-activity-1",
+     "source_type": "linkedin_post",
+     "snippet": "LinkedIn post by Meera Nair, 2026-09-18: pincode-level models beat our city-level RTO model last quarter.",
+     "published_at": "2026-09-18",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R1"
+    }
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "E_li_message",
+   "ctx": "A",
+   "draft": {
+    "channel": "li_message",
+    "recipient": {
+     "first_name": "Meera",
+     "company": "Kestrel"
+    },
+    "body": "Thanks for connecting, Meera. I applied for the Senior Data Analyst role at Kestrel on 21 September. The returns forecasting part of the post is close to my work at Tidemark, where COD returns fell from 18% to 13% in two quarters. Are you the hiring manager for it? If someone else is, a name is plenty.",
+    "hook": {
+     "anchor": "returns forecasting",
+     "source_url": "https://www.linkedin.com/jobs/view/0000000001",
+     "source_type": "job_post",
+     "snippet": "Kestrel Commerce job post, Senior Data Analyst, Lakeside, 2026-09-15: owns returns forecasting and COD risk scoring.",
+     "published_at": "2026-09-15",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R2"
+    },
+    "claims": [
+     {
+      "text": "COD returns fell from 18% to 13%",
+      "fact_id": "P1"
+     }
+    ]
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "F_followup",
+   "ctx": "A",
+   "draft": {
+    "channel": "email_followup",
+    "recipient": {
+     "first_name": "Meera",
+     "company": "Kestrel"
+    },
+    "body": "Hi Meera,\n\nAdding one thing to my note below. I wrote up how we chose pincode features at Tidemark, one page: https://example.com/rto-notes\n\nIf the timing is wrong, no problem at all.\n\nRohan"
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "BAD",
+   "ctx": "A",
+   "draft": {
+    "channel": "email_cold",
+    "subject": "Quick question!",
+    "recipient": {
+     "first_name": "Meera",
+     "company": "Kestrel"
+    },
+    "body": "Dear Hiring Manager,\n\nI hope this email finds you well! I came across your profile and was truly impressed by the innovative work Kestrel is doing in today's fast-paced logistics landscape. As a passionate data analyst with a proven track record, I am excited to leverage my skills, experience, and dedication to drive meaningful impact \u2014 not just for your team, but for the company as a whole.\n\nI would be a great fit for {role}. Please find attached my updated resume.\n\nLooking forward to hearing from you at your earliest convenience.\n\nBest regards,"
+   },
+   "expect_pass": false
+  },
+  {
+   "name": "B_founder",
+   "ctx": "B",
+   "draft": {
+    "channel": "email_founder",
+    "subject": "40 dark stores in Riverton",
+    "recipient": {
+     "first_name": "Kabir",
+     "company": "Parcelgram"
+    },
+    "body": "Hi Kabir,\n\nParcelgram's August post says the Series A will pay for 40 new dark stores in Riverton by March. At that pace, stock accuracy is usually the first thing to slip.\n\nAt Fernleaf Grocers I ran launch operations for 22 dark stores in 9 months and kept shrinkage under 1.5%.\n\nAre you hiring someone to own store launches yet? If not, 15 minutes of your view on what that role should cover would still help me.\n\nBest,",
+    "hook": {
+     "anchor": "40 new dark stores in riverton",
+     "source_url": "https://parcelgram.example/blog/series-a",
+     "source_type": "company_blog",
+     "snippet": "Parcelgram blog, 2026-08-12: the Series A will fund 40 new dark stores in Riverton by March 2027.",
+     "published_at": "2026-08-12",
+     "retrieved_at": "2026-09-25",
+     "fact_id": "R1"
+    },
+    "claims": [
+     {
+      "text": "22 dark stores in 9 months, shrinkage under 1.5%",
+      "fact_id": "P1"
+     }
+    ]
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "C_recruiter",
+   "ctx": "C",
+   "draft": {
+    "channel": "email_recruiter",
+    "subject": "Backend Engineer, Payments",
+    "recipient": {
+     "first_name": "Sana",
+     "company": "Kestrel Pay"
+    },
+    "body": "Hi Sana,\n\nYou're listed as the recruiter on Kestrel Pay's Backend Engineer, Payments post. It asks for experience with UPI AutoPay mandates, which has been most of my last 4 years.\n\nAt Tidemark I led the mandate retry service in Go, which handles about 2 million requests a day. I applied on 21 September, and my notice period is 30 days.\n\nIs the role still open, and does my background fit the level you're hiring for?\n\nThanks,",
+    "hook": {
+     "anchor": "upi autopay mandates",
+     "source_url": "https://www.linkedin.com/jobs/view/0000000002",
+     "source_type": "job_post",
+     "snippet": "Kestrel Pay job post, Backend Engineer, Payments, Lakeside, posted 2026-09-10. Meet the hiring team: Sana Qureshi, Talent Partner. Requirements: experience with UPI AutoPay mandates, Go, Postgres.",
+     "published_at": "2026-09-10",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R1"
+    },
+    "claims": [
+     {
+      "text": "about 2 million requests a day",
+      "fact_id": "P2"
+     },
+     {
+      "text": "4 years",
+      "fact_id": "P1"
+     }
+    ]
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "D2_connect",
+   "ctx": "C",
+   "draft": {
+    "channel": "li_connect",
+    "recipient": {
+     "first_name": "Dev",
+     "company": "Kestrel Pay"
+    },
+    "body": "Hi Dev, fellow Kaveri Institute of Technology grad here. I build Go payment services and saw Kestrel Pay is hiring for UPI AutoPay work. Would be glad to connect.",
+    "hook": {
+     "anchor": "kaveri institute of technology",
+     "source_url": "https://www.linkedin.com/in/example-dev",
+     "source_type": "shared_context",
+     "snippet": "Dev Rao LinkedIn profile: Engineering Manager, Kestrel Pay. Education: Kaveri Institute of Technology.",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R3"
+    }
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "D3_connect",
+   "ctx": "B",
+   "draft": {
+    "channel": "li_connect",
+    "recipient": {
+     "first_name": "Kabir",
+     "company": "Parcelgram"
+    },
+    "body": "Hi Kabir, I ran launches for 22 dark stores at Fernleaf Grocers. Parcelgram's plan for 40 new dark stores in Riverton is close to that work, so I'd like to connect.",
+    "hook": {
+     "anchor": "40 new dark stores in riverton",
+     "source_url": "https://parcelgram.example/blog/series-a",
+     "source_type": "company_blog",
+     "snippet": "Parcelgram blog, 2026-08-12: the Series A will fund 40 new dark stores in Riverton by March 2027.",
+     "published_at": "2026-08-12",
+     "retrieved_at": "2026-09-25",
+     "fact_id": "R1"
+    }
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "G_form",
+   "ctx": "C",
+   "draft": {
+    "channel": "form_answer",
+    "field_char_limit": 1000,
+    "recipient": {
+     "first_name": "",
+     "company": "Kestrel Pay"
+    },
+    "body": "Kestrel Pay's July post-mortem on the UPI timeout spike describes a failure I fixed at Tidemark in 2025. Retries were piling up behind one slow partner bank. I added per-bank retry budgets, and duplicate debit complaints fell from about 40 a week to 2. I want to work where payment reliability is the product itself, and this role is that work at a larger scale.",
+    "hook": {
+     "anchor": "upi timeout spike",
+     "source_url": "https://kestrelpay.example/engineering/upi-timeout-postmortem",
+     "source_type": "engineering_blog",
+     "snippet": "Kestrel Pay engineering blog, 2026-07-22: post-mortem of the UPI timeout spike, where retries piled up behind one slow partner bank.",
+     "published_at": "2026-07-22",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R2"
+    },
+    "claims": [
+     {
+      "text": "from about 40 a week to 2",
+      "fact_id": "P5"
+     }
+    ]
+   },
+   "expect_pass": true
+  },
+  {
+   "name": "H_application",
+   "ctx": "C",
+   "draft": {
+    "channel": "email_application",
+    "subject": "Backend Engineer, Payments: Vikram Rao",
+    "recipient": {
+     "first_name": "",
+     "company": "Kestrel Pay"
+    },
+    "body": "Hello Kestrel Pay hiring team,\n\nYour July post-mortem on the UPI timeout spike described a problem I fixed at Tidemark in 2025. Retries were piling up behind one slow partner bank. Per-bank retry budgets fixed it, and duplicate debit complaints fell from about 40 a week to 2.\n\nThat is why the Backend Engineer, Payments role in Lakeside stood out. For the last 4 years I've built Go payment services at Tidemark, including the UPI mandate retry service, which handles about 2 million requests a day. The post asks for UPI AutoPay mandates and Go, which is my daily work.\n\nMy tailored resume is attached. My notice period is 30 days, and I'd be glad to walk through the retry design in an interview.\n\nRegards,",
+    "hook": {
+     "anchor": "upi timeout spike",
+     "source_url": "https://kestrelpay.example/engineering/upi-timeout-postmortem",
+     "source_type": "engineering_blog",
+     "snippet": "Kestrel Pay engineering blog, 2026-07-22: post-mortem of the UPI timeout spike, where retries piled up behind one slow partner bank.",
+     "published_at": "2026-07-22",
+     "retrieved_at": "2026-09-26",
+     "fact_id": "R2"
+    },
+    "claims": [
+     {
+      "text": "40 a week to 2",
+      "fact_id": "P5"
+     },
+     {
+      "text": "2 million",
+      "fact_id": "P2"
+     }
+    ]
+   },
+   "expect_pass": true
+  }
+ ]
+}

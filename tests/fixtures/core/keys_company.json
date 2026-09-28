@@ -1,0 +1,15 @@
+{
+  "one_company": [
+    {"name": "spaced and unspaced names, legal suffixes, two TLDs, ATS tenant",
+     "inputs": [{"name": "Kestrel Labs"}, {"name": "KestrelLabs Pvt Ltd"}, {"name": "Kestrel Labs Private Limited"},
+                {"name": "kestrel labs (S24)"}, {"domain": "kestrellabs.com"}, {"domain": "https://www.kestrellabs.in/careers"},
+                {"domain": "talent@kestrellabs.example"}, {"ats": "greenhouse", "tenant": "kestrellabs"}]},
+    {"name": "noise words", "inputs": [{"name": "Tidemark Technologies"}, {"name": "Tidemark"}, {"name": "Tidemark Solutions Pvt. Ltd."}]},
+    {"name": "ampersand and the", "inputs": [{"name": "The Harbor & Pine Company"}, {"name": "Harbor and Pine"}]}
+  ],
+  "no_domain_key": ["recruiter.one@{gmail}", "someone@{googlemail}", "https://acme.github.io/jobs",
+                    "https://boards.greenhouse.io/kestrel", "https://sites.google.com/view/kestrel", "https://kestrel.notion.site/jobs",
+                    "https://www.naukri.com/kestrel-jobs"],
+  "distinct": [[{"name": "Kestrel Commerce"}, {"name": "Kestrel Labs"}], [{"name": "Northwind Analytics"}, {"name": "Northwind Traders"}]],
+  "agencies": ["Randstad", "TeamLease Services Limited", "Michael Page"]
+}
