@@ -1365,7 +1365,9 @@ def merge_approvals(current, agents: list[dict], *, repo: str, py: str, root: st
         tmpl = _template("exec-approvals.json5.tmpl", root)
         for a in agents:
             if "exec" in a["tools_allow"]:
-                entry = _walk_subst(tmpl["exec_agent"], {}, {"__PY__": py,
+                # OpenClaw matches the pattern against the interpreter's resolved real path (2026.9.8 with a
+                # symlinked python such as Homebrew or pyenv), so the entry names the real path.
+                entry = _walk_subst(tmpl["exec_agent"], {}, {"__PY__": os.path.realpath(py),
                                                              "__ARG_PATTERN__": arg_pattern(repo, a["id"], carrier)})
             else:
                 entry = json.loads(json.dumps(tmpl["no_exec_agent"]))
@@ -1405,7 +1407,7 @@ def approvals_problems(current, agents: list[dict], *, repo: str, py: str, carri
             problems.append('agents["*"] adds %d allowlist entries to every agent (%s); move them to the agents '
                             'that need them' % (len(wild_rules), ", ".join(sorted(str(p) for p, _ in wild_rules))))
         rules = [_rule(e) for e in own.get("allowlist") or []] if isinstance(own.get("allowlist"), list) else []
-        want = [(py, arg_pattern(repo, a["id"], carrier))] if "exec" in a["tools_allow"] else []
+        want = [(os.path.realpath(py), arg_pattern(repo, a["id"], carrier))] if "exec" in a["tools_allow"] else []
         extra = [r for r in rules if r not in want]
         if extra:
             problems.append("allowlist entries the installer does not write: %s"

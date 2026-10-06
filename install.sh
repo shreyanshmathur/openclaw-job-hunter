@@ -613,8 +613,18 @@ else
          die "openclaw plugins install --link failed. OpenClaw installs a plugin that is not from ClawHub only after a confirmation: run ./install.sh at a terminal and answer yes, or run it with --yes"; }
   say "jobhunter-guard linked"
 fi
-# OpenClaw 2026.9.8 validates the plugin config on enable (repo is required): write it first, then enable
-apply_guard_config
+# OpenClaw 2026.9.8 validates the plugin config on enable (repo is required): write it first, then enable.
+# After an update the running Gateway may still hold the old guard manifest and reject the new config keys
+# ("Config invalid"): restart it once so it reads the new manifest, then write the config again.
+if ! oc config patch --file "$(jhh install render-guard-config 2>/dev/null)" >/dev/null 2>&1; then
+  if [ "$NO_DAEMON" = "1" ]; then
+    die "OpenClaw rejected the guard config (the running Gateway has the old guard manifest). Restart your Gateway, then run ./install.sh again"
+  fi
+  say "the Gateway has the old guard manifest; restarting it once"
+  oc gateway restart >/dev/null 2>&1 || die "openclaw gateway restart failed; run: $(oc_show) gateway restart"
+  sleep 5
+  apply_guard_config
+fi
 oc plugins enable jobhunter-guard ${ACCEPT[@]+"${ACCEPT[@]}"} >/dev/null || die "openclaw plugins enable jobhunter-guard failed"
 oc plugins reload jobhunter-guard ${ACCEPT[@]+"${ACCEPT[@]}"} >/dev/null 2>&1 \
   || say "NOTE: plugins reload failed; waiting for the Gateway to load the plugin"

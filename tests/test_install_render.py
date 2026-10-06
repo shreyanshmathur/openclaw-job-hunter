@@ -542,6 +542,13 @@ class TestPatches(unittest.TestCase):
         self.assertEqual(again, doc)
         gone = ins.merge_approvals(doc, self.agents, repo="/opt/r", py="/p", remove=True, root=paths.REPO)
         self.assertEqual(sorted(gone["agents"]), ["main"])
+        with tempfile.TemporaryDirectory() as d:                    # a symlinked python (Homebrew, pyenv)
+            real = os.path.join(d, "python3.12")
+            open(real, "w").close()
+            link = os.path.join(d, "python3")
+            os.symlink(real, link)
+            linked = ins.merge_approvals(current, self.agents, repo="/opt/r", py=link, root=paths.REPO)
+            self.assertEqual(linked["agents"]["jobhunter-scout"]["allowlist"][0]["pattern"], os.path.realpath(real))
         wrapped = ins.merge_approvals({"file": current, "effective": {}}, self.agents, repo="/opt/r", py="/p",
                                       root=paths.REPO)
         self.assertIn("main", wrapped["agents"])
