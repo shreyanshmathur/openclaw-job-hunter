@@ -15,6 +15,7 @@ import tests  # noqa: F401
 from jobhunter import auth, cli, install as ins, paths
 from jobhunter.commands import install as install_cmds
 from jobhunter.errors import Denied
+from tests import helpers
 from tests.helpers import HomeTestCase
 
 PIN = "135790"
@@ -144,9 +145,16 @@ class TestConsentCommands(ConsentCase):
         rc, env = self.run_cli("install", "consent-record", "--allow", "gmail", "--method", "manual_login")
         self.assertNotEqual(rc, 0)
         self.assertEqual(env["code"], "E_HUMAN_ONLY")
+        # a proven jobhunter agent (both identity carriers, python -I) cannot record consent
+        rc, env = helpers.agent_cli("jobhunter-applier", ["install", "consent-record", "--allow", "gmail", "--method",
+                                                          "manual_login"], modules=[install_cmds])
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(env["code"], "E_CALLER_NOT_ALLOWED")
+        # nor can a process that only claims an agent id
         rc, env = self.run_cli("install", "consent-record", "--allow", "gmail", "--method", "manual_login",
                                env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-applier"})
         self.assertNotEqual(rc, 0)
+        self.assertEqual(env["code"], "E_AUTH_FAILED")
         self.assertFalse(os.path.exists(ins.consent_path()))
         auth.set_pin(None, PIN)
         rc, env = self.run_cli("--pin-stdin", "install", "consent-record", "--allow", "gmail", "--decline",

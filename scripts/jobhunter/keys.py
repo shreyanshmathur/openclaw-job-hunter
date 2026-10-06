@@ -48,7 +48,8 @@ TITLE_EXPAND = {"sr": "senior", "snr": "senior", "jr": "junior", "mgr": "manager
                 "dev": "developer", "mngr": "manager"}
 ROLE_STOPWORDS = frozenset(("and", "of", "the", "for", "in", "at", "a", "an", "to", "with", "on", "or", "role",
                             "position", "opening", "job", "hiring", "urgent"))
-ATS_NAMES = ("greenhouse", "lever", "ashby", "workday", "smartrecruiters", "workable", "recruitee", "bamboohr")
+ATS_NAMES = ("greenhouse", "lever", "ashby", "workday", "smartrecruiters", "workable", "recruitee", "bamboohr",
+             "icims", "successfactors", "taleo", "oracle_hcm", "jobvite")
 BOARD_SITES = ("linkedin", "naukri", "yc", "instahyre", "foundit", "wellfound", "cutshort", "hirist", "iimjobs",
                "himalayas", "remoteok", "glassdoor", "indeed", "hn", "remotive", "weworkremotely",
                "workingnomads", "jobicy")

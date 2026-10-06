@@ -119,6 +119,14 @@ To take the permission back: `./jobhunter browser forget gmail` deletes the Goog
 profile and marks the consent revoked; the agents then stop using Gmail. To stop sending for a while without
 revoking anything: `./jobhunter pause gmail` (or `/jh pause gmail` in your chat).
 
+### Verification codes and sign-in links (optional, per site)
+
+If you allowed email codes for a job site (`./jobhunter browser consent`, default No), the agent may open the
+one message that site sent after it asked for a code. It reads only a message to your address from the site's
+own sender domains that arrives within 10 minutes, uses the code or link once, and then marks the message
+read (`otp.after_use`). The code is typed by the program; the AI model never sees it. Details:
+[PRIVACY.md](PRIVACY.md).
+
 ## Route `app_password` (optional)
 
 Choose it when you prefer that code, not the model, clicks Send: code builds the message from the approved text
@@ -214,6 +222,12 @@ notes and automatic acknowledgements are classified by code, any other reply bec
 characters for the replies lane), delivery failures of messages the mailer sent, application confirmation
 emails, and Google or LinkedIn security emails (these stop the matching channel). Nightly, `housekeeping`
 compares the Sent folder of the last two days with the ledger, as the browser audit does on `web_ui`.
+
+### Verification codes on this route
+
+Email codes work here too: the mailer looks for the site's message over IMAP, under the same rules (only the
+site's own senders, within 10 minutes of the request, used once). This is the one case where the route changes
+a message: after use it is marked read or archived as `otp.after_use` says (`leave` keeps it untouched).
 
 ### When Gmail says no
 

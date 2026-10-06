@@ -1,0 +1,3 @@
+# Bank and payment domains whose mail is never read for a code (FEATURES-OTP-ACCOUNTS-CAPTCHA 2.5), on top of
+# otp.HARD_DENY and any domain with a label that contains "bank". One registrable domain per line; an empty
+# list is allowed. A listed domain also covers its subdomains.

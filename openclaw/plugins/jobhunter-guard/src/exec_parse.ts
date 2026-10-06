@@ -3,7 +3,15 @@
 
 import path from "node:path";
 
-export const TOKEN_RE = /^[A-Za-z0-9_./:@+=,%-]+$/;
+// A token may not start with "=" (zsh expands "=word" to the path of a program).
+export const TOKEN_RE = /^(?!=)[A-Za-z0-9_./:@+=,%-]+$/;
+
+// The interpreter flag the R2 rewrite always puts before jh.py (isolated mode: no user site, no PYTHON* env).
+export const ISOLATED_FLAG = "-I";
+// `--agent-proof <T>` is written only by the guard (R2 rewrite). Every token that starts like it, as typed by
+// a model, is refused (argparse would read an abbreviation such as `--agent-p` as the full option).
+export const AGENT_PROOF_FLAG = "--agent-proof";
+export const AGENT_PROOF_PREFIX = "--agent-p";
 
 // Flags that no agent may ever pass (3.1): the home override does not exist, the PIN and the grant
 // are human and chat authority, --human changes the output the agent programs parse.
@@ -15,6 +23,8 @@ export type Parsed = {
   command: string; // "gate reserve"
   args: string[]; // tokens after the command words
   cycle: string | null; // global --cycle value, if any
+  rest: string[]; // every jh.py argument (globals, command words, args), without a stripped own proof pair
+  isolated: boolean; // the command already had "-I" before jh.py
 };
 
 // Split a command on single spaces. Every token must match TOKEN_RE; empty tokens (double spaces,
@@ -156,8 +166,19 @@ function checkValue(spec: ArgSpec, value: string, workRoots: string[]): string |
   return "unexpected value";
 }
 
-// Parse "<python> <repo>/scripts/jh.py [--cycle <id>] [--quiet] <command words> <args>" for a jobhunter
-// agent and check it against that agent's command map.
+function proofTokenFail(tokens: string[]): ParseFail | null {
+  for (const t of tokens) {
+    if (t.startsWith(AGENT_PROOF_PREFIX)) {
+      return { ok: false, code: "G_EXEC_PARAM", reason: "--agent-proof is added only by the jobhunter-guard plugin; never type it" };
+    }
+  }
+  return null;
+}
+
+// Parse "<python> [-I] <repo>/scripts/jh.py [--cycle <id>] [--quiet] <command words> <args>" for a jobhunter
+// agent and check it against that agent's command map. `ownProof(token, restAfter)` tells whether a
+// `-I <jh.py> --agent-proof <token>` pair is this guard's own proof for the same call (a second decision of a
+// rewritten call); only such a pair is stripped. Any other token starting with --agent-p is refused.
 export function parseAgentExec(
   command: unknown,
   opts: {
@@ -166,6 +187,7 @@ export function parseAgentExec(
     commands: Record<string, Record<string, string>>;
     classes: Record<string, string>;
     workRoots: string[];
+    ownProof?: (token: string, restAfter: string[]) => boolean;
   },
 ): Parsed | ParseFail {
   const tokens = tokenize(command);
@@ -174,22 +196,30 @@ export function parseAgentExec(
   }
   const head = checkHead(tokens, opts.python, opts.repo);
   if (head) return head;
-  for (const t of tokens) {
+  const isolated = tokens[1] === ISOLATED_FLAG;
+  let rest = tokens.slice(isolated ? 3 : 2);
+  if (isolated && rest[0] === AGENT_PROOF_FLAG && rest.length >= 2 && opts.ownProof && opts.ownProof(rest[1], rest.slice(2))) {
+    rest = rest.slice(2);
+  }
+  const proofFail = proofTokenFail(rest);
+  if (proofFail) return proofFail;
+  for (const t of rest) {
     if (FORBIDDEN_FLAGS.includes(t) || FORBIDDEN_FLAGS.some((f) => t.startsWith(f + "="))) {
       return { ok: false, code: "G_EXEC_PARAM", reason: t + " is never allowed for agents" };
     }
   }
-  let i = 2;
+  const all = [...tokens.slice(0, isolated ? 3 : 2), ...rest];
+  let i = isolated ? 3 : 2;
   let cycle: string | null = null;
   const cycleRe = safeRe(opts.classes["cycle"]);
-  while (i < tokens.length && tokens[i].startsWith("-")) {
-    const t = tokens[i];
+  while (i < all.length && all[i].startsWith("-")) {
+    const t = all[i];
     if (t === "--quiet") {
       i += 1;
       continue;
     }
     if (t === "--cycle") {
-      const v = tokens[i + 1];
+      const v = all[i + 1];
       if (v === undefined || cycle !== null || !cycleRe || !cycleRe.test(v)) {
         return { ok: false, code: "G_EXEC_PARAM", reason: "--cycle needs one cycle id" };
       }
@@ -199,20 +229,22 @@ export function parseAgentExec(
     }
     return { ok: false, code: "G_EXEC_PARAM", reason: "global option " + t + " is not allowed" };
   }
-  const m = matchCommand(tokens.slice(i), Object.keys(opts.commands || {}));
+  const m = matchCommand(all.slice(i), Object.keys(opts.commands || {}));
   if (m === null) {
-    const words = tokens.slice(i, i + 3).filter((w) => !w.startsWith("-")).join(" ");
+    const words = all.slice(i, i + 3).filter((w) => !w.startsWith("-")).join(" ");
     return { ok: false, code: "G_EXEC_ACL", reason: "command '" + (words || "(none)") + "' is not in this agent's allowlist" };
   }
   const check = checkArgs(opts.commands[m.command], m.args, opts.classes, opts.workRoots);
   if (!check.ok) return check;
-  return { ok: true, command: m.command, args: m.args, cycle };
+  return { ok: true, command: m.command, args: m.args, cycle, rest, isolated };
 }
 
+// "<python> <jh.py> ..." or "<python> -I <jh.py> ..." (no other interpreter flag).
 function checkHead(tokens: string[], python: string, repo: string): ParseFail | null {
-  if (tokens.length < 3) return { ok: false, code: "G_EXEC_SHAPE", reason: "expected '<python> <repo>/scripts/jh.py <command>'" };
+  const j = tokens[1] === ISOLATED_FLAG ? 2 : 1;
+  if (tokens.length < j + 2) return { ok: false, code: "G_EXEC_SHAPE", reason: "expected '<python> <repo>/scripts/jh.py <command>'" };
   if (tokens[0] !== python) return { ok: false, code: "G_EXEC_SHAPE", reason: "the program must be " + python };
-  if (tokens[1] !== jhPath(repo)) return { ok: false, code: "G_EXEC_SHAPE", reason: "the script must be " + jhPath(repo) };
+  if (tokens[j] !== jhPath(repo)) return { ok: false, code: "G_EXEC_SHAPE", reason: "the script must be " + jhPath(repo) };
   return null;
 }
 
@@ -236,7 +268,7 @@ export const PUBLIC_SCHEMAS: Record<string, Record<string, string>> = {
 };
 
 // R7: an exec by an agent outside jobhunter-* that mentions jh.py. Allowed only as a plain public
-// read-only command ("<python> <repo>/scripts/jh.py [--quiet|--human] <public command> [args]").
+// read-only command ("<python> [-I] <repo>/scripts/jh.py [--quiet|--human] <public command> [args]").
 export function parsePublicExec(
   command: unknown,
   opts: { python: string; repo: string; publicCommands: string[]; classes: Record<string, string> },
@@ -245,7 +277,10 @@ export function parsePublicExec(
   if (tokens === null) return { ok: false, code: "G_EXEC_SHAPE", reason: "jh.py may only be run as one plain read-only command" };
   const head = checkHead(tokens, opts.python, opts.repo);
   if (head) return head;
-  let i = 2;
+  const isolated = tokens[1] === ISOLATED_FLAG;
+  const proofFail = proofTokenFail(tokens);
+  if (proofFail) return proofFail;
+  let i = isolated ? 3 : 2;
   while (i < tokens.length && (tokens[i] === "--quiet" || tokens[i] === "--human")) i += 1;
   const allowed = opts.publicCommands.filter((c) => Object.prototype.hasOwnProperty.call(PUBLIC_SCHEMAS, c));
   const m = matchCommand(tokens.slice(i), allowed);
@@ -258,5 +293,5 @@ export function parsePublicExec(
   }
   const check = checkArgs(PUBLIC_SCHEMAS[m.command], rest, opts.classes, []);
   if (!check.ok) return check;
-  return { ok: true, command: m.command, args: m.args, cycle: null };
+  return { ok: true, command: m.command, args: m.args, cycle: null, rest: tokens.slice(isolated ? 3 : 2), isolated };
 }

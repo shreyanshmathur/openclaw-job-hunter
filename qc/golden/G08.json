@@ -2,7 +2,7 @@
  "id": "G08",
  "channel": "email_application",
  "subject": "Backend Engineer, Payments: Jordan Reyes",
- "body": "Hello Northwind Pay hiring team,\n\nYour July post-mortem on the card retry spike described a problem I fixed at Tidewater Freight in 2025. Retries were piling up behind one slow partner bank. Per-bank retry budgets fixed it, and duplicate charge complaints fell from about 30 a week to 3.\n\nThat is why the Backend Engineer, Payments role stood out. For the last 4 years I've built Go payment services at Tidewater Freight, including the mandate retry service, which handles about 1 million requests a day. The post asks for recurring card mandates and Go, which is my daily work.\n\nMy tailored resume is attached. My notice period is 30 days, and I'd be glad to walk through the retry design in an interview.\n\nRegards,",
+ "body": "Hello Northwind Pay hiring team,\n\nNorthwind Pay's July post-mortem on the card retry spike describes the same kind of failure I fixed at Tidewater Freight in 2025. There, retries were piling up behind one slow partner bank. I added per-bank retry budgets, and duplicate charge complaints fell from about 30 a week to 3.\n\nI'm applying for the Backend Engineer, Payments role. For the last 4 years I've built Go payment services at Tidewater Freight, and I led the mandate retry service, which handles about 1 million requests a day.\n\nMy tailored resume is attached, and my notice period is 30 days. If the retry design is useful to go through, I'm happy to do that in an interview.\n\nRegards,",
  "recipient": {
   "first_name": "",
   "last_name": "",
@@ -29,10 +29,11 @@
  },
  "profile_facts": {
   "P1": "4 years building Go payment services at Tidewater Freight.",
-  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day; failed mandate payments fell from 3% to 1% in its first year.",
   "P3": "Notice period: 30 days.",
   "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
-  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+  "P5": "At Tidewater Freight, fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3.",
+  "P6": "Name: Jordan Reyes."
  },
  "hook": {
   "anchor": "card retry spike",

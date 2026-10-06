@@ -247,15 +247,17 @@ def skipped(conn, since: str | None, ctx: RowCtx) -> list[tuple[str, dict, str]]
     sql = ("SELECT j.*, co.display_name AS company, co.updated_at AS co_up, e.reason_code, e.reason_text, "
            "e.updated_at AS e_up FROM jobs j LEFT JOIN companies co ON co.id = j.company_id "
            "LEFT JOIN evaluations e ON e.job_id = j.id "
-           "WHERE j.status = 'prefilter_rejected' AND j.discovered_at >= ?" + where + " ORDER BY j.discovered_at")
+           "WHERE ((j.status = 'prefilter_rejected' AND j.discovered_at >= ?) OR (j.status = 'closed' AND "
+           "j.status_reason = 'captcha_timeout' AND j.updated_at >= ?))" + where + " ORDER BY j.discovered_at")
     out = []
-    for j in conn.execute(sql, [cutoff] + args):
+    for j in conn.execute(sql, [cutoff, cutoff] + args):
         code = j["status_reason"] or j["reason_code"]
+        reason = L.STATUS_REASON_LABEL["captcha_timeout"] if code == "captcha_timeout" else \
+            L.prefilter_sentence(code, j["years_min"], j["years_max"], ctx.experience, fallback=j["reason_text"])
         row = {
             "found_on": j["discovered_at"], "company": j["company"] or j["company_name_raw"] or "",
             "role": j["title"], "location": j["location_raw"] or (j["norm_city"] or "").title(),
-            "reason": L.prefilter_sentence(code, j["years_min"], j["years_max"], ctx.experience,
-                                           fallback=j["reason_text"]),
+            "reason": reason,
             "posting": _link("Open posting", j["source_url"]),
             "your_call": "Apply anyway" if j["human_call"] == "apply_anyway" else "",
         }
@@ -620,6 +622,79 @@ def alerts(conn, since: str | None, ctx: RowCtx) -> list[tuple[str, dict, str]]:
             "status": "Open" if is_open else "Resolved",
         }
         out.append(("A%d" % r["id"], row, _max(r["created_at"], r["b_up"], resolved_at)))
+    out += _code_step_alerts(conn, since)
+    out += _captcha_alerts(conn, since)
+    return out
+
+
+_STEP_WHAT = {"account_create": "Created an account on %(host)s for %(job)s (with your address)",
+              "account_signin": "Signed in to your account on %(host)s for %(job)s",
+              "code_fill": "Used an email code%(sender)s for %(job)s",
+              "link_open": "Used a sign-in link%(sender)s for %(job)s"}
+
+
+def _code_step_alerts(conn, since: str | None) -> list:
+    """FEATURES-OTP-ACCOUNTS-CAPTCHA 4.1: account creations, sign-ins and code or link uses (row id S<id>). Never a
+    code, a link or a password: the site, the job and the sender domain only."""
+    sql = ("SELECT s.*, COALESCE(co.display_name, j.company_name_raw) AS company, j.title, "
+           "(SELECT u.sender_domain FROM code_uses u WHERE u.request_id = s.request_id) AS sender "
+           "FROM code_steps s LEFT JOIN jobs j ON j.id = s.job_id LEFT JOIN companies co ON co.id = j.company_id "
+           "WHERE s.step IN ('account_create','account_signin','code_fill','link_open')")
+    args: list = []
+    if since:
+        sql += " AND s.at > ?"
+        args.append(since)
+    out = []
+    for r in conn.execute(sql + " ORDER BY s.id", args):
+        job = ("%s, %s" % (r["company"], r["title"])) if r["company"] else (r["title"] or "a job")
+        ok = r["outcome"] == "ok"
+        if r["step"] == "account_create" and not ok:
+            what = "Could not create an account on %s for %s (%s)" % (r["host"], job, r["detail"] or r["outcome"])
+        elif r["step"] == "account_signin" and not ok:
+            what = "Could not sign in on %s for %s (%s)" % (r["host"], job, r["detail"] or r["outcome"])
+        elif r["step"] in ("code_fill", "link_open") and not ok:
+            what = "The site did not take an email %s for %s (%s)" % (
+                "code" if r["step"] == "code_fill" else "link", job, r["detail"] or r["outcome"])
+        else:
+            what = _STEP_WHAT[r["step"]] % {"host": r["host"], "job": job,
+                                            "sender": (" from " + r["sender"]) if r["sender"] else ""}
+        todo = "Nothing." if ok else "Nothing now; the job went to you if it needs you (./jobhunter inbox)."
+        if r["step"] == "account_create" and ok:
+            todo = "Nothing. Remove it any time: ./jobhunter accounts forget %s" % r["host"]
+        row = {"time": r["at"], "area": L.scope_label("ats:" + r["platform"]) if r["platform"] != "host" else
+               "Job forms: " + (r["host"] or ""), "what": what,
+               "severity": "Info" if ok else "Warning", "todo": todo, "until": None,
+               "resolved": r["at"] if ok else None, "status": "Done" if ok else "Open"}
+        out.append(("S%d" % r["id"], row, r["at"]))
+    return out
+
+
+def _captcha_alerts(conn, since: str | None) -> list:
+    """Open, resolved and timed-out CAPTCHA tasks (row id K<id>)."""
+    sql = ("SELECT t.*, COALESCE(co.display_name, j.company_name_raw) AS company, j.title FROM captcha_tasks t "
+           "JOIN jobs j ON j.id = t.job_id LEFT JOIN companies co ON co.id = j.company_id")
+    args: list = []
+    if since:
+        sql += " WHERE t.updated_at > ?"
+        args.append(since)
+    out = []
+    for r in conn.execute(sql + " ORDER BY t.id", args):
+        job = "%s, %s" % (r["company"] or "", r["title"] or "")
+        area = L.scope_label("ats:" + r["platform"]) if r["platform"] != "host" else "Job forms: " + r["host"]
+        if r["status"] == "open":
+            row = {"severity": "Needs you", "status": "Open", "until": r["deadline_at"], "resolved": None,
+                   "todo": "Solve it in the agent's browser window, then /jh continue %s" % r["code"]}
+        elif r["status"] == "resolved":
+            row = {"severity": "Info", "status": "Resolved", "until": None, "resolved": r["resolved_at"],
+                   "todo": "Nothing, this is resolved."}
+        elif r["status"] == "timed_out":
+            row = {"severity": "Warning", "status": "Skipped", "until": None, "resolved": r["resolved_at"],
+                   "todo": "Nothing. The job was skipped (CAPTCHA not solved in time)."}
+        else:
+            row = {"severity": "Warning", "status": "Resolved", "until": None, "resolved": r["resolved_at"],
+                   "todo": "Nothing, the site is stopped; see the stop above."}
+        row.update(time=r["opened_at"], area=area, what="CAPTCHA on %s: %s" % (r["host"], job))
+        out.append(("K%d" % r["id"], row, r["updated_at"]))
     return out
 
 

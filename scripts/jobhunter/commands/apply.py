@@ -26,7 +26,7 @@ def cmd_next(args, ctx):
         items = applyq.claim(conn, args.limit, _holder(ctx))
     if not items:
         return Result(data={"items": []}, code="NOTHING_TO_DO", message="no job to apply to right now",
-                      next="run cycle end and reply NO_REPLY")
+                      next="run cycle end and reply CYCLE_DONE")
     return Result(data={"items": items}, message="%d job(s) claimed for this cycle" % len(items),
                   next="work each item by its needs field; apply release when you stop early")
 

@@ -44,7 +44,7 @@ SEVERITY_FALLBACK = (
     "li_invite_limit", "li_easy_apply_limit", "li_messaging_blocked", "li_email_needed",
     "li_commercial_limit", "li_http_429", "li_unknown_modal",
     "gmail_security", "gmail_auth_failed", "gmail_identity_mismatch", "gmail_logged_out", "gmail_sending_limit",
-    "gmail_unexpected_state", "ats_blocked", "site_challenge", "site_logged_out")
+    "gmail_unexpected_state", "ats_security", "ats_blocked", "site_challenge", "site_logged_out")
 
 # Research baseline: (where, pattern, reason). Every baseline stop trips its reason's breaker, except the
 # JOB_LEVEL reasons: on an ATS company form a CAPTCHA or an account wall stops only that job.

@@ -13,7 +13,8 @@ from jobhunter.auth import Caller
 from jobhunter.errors import Denied
 from tests.fakes.u1 import (TUESDAY_NOON, World, enable_linkedin, fake_presend, patch_hooks, write_config,
                              write_heartbeat)
-from tests.helpers import HomeTestCase, clear_consent, insert_action, insert_cycle, insert_thread, write_consent
+from tests.helpers import (HomeTestCase, agent_cli, clear_consent, insert_action, insert_cycle, insert_thread,
+                           write_consent)
 
 AP = "jobhunter-applier"
 OU = "jobhunter-outreach"
@@ -958,9 +959,10 @@ class TestDupDenialsTripGlobal(GateCase):
 
 class TestGateCli(GateCase):
     def run_cli(self, argv, agent=OU):
+        if agent:
+            return agent_cli(agent, argv)          # both identity carriers, as python -I (CLI route 5)
         out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent} if agent else {}
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
+        rc = cli.main(argv, env={}, stdin=io.StringIO(""), stdout=out)
         return rc, json.loads(out.getvalue())
 
     def test_dedup_check_and_status_commands(self):
@@ -1001,9 +1003,10 @@ class TestBrowserConsent(GateCase):
                                 agent_id=OU, route="browser", cycle_id=None)
 
     def run_cli(self, argv, agent=None, stdin="", env=None):
+        if agent and env is None:
+            return agent_cli(agent, argv, stdin=stdin)
         out = io.StringIO()
-        e = dict(env or ({"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent} if agent else {}))
-        rc = cli.main(argv, env=e, stdin=io.StringIO(stdin), stdout=out)
+        rc = cli.main(argv, env=dict(env or {}), stdin=io.StringIO(stdin), stdout=out)
         return rc, json.loads(out.getvalue())
 
     def test_default_no_and_site_map(self):
@@ -1216,9 +1219,7 @@ class TestWebEmailSentReadBack(GateCase):
         return self.conn.execute("SELECT * FROM actions WHERE token = ?", (token,)).fetchone()
 
     def run_cli(self, argv, agent=OU):
-        out = io.StringIO()
-        rc = cli.main(argv, env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent}, stdin=io.StringIO(""), stdout=out)
-        return rc, json.loads(out.getvalue())
+        return agent_cli(agent, argv)
 
     def test_matching_sent_copy_confirms(self):
         token, d = self.web_armed()

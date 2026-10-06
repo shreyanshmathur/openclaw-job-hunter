@@ -1,6 +1,7 @@
 """E2E (INT): per-site browser consent (change request "use the existing Chrome logins, with consent") across the
 real core (U1 identity, cycles, gate, breakers), the outreach lane (U3, U6) and the real jobhunter-guard runtime
-(U8), on a new install where private/consent.json does not exist yet.
+(U8), on a new install where private/consent.json does not exist yet. Agent calls carry both identity proofs as
+the guard gives them (support.World.run, CLI-ROUTE-DESIGN 5).
 
 Without a consent row for a login site: `preflight` stops a lane whose login sites all lack consent and lists the
 missing ones, `gate reserve`, `usage add` and `identity check` refuse that site (E_CONSENT_MISSING), and the guard
@@ -214,8 +215,12 @@ class TestGuardConsent(ConsentBase):
         self.canon = canon
 
     def call(self, tool: str, params: dict, agent: str = OU) -> str:
+        """The guard's decision on one bridged call, with the hook context of a restricted cron run (the
+        agent's own workspace as workspaceDir, CLI-ROUTE-DESIGN 7.7)."""
+        ctx = {"runId": "run-e2e-consent", "workspaceDir": os.path.join(paths.ws_root(), agent[len("jobhunter-"):])}
         self.g.ask({"op": "clock", "now": self.canon.now()})
-        return self.g.ask({"op": "call", "agent": agent, "session": SESSION, "tool": tool, "params": params})["outcome"]
+        return self.g.ask({"op": "call", "agent": agent, "session": SESSION, "tool": tool, "params": params,
+                           "ctx": ctx})["outcome"]
 
     def nav(self, url: str, agent: str = OU) -> str:
         return self.call("browser", {"profile": "jobhunter", "action": "navigate", "targetUrl": url}, agent)

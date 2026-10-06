@@ -144,6 +144,27 @@ positive cap).
 | `enrich.providers.<p>.enabled` | on for the free chain, off for reserve and Apollo | free | provider on or off |
 | `enrich.providers.<p>.budget_31d`, `budget_lifetime`, `day_credits`, `day_requests` | per provider | limit | credit and request budgets (0 when the finder or the provider is off) |
 | `enrich.providers.<p>.min_interval_s` | per provider | floor | gap between two calls to one provider |
+| `otp.window_minutes` | 10 | limit, at most 10 | only messages after the request and within this many minutes |
+| `otp.poll_seconds` | 15 | floor, at least 10 | how often the mailbox is checked for the code |
+| `otp.max_uses_day_per_site` | 3 | limit, at most 6 | codes or links used per site per rolling 24 h |
+| `otp.max_uses_day` | 10 | limit, at most 20 | codes or links used per rolling 24 h, all sites |
+| `otp.failure_breaker_24h` | 3 | limit, at most 5 | failed requests (expired, rejected, ambiguous) per site in 24 h before `ats:<platform>` stops (`otp_failures`) |
+| `otp.after_use` | `mark_read` | bounded: `leave`, `mark_read`, `archive` | what happens to the used message |
+| `accounts.max_new_day` | 3 | limit, at most 5 | new site accounts per rolling 24 h, all sites |
+| `accounts.max_new_week` | 10 | limit, at most 20 | new site accounts per rolling 7 days |
+| `accounts.failure_breaker_24h` | 2 | limit, at most 3 | failed creates or sign-ins per site in 24 h before `ats:<platform>` stops (`account_failures`) |
+| `accounts.password_length` | 20 | floor, at least 16 | length of the generated password |
+| `accounts.key_store` | `auto` | bounded: `auto`, `keychain`, `file` | where site passwords are kept: `auto` is the macOS Keychain on macOS and `private/ats_accounts.json` (mode 600) on Linux and WSL |
+| `captcha.handoff` | true | authority, strict false | false: a CAPTCHA sends the job to you as before, no task |
+| `captcha.timeout_minutes` | 120 | limit, at most 240 | task deadline; then the job is skipped (`captcha_timeout`) |
+| `captcha.max_tasks_day` | 5 | limit, at most 10 | CAPTCHA tasks opened per rolling 24 h; beyond, the job goes to you without a task |
+| `captcha.max_open` | 2 | limit, at most 3 | open tasks at once; beyond, the job goes to you without a task |
+| `captcha.repeat_breaker_per_site_day` | 3 | limit, at most 5 | CAPTCHAs per site per rolling 24 h that stop `ats:<platform>` (`captcha_repeat`) |
+| `captcha.screenshot` | true | free | attach a screenshot to the chat message |
+| `captcha.screenshot_retention_days` | 2 | limit, at most 7 | screenshots in `state/captcha/` are deleted after this |
+
+`config lower` and `/jh lower` accept every limit above and `captcha.handoff false`; raising needs
+`./jobhunter config raise` with the PIN.
 
 ## Browser consent (per site)
 
@@ -169,6 +190,26 @@ inside the agent profile. Every site starts at No.
   last seen list).
 - The file is ignored when it is a link, belongs to another user or can be written by group or others: then no
   site has consent.
+
+### Capabilities: email codes and site accounts
+
+A top-level `capabilities` object in the same file records two more permissions per job site, both No until
+you allow them:
+
+- `email_codes`: read verification codes and sign-in links the site emails to your Gmail. It needs Gmail
+  allowed on route `web_ui`, or `./jobhunter mail connect` on route `app_password`; otherwise it shows as
+  "Unavailable".
+- `ats_accounts`: create and use an account on the site with `owner.gmail_address`.
+
+A site is an ATS platform key (`workday`, `icims`, `successfactors`, `taleo`, `greenhouse`, `lever`, `ashby`,
+`smartrecruiters`, `oracle_hcm`, `jobvite`) or `host:<careers host>` for a company portal. `./jobhunter browser
+consent` asks the questions; the core commands are `jh.py browser consent grant --capability email_codes
+--capability ats_accounts --site workday` and `jh.py browser consent revoke --site workday [--capability ...]`
+(PIN). `./jobhunter browser forget workday` takes both back, opens the breaker `ats:workday` (reason
+`consent_revoked`) until you allow it again, and clears and re-imports the agent profile's cookies of the sites
+still allowed. Workday jobs go to the agent only when `boards.sites.workday.apply` is `browser` (shipped
+default `human_queue`; `./jobhunter config raise boards.sites.workday.apply browser`, PIN) and `ats_accounts`
+is granted for `workday`.
 
 ## Sending rules no key changes
 

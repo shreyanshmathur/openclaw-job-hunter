@@ -37,7 +37,8 @@ var STATUS_GROUPS = {
           'Unknown (checking)', 'Complaint', 'Open'],
   muted: ['Skipped', 'Duplicate', 'Closed', 'Expired', 'Not a fit', 'Withdrawn', 'No reply', 'Auto-reply',
           'Not run', 'Not interested', 'Not hiring', 'Out of office'],
-  info:  ['Replied', 'Positive reply', 'Screening call', 'Interview', 'Offer', 'Referred', 'Referral offered']
+  info:  ['Replied', 'Positive reply', 'Screening call', 'Interview', 'Offer', 'Referred', 'Referral offered',
+          'Info']
 };
 
 var FORMATS = { date: 'd mmm yyyy', datetime: 'd mmm yyyy HH:mm', int: '0', score: '0', num2: '0.00',

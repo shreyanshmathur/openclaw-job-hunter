@@ -12,6 +12,7 @@ import os
 import tests  # noqa: F401
 from jobhunter import cli, db, jobs, paths
 from tests.fakes.u2 import fixture_json, install
+from tests.fakes.u2.agentrun import agent_call
 from tests.helpers import HomeTestCase
 
 
@@ -376,11 +377,11 @@ class TestAliasHumanCallStatus(IngestCase):
 
 class TestJobCommands(IngestCase):
     def run_cli(self, argv, agent=None):
-        out = io.StringIO()
-        env = {"PATH": "/usr/bin"}
         if agent:
-            env.update({"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent})
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
+            # a guarded agent call: python -I, argv and env proof for one session (helpers of U1)
+            return agent_call(agent, argv, deps=self.deps)
+        out = io.StringIO()
+        rc = cli.main(argv, env={"PATH": "/usr/bin"}, stdin=io.StringIO(""), stdout=out)
         return rc, json.loads(out.getvalue())
 
     def test_scout_job_add(self):

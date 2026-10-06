@@ -11,12 +11,15 @@ Every outbound item goes through this loop: cold and follow-up emails, applicati
 notes and messages, InMail, free-text form answers, the application package and the tailored resume. Code runs the
 gate. You cannot approve anything, and you never see or write a verdict yourself.
 
-Run one plain command per exec call with `timeoutSeconds: 90`. Files you pass must be under
-`__WS__/work/<cycle_id>/`. Replace `<cycle_id>`, `<draft_uid>` and `<qjob_uid>` with the real values.
+Run one plain jh.py command per exec call, with absolute paths and `timeoutSeconds: 90`. The safety plugin adds
+`-I` and an `--agent-proof` option to every jh.py command you run; never type `--agent-proof` yourself. Files you
+pass must be under `__WS__/work/<cycle_id>/`. Replace `<cycle_id>`, `<draft_uid>` and `<qjob_uid>` with the real
+values. Never ask a person anything: nobody is there and nothing waits for approval. A refused call is final.
 
 ## 1. Draft
 
-Write the draft file (format in ref/writer_brief.md) with your file tool, then:
+Write the draft file (format in ref/writer_brief.md) with the write tool, as one whole file. There is no edit tool:
+to fix a file, write it again. Then:
 
     __PY__ __REPO__/scripts/jh.py draft create --file __WS__/work/<cycle_id>/draft-1.json
 
@@ -43,11 +46,13 @@ It returns at once with `data.qjob_uid`. A separate reviewer with no tools reads
 - exit 6 `E_QC_REVIEW_FAILED` with `data.issues` and `data.rewrite_brief`: go to step 3.
 - exit 6 `E_QC_REVIEW_FAILED` with `data.state` failed and no issues: the reviewer did not answer (not a verdict).
   Leave the draft; the next cycle runs `qc review start` again. It does not use your rewrite budget.
-- exit 11 `E_REVIEWER_TAMPERED`: stop the cycle and reply `NO_REPLY` (the person was alerted).
+- exit 11 `E_REVIEWER_TAMPERED`: stop the cycle as your program says and finish with the single word `CYCLE_DONE`
+  (the person was alerted).
 
 ## 3. Rewrite (at most 3 attempts in total) or drop
 
-Follow ref/rewrite.md: fix exactly what the findings name, never add a fact. Write a new file and run:
+Follow ref/rewrite.md: fix exactly what the findings name, never add a fact. Write a new file with the write tool
+(whole file) and run:
 
     __PY__ __REPO__/scripts/jh.py draft revise <draft_uid> --file __WS__/work/<cycle_id>/draft-2.json
 

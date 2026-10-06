@@ -57,6 +57,10 @@ DEFAULT_META: dict[str, str] = {
     "agency_apps_per_30d": "6",
 }
 
+# meta keys that are secrets of the install: never printed by home show, status or any meta listing
+# (otp_salt keys the HMAC of email codes and links, migrations/0003_otp_accounts.sql)
+SECRET_META_KEYS = frozenset({"otp_salt"})
+
 META_WRITERS = frozenset({"init", "config_apply", "human", "install", "system"})
 # meta keys whose value must be a non-negative integer (the triggers CAST them)
 INT_META = frozenset({
@@ -249,6 +253,7 @@ def init_db(extra_meta: dict | None = None) -> sqlite3.Connection:
         wanted["install_id"] = h["install_id"]
         wanted["jitter_seed"] = secrets.token_hex(16)
         wanted["max_seen_ts"] = now()
+        wanted["otp_salt"] = secrets.token_hex(32)
         wanted.update(extra_meta or {})
         with tx(conn):
             for key, value in wanted.items():
@@ -327,8 +332,10 @@ def meta_get(conn, key: str, default: str | None = None) -> str | None:
     return row[0] if row else default
 
 
-def meta_all(conn) -> dict:
-    return {r[0]: r[1] for r in conn.execute("SELECT key, value FROM meta ORDER BY key")}
+def meta_all(conn, include_secrets: bool = False) -> dict:
+    """Every meta row; the SECRET_META_KEYS rows only with include_secrets (never for a printed view)."""
+    return {r[0]: r[1] for r in conn.execute("SELECT key, value FROM meta ORDER BY key")
+            if include_secrets or r[0] not in SECRET_META_KEYS}
 
 
 def _validate_meta(key: str, value: str) -> None:

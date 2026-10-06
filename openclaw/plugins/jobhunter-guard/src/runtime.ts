@@ -4,19 +4,23 @@
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { actRequestOf, classifyUrl, parseHostsConfig, parseSnapshotRefs, RefCache, resultTab, resultTabList, scriptAllowed, targetIdOf } from "./browser.ts";
 import { handleJh, type CommandCtx } from "./command.ts";
-import { readConsent } from "./consent.ts";
-import { agentProof, parseKey } from "./grant.ts";
+import { capabilityActive, readConsent } from "./consent.ts";
+import { argvProof, envProof, parseKey, PROOF_VERSION, redactProofs, verifyOwnProof } from "./grant.ts";
 import { makeJhRunner, type JhRunner } from "./jhcall.ts";
 import { Ledger } from "./ledger.ts";
-import { decide, effectiveAgentId, JOBHUNTER_PREFIX, normalizeToolName } from "./policy.ts";
+import { agentTools, decide, DEFAULT_CARRIERS, effectiveAgentId, JOBHUNTER_PREFIX, normalizeToolName, pathFormError } from "./policy.ts";
 import { driverScanText, loadSignatures, matchStop, resultMeta, resultText, type SignatureSet } from "./signatures.ts";
-import type { Acl, Decision, GuardConfig, HostsConfig, Snapshot, TokenRecord, ToolCtx, ToolEvent } from "./types.ts";
+import type { Acl, Decision, GuardConfig, HostsConfig, ProofCarrier, Snapshot, TokenRecord, ToolCtx, ToolEvent } from "./types.ts";
 
-export const GUARD_VERSION = "2.0.0";
+export const GUARD_VERSION = "2.2.0";
 const TOKEN_RE = /^T[A-Z2-7]{11}$/;
+// The CAPTCHA hand-off keys of the stop file (jh.py detect --source guard accepts exactly these shapes).
+const HANDOFF_AGENT_RE = /^jobhunter-[a-z]+$/;
+const HANDOFF_TAB_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const HEALTH_TTL_MS = 15000;
 const STATIC_TTL_MS = 60000;
 const MAX_DETECT_TRIES = 12; // about one hour of heartbeats
@@ -67,7 +71,8 @@ function sha256File(file: string): string {
   return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
-// realpath that also works for files that do not exist yet (resolves the nearest existing parent).
+// realpath that also works for files that do not exist yet: the realpath of the longest existing ancestor
+// joined with the rest.
 export function realpathLoose(p: string): string {
   try {
     return fs.realpathSync.native(p);
@@ -78,7 +83,90 @@ export function realpathLoose(p: string): string {
   }
 }
 
+const GLOB_SEG = /[*?[]/;
+
+function globSegmentRe(seg: string): RegExp | null {
+  let out = "";
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i];
+    if (c === "*") out += ".*";
+    else if (c === "?") out += ".";
+    else if (c === "[") {
+      const end = seg.indexOf("]", i + 2);
+      if (end < 0) {
+        out += "\\[";
+        continue;
+      }
+      let body = seg.slice(i + 1, end);
+      if (body.startsWith("!")) body = "^" + body.slice(1);
+      out += "[" + body.replace(/\\/g, "\\\\") + "]";
+      i = end;
+    } else out += c.replace(/[.+^${}()|\\\]\/]/g, "\\$&");
+  }
+  try {
+    return new RegExp("^" + out + "$");
+  } catch {
+    return null;
+  }
+}
+
+// Bounded expansion of an absolute shell glob on disk (R7: `cat private/g*`). Hidden names match too (stricter
+// than a shell); "**" counts as "*". At most `max` matches and 5000 directory entries are looked at.
+export function expandGlob(pattern: string, max = 200): string[] {
+  if (!path.isAbsolute(pattern)) return [];
+  const segs = path.normalize(pattern).split("/").filter((x) => x.length > 0);
+  let current = ["/"];
+  let budget = 5000;
+  for (const seg of segs) {
+    const next: string[] = [];
+    if (!GLOB_SEG.test(seg)) {
+      for (const dir of current) next.push(path.join(dir, seg));
+    } else {
+      const re = globSegmentRe(seg);
+      if (!re) return [];
+      for (const dir of current) {
+        let names: string[] = [];
+        try {
+          names = fs.readdirSync(dir);
+        } catch {
+          continue;
+        }
+        for (const n of names) {
+          if (--budget < 0) return next.slice(0, max);
+          if (re.test(n)) next.push(path.join(dir, n));
+          if (next.length >= max) break;
+        }
+      }
+    }
+    current = next;
+    if (current.length === 0) return [];
+  }
+  return current.filter((p) => fs.existsSync(p)).slice(0, max);
+}
+
 // Validate the plugin config (the manifest schema is enforced by OpenClaw too; this is the runtime check).
+// A jobhunter run that OpenClaw did not start from a cron job (for example `openclaw agent --agent
+// jobhunter-*`, trigger "user" or "manual") is unsupported and, on OpenClaw 2026.9.8, unrestricted: Claude Code's
+// own tools and AskUserQuestion are offered (live check T6, V7 failed). The guard cannot remove them from such a
+// run, so it tells the model in the system prompt to use no tool, ask nothing and end at once. Model behavior
+// only, not enforcement (docs/ENFORCEMENT.md). Only a known trigger other than "cron" counts: a missing trigger
+// changes nothing, so a cron run is never told to stop.
+export const STRAY_RUN_CODE = "G_STRAY_RUN";
+export function strayRunTrigger(ctx: { trigger?: unknown }): string | null {
+  const t = ctx && typeof ctx.trigger === "string" ? ctx.trigger.trim().toLowerCase() : "";
+  if (!t || t === "cron") return null;
+  return /^[a-z][a-z0-9_-]{0,31}$/.test(t) ? t : "other";
+}
+export function strayRunNotice(agentId: string, trigger: string): string {
+  const id = /^[a-z0-9_-]{1,64}$/.test(agentId) ? agentId : "jobhunter";
+  return [
+    "JOBHUNTER GUARD NOTICE (" + STRAY_RUN_CODE + "): this run of " + id + " was not started by a job hunter automation (trigger " + trigger + ").",
+    "Runs started this way are not supported. Do not call any tool, do not run any command, do not read or write any file,",
+    "and do not ask anyone a question (no AskUserQuestion). Reply with exactly this one line and end the turn:",
+    STRAY_RUN_CODE + ": job hunter agents run only through ./jobhunter and its automations.",
+  ].join("\n");
+}
+
 export function parseConfig(raw: unknown): GuardConfig {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const abs = (k: string) => {
@@ -93,7 +181,45 @@ export function parseConfig(raw: unknown): GuardConfig {
         return !!x && typeof x.channel === "string" && typeof x.senderId === "string";
       })
     : undefined;
-  return { repo: abs("repo"), python: abs("python"), homeFile: abs("homeFile"), publicReadonlyAgents: agents.filter((a) => !a.startsWith(JOBHUNTER_PREFIX)), ownerFallback: fallback };
+  const native = o.claudeNativeTools === undefined ? "deny" : o.claudeNativeTools;
+  if (native !== "deny" && native !== "gate") throw new Error("plugin config claudeNativeTools must be \"deny\" or \"gate\"");
+  const bool = (k: string, dflt: boolean): boolean => {
+    if (o[k] === undefined) return dflt;
+    if (typeof o[k] !== "boolean") throw new Error("plugin config " + k + " must be true or false");
+    return o[k] as boolean;
+  };
+  let carriers: ProofCarrier[] = [...DEFAULT_CARRIERS];
+  if (o.proofCarriers !== undefined) {
+    const c = o.proofCarriers;
+    if (!Array.isArray(c) || c.length === 0 || c.some((x) => x !== "argv" && x !== "env") || new Set(c).size !== c.length) {
+      throw new Error("plugin config proofCarriers must be a non-empty list of \"argv\" and \"env\"");
+    }
+    carriers = c as ProofCarrier[];
+  }
+  const roots = { read: [path.join(o.repo as string, "private")], write: [o.repo as string] };
+  if (o.protectedRoots !== undefined) {
+    const pr = o.protectedRoots as Record<string, unknown>;
+    if (!pr || typeof pr !== "object" || Array.isArray(pr)) throw new Error("plugin config protectedRoots must be {read, write}");
+    for (const k of ["read", "write"] as const) {
+      const list = pr[k];
+      if (list === undefined) continue;
+      if (!Array.isArray(list) || list.some((x) => typeof x !== "string" || !path.isAbsolute(x))) throw new Error("plugin config protectedRoots." + k + " must list absolute paths");
+      for (const x of list as string[]) if (!roots[k].includes(x)) roots[k].push(x);
+    }
+  }
+  return {
+    repo: abs("repo"),
+    python: abs("python"),
+    homeFile: abs("homeFile"),
+    publicReadonlyAgents: agents.filter((a) => !a.startsWith(JOBHUNTER_PREFIX)),
+    ownerFallback: fallback,
+    claudeNativeTools: native,
+    pinToolSurface: bool("pinToolSurface", true),
+    proofCarriers: carriers,
+    recordEvents: bool("recordEvents", false),
+    protectedRoots: roots,
+    qcVerdictFile: bool("qcVerdictFile", false),
+  };
 }
 
 // Every sha256 hex value in drivers/manifest.json ({name: sha256} or {name: {sha256}}).
@@ -112,6 +238,7 @@ export type RuntimeOptions = {
   logger?: Logger;
   runner?: JhRunner;
   nowMs?: () => number;
+  homeDir?: string;
 };
 
 export class GuardRuntime {
@@ -120,6 +247,7 @@ export class GuardRuntime {
   private logger: Logger;
   private runner: JhRunner;
   private nowMs: () => number;
+  private homeDir: string;
 
   private acl: Acl | null = null;
   private hosts: HostsConfig | null = null;
@@ -136,6 +264,7 @@ export class GuardRuntime {
   private healthState = { ok: false, reason: "not checked" };
   private healthAt = 0;
   private loadedAt: number;
+  private pinHookSeenAt: number | null = null; // last before_prompt_build call since load (null: never)
 
   private refs = new RefCache();
   private stopped = new Set<string>();
@@ -145,10 +274,21 @@ export class GuardRuntime {
   private trustedCalls = new Map<string, number>();
 
   constructor(config: GuardConfig, opts: RuntimeOptions = {}) {
-    this.config = config;
+    // Configs built by hand (tests, bridges) get the same defaults as parsed ones.
+    const defined = Object.fromEntries(Object.entries(config).filter(([, v]) => v !== undefined)) as GuardConfig;
+    this.config = {
+      claudeNativeTools: "deny",
+      pinToolSurface: true,
+      proofCarriers: [...DEFAULT_CARRIERS],
+      recordEvents: false,
+      protectedRoots: { read: [path.join(config.repo, "private")], write: [config.repo] },
+      qcVerdictFile: false,
+      ...defined,
+    };
     this.dataRoot = path.dirname(path.dirname(config.homeFile));
     this.logger = opts.logger || { info: () => {}, warn: () => {}, error: () => {} };
     this.runner = opts.runner || makeJhRunner(config.python, path.join(config.repo, "scripts", "jh.py"), config.repo);
+    this.homeDir = opts.homeDir || os.homedir();
     this.nowMs = opts.nowMs || (() => Date.now());
     this.loadedAt = this.nowMs();
   }
@@ -253,6 +393,9 @@ export class GuardRuntime {
     return this.stopped.has(session);
   }
 
+  // Commit lines of state/guard/<token>.jsonl: the guard's own and the ones the core writes for a code step
+  // ("by": "code", for example a resubmit after an email code) count alike, so a code step uses the token's
+  // commit budget too.
   private commitsUsed(token: string): number {
     const cached = this.commitCounts.get(token);
     if (cached !== undefined) return cached;
@@ -304,14 +447,18 @@ export class GuardRuntime {
   // ---------------------------------------------------------------- snapshot
   buildSnapshot(event: ToolEvent, ctx: ToolCtx): Snapshot {
     const agentId = effectiveAgentId(ctx);
-    const tool = normalizeToolName(event.toolName);
+    const tool = normalizeToolName(event.toolName).tool;
     const session = this.sessionOf(ctx, agentId);
     const params = (event.params || {}) as Record<string, unknown>;
     const tabId = tool === "browser" ? targetIdOf(params) : null;
     const isJh = agentId.startsWith(JOBHUNTER_PREFIX);
     let health = { ok: true, reason: "" };
     if (isJh) health = this.health();
-    else this.loadStatic();
+    else {
+      this.loadStatic();
+      if (!this.home) this.health(); // other agents: WS_ROOT from home.json for the protected write roots
+    }
+    const nowS = Math.floor(this.nowMs() / 1000);
     const snap: Snapshot = {
       nowMs: this.nowMs(),
       health,
@@ -329,8 +476,16 @@ export class GuardRuntime {
       dwell: null,
       commitsUsed: 0,
       currentUrl: this.refs.url(session, tabId),
+      secretFocus: isJh && tool === "browser" ? this.refs.secretFocus(session, tabId) : false,
       lookupRef: (ref: string) => this.refs.lookup(session, tabId, ref),
       realpath: realpathLoose,
+      mintProof: (id: string, sessionKey: string, rest: string[]) => {
+        if (!this.key) throw new Error("no guard key");
+        return argvProof(this.key, id, sessionKey, rest, nowS);
+      },
+      verifyOwnProof: (token: string, id: string, sessionKey: string, rest: string[]) => !!this.key && verifyOwnProof(this.key, token, id, sessionKey, rest, nowS),
+      homeDir: this.homeDir,
+      glob: (pattern: string) => expandGlob(pattern),
     };
     if (isJh && tool === "browser") snap.consent = readConsent(this.consentFile());
     if (isJh && health.ok && tool === "browser" && this.ledger) {
@@ -361,10 +516,17 @@ export class GuardRuntime {
       decision = { kind: "block", code: "G_GUARD_UNHEALTHY", reason: "internal guard error; end the cycle" };
       this.logger.error("jobhunter-guard: decide failed: " + ((e as Error).stack || String(e)));
     }
-    const tool = normalizeToolName(event.toolName);
-    if (agentId.startsWith(JOBHUNTER_PREFIX) || decision.kind === "block") {
+    const tool = normalizeToolName(event.toolName).tool;
+    const isJh = agentId.startsWith(JOBHUNTER_PREFIX);
+    if (isJh || decision.kind === "block") {
       this.logDecision(agentId, ctx, tool, decision);
     }
+    if (isJh && decision.native) {
+      // A Claude Code native tool reached a jobhunter agent: the run was not restricted (doctor and the
+      // selftest identity check look for this line).
+      this.guardLog({ ts: fmtTs(this.nowMs()), kind: "native_tool", agent: agentId, session: ctx.sessionKey || null, tool_raw: String(event.toolName || ""), tool, decision: decision.kind, code: decision.kind === "block" ? decision.code : null });
+    }
+    if (this.config.recordEvents) this.recordEvent(event, ctx, agentId, tool, decision);
     if (decision.kind === "block") return { block: true, blockReason: decision.code + ": " + decision.reason };
     if (decision.kind === "allow") {
       if (decision.records && decision.records.length) {
@@ -374,6 +536,12 @@ export class GuardRuntime {
           this.logDecision(agentId, ctx, tool, blocked);
           return { block: true, blockReason: blocked.code + ": " + blocked.reason };
         }
+      }
+      // the addressed tab's secret focus after this call (a click on a secret field sets it; a snapshot, a
+      // navigation or a click on another known ref clears it)
+      if (isJh && tool === "browser" && decision.secretFocus !== undefined) {
+        const params = (event.params || {}) as Record<string, unknown>;
+        this.refs.setSecretFocus(this.sessionOf(ctx, agentId), targetIdOf(params), decision.secretFocus);
       }
       if (decision.params) return { params: decision.params };
     }
@@ -413,6 +581,47 @@ export class GuardRuntime {
     this.guardLog(entry);
   }
 
+  // recordEvents (test profiles only): the shape of every call as OpenClaw handed it to the guard, for the
+  // recorded transcripts. Proofs are redacted, paths are relative to WS_ROOT, contents are never written.
+  private recordEvent(event: ToolEvent, ctx: ToolCtx, agentId: string, tool: string, d: Decision): void {
+    const dir = this.logsDir();
+    if (!fs.existsSync(dir)) return;
+    const params = (event.params && typeof event.params === "object" ? event.params : {}) as Record<string, unknown>;
+    const ws = this.home && typeof this.home.ws_root === "string" ? this.home.ws_root : null;
+    const scrub = (text: string): string => {
+      let t = redactProofs(text);
+      const subs: Array<[string | null, string]> = [[ws, "@WS@"], [this.config.repo, "@REPO@"], [this.config.python, "@PY@"], [this.homeDir, "@HOME@"]];
+      for (const [from, to] of subs) if (from && from.length > 1) t = t.split(from).join(to);
+      return t;
+    };
+    let pathRel: string | null = null;
+    const raw = ["path", "file_path", "filePath"].map((k) => params[k]).find((v) => typeof v === "string") as string | undefined;
+    if (raw !== undefined) {
+      if (path.isAbsolute(raw) && ws && (raw === ws || raw.startsWith(ws + "/"))) pathRel = path.relative(ws, raw) || ".";
+      else if (path.isAbsolute(raw)) pathRel = "<outside>";
+      else pathRel = pathFormError(raw) ? "<form>" : scrub(raw);
+    }
+    const at = fmtTs(this.nowMs());
+    const line = {
+      at,
+      agent: agentId || null,
+      tool_raw: String(event.toolName || ""),
+      tool,
+      native: d.native === true,
+      param_keys: Object.keys(params).sort(),
+      ctx_keys: Object.keys(ctx || {}).sort(),
+      command_redacted: typeof params.command === "string" ? scrub(params.command) : null,
+      path_rel_ws: pathRel,
+      decision: d.kind,
+      code: d.kind === "block" ? d.code : null,
+    };
+    try {
+      fs.appendFileSync(path.join(dir, "guard-events-" + at.slice(0, 10).replace(/-/g, "") + ".jsonl"), JSON.stringify(line) + "\n", { mode: 0o600 });
+    } catch {
+      // recording never blocks a decision
+    }
+  }
+
   guardLog(entry: Record<string, unknown>): void {
     const dir = this.logsDir();
     if (!fs.existsSync(dir)) return; // before `init` nothing is created
@@ -429,7 +638,7 @@ export class GuardRuntime {
   observe(event: { toolName: string; params: Record<string, unknown>; result?: unknown; error?: string }, ctx: ToolCtx): { stopped: boolean; softStopped?: boolean; code?: string } {
     const agentId = effectiveAgentId(ctx);
     if (!agentId.startsWith(JOBHUNTER_PREFIX)) return { stopped: false };
-    if (normalizeToolName(event.toolName) !== "browser") return { stopped: false };
+    if (normalizeToolName(event.toolName).tool !== "browser") return { stopped: false };
     const session = this.sessionOf(ctx, agentId);
     const params = (event.params || {}) as Record<string, unknown>;
     const action = typeof params.action === "string" ? params.action : "";
@@ -478,13 +687,26 @@ export class GuardRuntime {
       host: info.host,
     });
     if (!m) return { stopped: false };
-    const payload = {
+    const payload: Record<string, unknown> = {
       platform: stopPlatform(m.platform, info.platform ? info.platform.scope : null, info.host),
       url,
       title: meta.title,
       http_status: meta.httpStatus,
       text: textWindow(scanText, m.index, DETECT_TEXT_MAX),
     };
+    if (m.handoff === "captcha") Object.assign(payload, this.handoffKeys(agentId, session, tabId));
+    // A job-level stop whose capability the owner granted for this page's site (an account wall or an email
+    // code page on a site with ats_accounts or email_codes): the core's code steps handle it, so no soft stop.
+    // The stop file is still written so jh.py detect records it (and answers clear with a flow).
+    if (!m.trip && m.capability !== null) {
+      const consent = readConsent(this.consentFile());
+      if (consent.ok && capabilityActive(consent.capabilities, m.capability, info.platform ? info.platform.key : null, info.host)) {
+        this.guardLog({ kind: "capability_page", agent: agentId, session: ctx.sessionKey || null, code: m.code, capability: m.capability, file: m.file, where: m.where, host: info.host });
+        const file = this.writeStopFile(payload);
+        if (file) void this.runDetect(file);
+        return { stopped: false, softStopped: false, code: m.code };
+      }
+    }
     this.guardLog({ kind: "stop", agent: agentId, session: ctx.sessionKey || null, code: m.code, reason: m.reasonCode, file: m.file, where: m.where, trip: m.trip, host: info.host });
     if (m.trip) this.stopped.add(session);
     else {
@@ -499,6 +721,25 @@ export class GuardRuntime {
     const file = this.writeStopFile(payload);
     if (file) void this.runDetect(file);
     return { stopped: m.trip, softStopped: !m.trip, code: m.code };
+  }
+
+  // The CAPTCHA hand-off keys of a stop file: the jobhunter agent, its open token from the ledger and the tab
+  // (the raw targetId when the guard knows it). A key whose value is unknown or not of its class is left out.
+  private handoffKeys(agentId: string, session: string, tabId: string | null): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (HANDOFF_AGENT_RE.test(agentId)) out.agent = agentId;
+    try {
+      const h = this.health();
+      if (this.ledger && h.ok) {
+        const tok = this.ledger.openToken(agentId);
+        if (tok && TOKEN_RE.test(tok.token)) out.token = tok.token;
+      }
+    } catch {
+      // no token key: jh.py detect finds the job without it (the claimed job on this host)
+    }
+    const tab = this.refs.tabKey(session, tabId);
+    if (tab && HANDOFF_TAB_RE.test(tab)) out.tab_id = tab;
+    return out;
   }
 
   // A single `act` evaluate of an allowlisted driver (drivers/manifest.json), judged on the act request
@@ -540,6 +781,8 @@ export class GuardRuntime {
   }
 
   // ---------------------------------------------------------------- resolve_exec_env (R8)
+  // The env carrier: a fresh single-use env proof (v2) per exec, bound to the agent and the session key (this
+  // hook does not see the command; the argv proof binds the command).
   execEnv(ctx: { agentId?: string; sessionKey?: string; runId?: string }): Record<string, string> | undefined {
     const agentId = effectiveAgentId(ctx);
     if (!agentId.startsWith(JOBHUNTER_PREFIX)) return undefined;
@@ -547,8 +790,41 @@ export class GuardRuntime {
     if (ctx.sessionKey) env.JH_SESSION_KEY = ctx.sessionKey;
     if (ctx.runId) env.JH_RUN_ID = ctx.runId;
     this.health();
-    if (this.key) env.JH_AGENT_PROOF = agentProof(this.key, agentId, Math.floor(this.nowMs() / 1000));
+    if (this.key && (this.config.proofCarriers || DEFAULT_CARRIERS).includes("env")) {
+      try {
+        env.JH_AGENT_PROOF = envProof(this.key, agentId, ctx.sessionKey || "", Math.floor(this.nowMs() / 1000));
+      } catch (e) {
+        this.logger.error("jobhunter-guard: cannot mint the env proof: " + ((e as Error).message || e));
+      }
+    }
     return env;
+  }
+
+  // ---------------------------------------------------------------- before_prompt_build (tool-surface pin)
+  // Narrows every jobhunter run to the agent's ACL tools ([] for the reviewer, ["write"] in the F-QC
+  // fallback), so a stray unrestricted run loses Claude Code's native tools. Defense in depth only: on
+  // OpenClaw 2026.9.8 a stray `openclaw agent` run stays unrestricted (live check T6, V7 failed); stray runs
+  // are unsupported (docs/ENFORCEMENT.md) and no project path depends on this pin.
+  // A run with a known trigger other than "cron" also gets the stray-run notice and a `stray_run` guard log line.
+  // OpenClaw 2026.9.8 registers this hook for a non-bundled plugin only when
+  // plugins.entries.jobhunter-guard.hooks.allowConversationAccess is true (otherwise the gateway log says
+  // `typed hook "before_prompt_build" blocked`), so every call is noted for the heartbeat (`pin_hook_seen_at`):
+  // a pin that is on while that field stays null after a cron turn is a pin OpenClaw never ran.
+  promptTools(ctx: { agentId?: string; sessionKey?: string; trigger?: unknown }): { toolsAllow: string[]; prependSystemContext?: string } | undefined {
+    this.pinHookSeenAt = this.nowMs();
+    if (this.config.pinToolSurface === false) return undefined;
+    const agentId = effectiveAgentId(ctx || {});
+    if (!agentId.startsWith(JOBHUNTER_PREFIX)) return undefined;
+    this.loadStatic();
+    let toolsAllow: string[] = [];
+    if (this.acl && this.acl.agents[agentId]) {
+      const snapLike = { acl: this.acl, config: this.config } as unknown as Snapshot;
+      toolsAllow = agentTools(agentId, snapLike);
+    }
+    const trigger = strayRunTrigger(ctx || {});
+    if (trigger === null) return { toolsAllow };
+    this.guardLog({ kind: "stray_run", agent: agentId, session: (ctx && ctx.sessionKey) || null, trigger, code: STRAY_RUN_CODE });
+    return { toolsAllow, prependSystemContext: strayRunNotice(agentId, trigger) };
   }
 
   // ---------------------------------------------------------------- heartbeat (12.18)
@@ -561,6 +837,12 @@ export class GuardRuntime {
     const body = {
       install_id: install,
       version: GUARD_VERSION,
+      guard_version: GUARD_VERSION,
+      proof_version: PROOF_VERSION,
+      carriers: [...(this.config.proofCarriers || DEFAULT_CARRIERS)],
+      native_tools: this.config.claudeNativeTools || "deny",
+      pin_tool_surface: this.config.pinToolSurface !== false,
+      pin_hook_seen_at: this.pinHookSeenAt === null ? null : fmtTs(this.pinHookSeenAt),
       loaded_at: fmtTs(this.loadedAt),
       beat_at: fmtTs(this.nowMs()),
       acl_sha256: this.aclSha,

@@ -79,6 +79,21 @@ class TestAclShape(unittest.TestCase):
         for agent in ("jobhunter-scout", "jobhunter-evaluator"):
             self.assertFalse([c for c in self.acl["agents"][agent]["commands"] if c.startswith("gate ")], agent)
 
+    def test_whoami_and_reserved_proof_option(self):
+        """CLI route 8: every tool agent may run `whoami` (the identity probe); no agent schema mentions the
+        guard's --agent-proof; `qc smoke` is a system and owner command only."""
+        for agent in AGENTS[:4]:
+            self.assertEqual(self.acl["agents"][agent]["commands"].get("whoami"), {}, agent)
+        self.assertNotIn("whoami", self.acl["agents"]["jobhunter-qc"]["commands"])
+        text = json.dumps(self.acl["agents"])
+        self.assertNotIn("--agent-proof", text)
+        self.assertNotIn("--agent-p", text)
+        self.assertIn("--agent-proof is reserved for the jobhunter-guard", self.acl["notes"])
+        for key in ("public_readonly", "chat", "human_only"):
+            self.assertNotIn("qc smoke", self.acl[key])
+        for agent, spec in self.acl["agents"].items():
+            self.assertNotIn("qc smoke", spec["commands"], agent)
+
     def test_ids_match_value_classes(self):
         from jobhunter import canon
         vc = self.acl["value_classes"]
@@ -145,6 +160,10 @@ class TestAclVsArgparse(unittest.TestCase):
             self.assertNotIn("A", callers, entry)
         if STRICT:
             self.assertEqual(sorted(set(missing)), [])
+        self.assertEqual(registered["whoami"].get_default("_jh_callers"), "AHRS")
+        smoke = registered.get("qc smoke")
+        if smoke is not None:                  # U3 registers it (CLI route 9): system and owner only
+            self.assertEqual(smoke.get_default("_jh_callers"), "HS")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from __future__ import annotations
 from jobhunter import breakers, ceilings, config, cycles, db, detect, dispatch, gate, identity, pacing
 from jobhunter.commands import Result, add_command
 from jobhunter.commands.core import agent_of, by_of
-from jobhunter.errors import Denied
+from jobhunter.errors import CYCLE_DONE, FINAL_WORD_HINT, Denied
 
 LANES = ("scout", "evaluator", "applier", "outreach", "replies")
 
@@ -69,10 +69,19 @@ def cmd_detect(args, ctx):
     payload = ctx.read_json(args.file)
     conn = ctx.connect()
     with db.tx(conn):
-        res = detect.detect(conn, payload, source, _cycle_of(conn, ctx))
+        res = detect.detect(conn, payload, source, _cycle_of(conn, ctx),
+                            agent_id=ctx.caller.agent_id if ctx.is_agent else None)
+    if res.get("captcha"):
+        from jobhunter import captcha
+        captcha.finish_open(conn, res["captcha"])
+        res["captcha"] = {k: res["captcha"][k] for k in ("captcha_code", "deadline_at", "token_outcome")}
+        return Result(data=res, message="a CAPTCHA: the owner was asked to solve it (code %s)"
+                      % res["captcha"]["captcha_code"], next="leave the tab open; move to the next job")
+    if res.get("flow"):
+        return Result(data=res, message="clear (%s step: account status, then the code steps)" % res["flow"])
     if res["verdict"] == "stop" and res["tripped"]:
         return Result(data=res, code="E_STOP_DETECTED", message="stop signature %s: %s is stopped" %
-                      (res["matched"], res["scope"]), next="end the cycle now and reply NO_REPLY")
+                      (res["matched"], res["scope"]), next="end the cycle now and " + FINAL_WORD_HINT)
     if res["verdict"] == "stop":
         return Result(data=res, message="this page needs you (%s)" % (res["job_needs_human"] or res["matched"]),
                       next="set the job needs_human and move on")
@@ -132,7 +141,7 @@ def cmd_preflight(args, ctx):
     ctx.cycle_id = res["cycle_id"]
     if not res["go"]:
         return Result(data=res, code=res["code"], message="no go: %s" % ", ".join(res["reasons"]),
-                      retry_after_s=res.get("retry_after_s"), next="reply NO_REPLY")
+                      retry_after_s=res.get("retry_after_s"), next="reply " + CYCLE_DONE)
     return Result(data=res, message="go")
 
 
@@ -151,7 +160,7 @@ def cmd_cycle_end(args, ctx):
     conn = ctx.connect()
     with db.tx(conn):
         res = cycles.end(conn, args.cycle, summary, ctx.caller.agent_id if ctx.is_agent else None)
-    return Result(data=res, message="cycle ended", next="reply NO_REPLY")
+    return Result(data=res, message="cycle ended", next="reply " + CYCLE_DONE)
 
 
 def cmd_dispatch_tick(args, ctx):

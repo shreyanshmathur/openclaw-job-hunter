@@ -1,11 +1,14 @@
 """QC worker: runs the jobhunter-qc agent turn for a queued review and records the verdict (design 5.3).
 
-- spawn_worker(qjob_uid): `jh.py qc worker --job <uid>` detached (start_new_session, no stdio, no agent env),
-  called by `qc review start` and `edit` after COMMIT.
-- run_job(qjob_uid): claims the job, heartbeats every 15 s while `ocrun.agent_turn` runs (no shell, binary and
-  profile from private/home.json), then in one transaction writes qc_results (model and code verdict, stricter
-  wins) and moves the draft. A reviewer error or timeout is not a verdict: one retry (try_no 2), then the draft
-  goes review_failed with reason reviewer_unavailable, which does not use the rewrite budget.
+- spawn_worker(qjob_uid): `jh.py qc worker --job <uid>` detached (start_new_session, no stdio, env through
+  auth.scrub_agent_env so the worker stays `system`, CLI-ROUTE-DESIGN 5.5), called by `qc review start` and
+  `edit` after COMMIT.
+- run_job(qjob_uid): claims the job, heartbeats every 15 s while the reviewer turn runs (qc.agent_turn: a
+  one-shot jobhunter-qc cron job with no tools through `ocrun.qc_turn`, 6.3.2; in F-QC mode the packet gets
+  the verdict-file line and the reply is read from that file), then in one transaction writes qc_results
+  (model and code verdict, stricter wins) and moves the draft. A reviewer error or timeout, and a finished run
+  whose reply cannot be read, is not a verdict: one retry (try_no 2), then the draft goes review_failed with
+  reason reviewer_unavailable, which does not use the rewrite budget.
 - drain(max_seconds): the `jobhunter:qc-worker` command job; recovers jobs whose heartbeat is older than 60 s and
   runs queued jobs while time is left.
 - golden(...): `qc golden` calibration run over qc/golden (PIN, terminal).
@@ -14,12 +17,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
 import time
 
-from .. import approvals, canon, db, drafts, jobstate, paths
+from .. import approvals, auth, canon, db, drafts, jobstate, paths
 from ..canon import now, ts_add
 from ..errors import Denied
 from ..events import enqueue_notification, log_event
@@ -28,7 +32,19 @@ from . import review
 
 HEARTBEAT_S = 15
 ORPHAN_S = 60
-_AGENT_ENV = ("OPENCLAW_SHELL", "JH_AGENT_ID", "JH_SESSION_KEY", "JH_RUN_ID")
+# CLI-ROUTE-DESIGN 5.5, used only while auth.scrub_agent_env (U1) is not there; the two must stay equal.
+_SCRUB_NAMES = ("OPENCLAW_SHELL", "OPENCLAW_CHANNEL_CONTEXT", "CLAUDECODE", "JOBHUNTER_HOME", "JOBHUNTER_DB")
+_SCRUB_PREFIXES = ("OPENCLAW_MCP_", "CLAUDE_CODE_", "JH_")
+
+
+def child_env(env=None) -> dict:
+    """The detached worker's environment: every agent, harness and identity name removed (auth.scrub_agent_env),
+    so the worker and the openclaw calls it makes are `system`, never an agent."""
+    env = dict(os.environ if env is None else env)
+    scrub = getattr(auth, "scrub_agent_env", None)
+    if callable(scrub):
+        return dict(scrub(env))
+    return {k: v for k, v in env.items() if k not in _SCRUB_NAMES and not k.startswith(_SCRUB_PREFIXES)}
 
 
 def spawn_worker(qjob_uid: str) -> None:
@@ -44,7 +60,7 @@ def spawn_worker(qjob_uid: str) -> None:
     except Denied:
         h = {}
     py = h.get("python") or sys.executable
-    env = {k: v for k, v in os.environ.items() if k not in _AGENT_ENV}
+    env = child_env()
     try:
         subprocess.Popen([py, os.path.join(paths.SCRIPTS_DIR, "jh.py"), "qc", "worker", "--job", qjob_uid, "--quiet"],
                          start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -295,14 +311,24 @@ def golden_items() -> list:
     return items
 
 
-def golden_packet(item: dict, nonce: str) -> tuple:
-    """(packet text, sha256 of the draft text) for one golden item."""
+def golden_as_of() -> str:
+    """The fixed review date of the golden set (labels.json as_of): its hooks are judged as of that day, so the
+    calibration does not drift as the fictional facts age past the 180-day hook limit."""
+    value = str(read_json(os.path.join(GOLDEN_DIR, "labels.json")).get("as_of") or "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        raise ValueError("qc/golden/labels.json has no valid as_of date")
+    return value
+
+
+def golden_packet(item: dict, nonce: str, as_of: str | None = None) -> tuple:
+    """(packet text, sha256 of the draft text) for one golden item, reviewed as of the golden set's date."""
     subject = item.get("subject")
     body = item.get("body") or ""
     text = ("Subject: %s\n\n%s" % (subject, body)) if subject else body
     sha = canon.sha256_text(text)
     rec = item.get("recipient") or {}
-    values = {"nonce": nonce, "draft_sha256": sha, "channel": item["channel"], "recipient_json": review._j(rec),
+    values = {"nonce": nonce, "draft_sha256": sha, "today": as_of or golden_as_of(), "channel": item["channel"],
+              "recipient_json": review._j(rec),
               "research_facts_json": review._j(item.get("research_facts") or {}),
               "profile_facts_json": review._j(item.get("profile_facts") or {}),
               "lint_warnings_json": review._j([]),
@@ -311,7 +337,9 @@ def golden_packet(item: dict, nonce: str) -> tuple:
 
 
 def golden(model: str | None = None, agent_turn=None) -> dict:
-    """Run every golden draft through the reviewer and compare the code decision with the label."""
+    """Run every golden draft through the reviewer and compare the code decision with the label. A reviewer
+    error or a reply that cannot be read or parsed (for example one the run record cut, D13) is "error": it never
+    agrees with a label and is counted in `errors` (`cut` for the cut ones)."""
     import secrets
     turn = agent_turn or _agent_turn
     cfg = settings()
@@ -319,9 +347,10 @@ def golden(model: str | None = None, agent_turn=None) -> dict:
     tmpdir = os.path.join(paths.state_dir(), "qc", "golden")
     os.makedirs(tmpdir, mode=0o700, exist_ok=True)
     items = golden_items()
+    as_of = golden_as_of()
     for gid, label, item in items:
         nonce = secrets.token_hex(8)
-        text, sha = golden_packet(item, nonce)
+        text, sha = golden_packet(item, nonce, as_of)
         path = os.path.join(tmpdir, "%s.txt" % gid)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(text)
@@ -334,18 +363,43 @@ def golden(model: str | None = None, agent_turn=None) -> dict:
                 os.remove(path)
             except OSError:
                 pass
+        row = {"id": gid, "label": label}
         if res.get("ok"):
             parsed = review.parse_verdict(res.get("text") or res.get("raw") or "", nonce, sha)
             dec = review.decide(parsed["verdict"], item["channel"], cfg)
             got = "good" if dec["pass"] else "bad"
+            row.update(model_verdict=dec["model_verdict"], code_verdict=dec["code_verdict"],
+                       gates_failed=dec["gates_failed"], low_scores=dec["low_scores"])
+            if parsed["error"]:
+                # A reply that does not parse is a FAIL for a real draft (fail closed), but not a judgment: in
+                # calibration it never agrees with a label, so bad items cannot absorb unreadable replies (O2).
+                got = "error"
+                row["error"] = parsed["error"]
         else:
             got = "error"
+            row["error"] = str(res.get("error") or "reviewer error")[:200]
+            if res.get("cut"):
+                row["cut"] = True
         ok = got == label
         agree += 1 if ok else 0
-        rows.append({"id": gid, "label": label, "got": got, "agree": ok})
+        row.update(got=got, agree=ok)
+        rows.append(row)
     prompt_sha = canon.sha256_file(REVIEWER_PROMPT_FILE)
     model = model or cfg["qc"]["review"].get("model") or "unknown"
     stamp = now()
     value = "%d/%d|%s|%s|%s" % (agree, len(items), model, prompt_sha, stamp)
     return {"agreement": "%d/%d" % (agree, len(items)), "agree": agree, "total": len(items), "model": model,
-            "prompt_sha256": prompt_sha, "golden_last": value, "items": rows}
+            "prompt_sha256": prompt_sha, "golden_last": value, "items": rows,
+            "errors": sum(1 for r in rows if r["got"] == "error"), "cut": sum(1 for r in rows if r.get("cut")),
+            "disagreements": [golden_reason(r) for r in rows if not r["agree"]]}
+
+
+def golden_reason(row: dict) -> str:
+    """One line per golden item the reviewer got wrong: id, label, result and why (gates and low scores only,
+    never draft text), so a live calibration run names the items to look at."""
+    why = row.get("error") or ", ".join(list(row.get("gates_failed") or []) + list(row.get("low_scores") or []))
+    if not why and row.get("got") == "bad":
+        why = "model verdict %s" % row.get("model_verdict")
+    if not why:
+        why = "every gate and score passed"
+    return "%s %s, got %s: %s" % (row["id"], row["label"], row["got"], why)

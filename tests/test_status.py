@@ -21,6 +21,22 @@ from tests.helpers import HomeTestCase
 CFG = config()
 STYLES = ("section", "good", "wait", "bad", "muted", "info")
 
+# What the owner's own agent (`main`) looks like to jh.py (CLI-ROUTE-DESIGN 4.2, 5.4). The guard gives `main` no
+# identity (resolve_exec_env returns nothing for non-jobhunter agents and it never gets an --agent-proof), so jh.py
+# sees harness markers only. tests.helpers.agent_env/agent_argv mint proofs for jobhunter agents and do not apply.
+MAIN_EXEC_ENVS = (
+    {"OPENCLAW_SHELL": "1"},                          # OpenClaw's exec tool
+    {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "main"},   # an id the agent set itself changes nothing
+)
+MAIN_CLI_ENV = {"OPENCLAW_MCP_TOKEN": "test-token"}   # Claude Code's own shell under an OpenClaw claude-cli run
+REFUSED = ("E_GUARD_MISSING", "E_CALLER_NOT_ALLOWED")
+
+
+def _run(argv, env, modules):
+    out = io.StringIO()
+    rc = cli.main(list(argv), env=dict(env), stdin=io.StringIO(""), stdout=out, modules=modules)
+    return rc, out.getvalue()
+
 
 class TestStatus(HomeTestCase):
     def setUp(self):
@@ -174,15 +190,45 @@ class TestStatus(HomeTestCase):
                 rc = cli.main(argv, env={}, stdin=io.StringIO(""), stdout=out, modules=[report])
                 self.assertEqual(rc, 0, out.getvalue())
             self.assertIn("Waiting for your approval", out.getvalue())
-            # a non-jobhunter agent (for example `main`) may run the public read-only commands
-            out = io.StringIO()
-            rc = cli.main(["status"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "main"}, stdin=io.StringIO(""),
-                          stdout=out, modules=[report])
-            self.assertEqual(rc, 0, out.getvalue())
-            out = io.StringIO()
-            rc = cli.main(["export"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "main"}, stdin=io.StringIO(""),
-                          stdout=out, modules=[report])
-            self.assertEqual(rc, 11, out.getvalue())
+            # a non-jobhunter agent (for example `main`) may run the public read-only commands, and only those
+            for env in MAIN_EXEC_ENVS:
+                self._assert_main_is_public_readonly(env)
+
+    def test_main_on_the_claude_subscription_route_is_public_readonly(self):
+        """`main` on claude-cli reaches jh.py through Claude Code's own shell: only OPENCLAW_MCP_TOKEN marks it
+        (CLI-ROUTE-DESIGN 4.2, 5.4). It is an unproven agent, never `system`."""
+        from jobhunter import auth
+        if not hasattr(auth, "harness_markers"):
+            self.skipTest("auth.harness_markers is not there yet (claude-cli route core, U1)")
+        self._assert_main_is_public_readonly(dict(MAIN_CLI_ENV))
+
+    def _assert_main_is_public_readonly(self, env):
+        from jobhunter.commands import drafts as drafts_cmd
+        from jobhunter.commands import limits as limits_cmd
+        modules = [report, drafts_cmd, limits_cmd]
+        with mock.patch.object(S, "load_config", return_value=CFG):
+            for argv in (["status"], ["inbox"], ["--human", "status"]):
+                rc, out = _run(argv, env, modules)
+                self.assertEqual(rc, 0, (env, argv, out))
+            # the control skill tells `main` that jh.py refuses everything else; it does, before any handler runs
+            for argv in (["export"], ["pause"], ["approve", "A7K2"], ["skip", "A7K2"]):
+                rc, out = _run(argv, env, modules)
+                self.assertEqual((rc, json.loads(out)["code"] in REFUSED), (11, True), (env, argv, out))
+        self.assertFalse(os.path.exists(paths.paused_file()))
+        self.assertFalse(os.path.isdir(paths.exports_dir()) and os.listdir(paths.exports_dir()))
+
+    def test_control_skill_says_what_the_plugin_and_jh_refuse(self):
+        path = os.path.join(paths.REPO, "shared-skills", "jobhunter-control", "SKILL.template.md")
+        with open(path, "rb") as fh:
+            flat = " ".join(fh.read().decode("ascii").split())   # the dash rules run in test_repo_layout
+        for needle in ("The safety plugin and jh.py refuse those commands for you",
+                       "Never start, edit or message the Job Hunter agents",
+                       "no cron, sessions, subagent or agent commands or tools for them",
+                       "no openclaw cron, agent or sessions command that names them",
+                       "--agent-proof, --grant, --pin-stdin and --home are refused",
+                       "A refused call is final"):
+            self.assertIn(needle, flat)
+        self.assertNotIn("blocks those commands", flat)
 
     def test_export_writes_one_csv_per_tab(self):
         out = export.export_all(self.conn, None, CFG)

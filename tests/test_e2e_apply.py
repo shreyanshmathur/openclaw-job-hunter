@@ -11,13 +11,12 @@ from __future__ import annotations
 
 import json
 import unittest
-from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import ocrun, sheets_rows
+from jobhunter import sheets_rows
 from jobhunter import qc as qcpkg
 from tests.fakes.u3 import FakeReviewer, install_reviewer_hashes
-from tests.fixtures.e2e.support import AP, ApplyWorld, e2e_fixture
+from tests.fixtures.e2e.support import AP, ApplyWorld, e2e_fixture, install_reviewer
 
 WHY = "Why do you want to work here?"
 WHY_ANSWER = "I like building returns forecasting models."
@@ -31,10 +30,7 @@ class E2EApplyBase(unittest.TestCase):
         prev = qcpkg.SPAWN
         qcpkg.SPAWN = self.spawned.append
         self.addCleanup(setattr, qcpkg, "SPAWN", prev)
-        self.reviewer = FakeReviewer("pass")
-        p = mock.patch.object(ocrun, "agent_turn", self.reviewer)
-        p.start()
-        self.addCleanup(p.stop)
+        self.reviewer = install_reviewer(self, FakeReviewer("pass"))
 
     def discover(self, ingest_name: str, **config_over) -> str:
         w = self.w

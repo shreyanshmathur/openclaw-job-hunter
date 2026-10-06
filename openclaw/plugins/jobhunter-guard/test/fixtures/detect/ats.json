@@ -8,6 +8,23 @@
     "verdict": "stop",
     "trip": false,
     "job_needs_human": "captcha_visible",
+    "handoff": "captcha",
     "text": "captcha|i.m not a robot"
+  },
+  {
+    "id": "ats_account_wall",
+    "verdict": "stop",
+    "trip": false,
+    "job_needs_human": "account_required",
+    "capability": "ats_accounts",
+    "text": "create an account|create account to apply|sign up to apply|log ?in to apply"
+  },
+  {
+    "id": "ats_email_code",
+    "verdict": "stop",
+    "trip": false,
+    "job_needs_human": "account_required",
+    "capability": "email_codes",
+    "text": "(we|we.ve) (sent|emailed) (you )?(a |an )?(verification |security |one.time )?(code|link)|check your email"
   }
 ]

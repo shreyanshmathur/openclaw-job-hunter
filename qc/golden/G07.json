@@ -2,7 +2,7 @@
  "id": "G07",
  "channel": "form_answer",
  "subject": null,
- "body": "Northwind Pay's July post-mortem on the card retry spike describes a failure I fixed at Tidewater Freight in 2025. Retries were piling up behind one slow partner bank. I added per-bank retry budgets, and duplicate charge complaints fell from about 30 a week to 3. I want to work where payment reliability is the product itself, and this role is that work at a larger scale.",
+ "body": "Northwind Pay's July post-mortem on the card retry spike describes the same kind of failure I fixed at Tidewater Freight in 2025. There, retries were piling up behind one slow partner bank. I added per-bank retry budgets, and duplicate charge complaints fell from about 30 a week to 3. Payment reliability is the work I want to keep doing.",
  "recipient": {
   "first_name": "",
   "last_name": "",
@@ -29,10 +29,10 @@
  },
  "profile_facts": {
   "P1": "4 years building Go payment services at Tidewater Freight.",
-  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day; failed mandate payments fell from 3% to 1% in its first year.",
   "P3": "Notice period: 30 days.",
   "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
-  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+  "P5": "At Tidewater Freight, fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
  },
  "hook": {
   "anchor": "card retry spike",

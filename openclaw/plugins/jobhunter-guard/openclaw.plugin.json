@@ -2,7 +2,7 @@
   "id": "jobhunter-guard",
   "name": "Job hunter guard",
   "description": "Trusted tool policy for the jobhunter-* agents, browser result observer, exec environment, heartbeat and the owner-only /jh chat command.",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "activation": { "onStartup": true },
   "contracts": {
     "trustedToolPolicies": ["jobhunter-guard"]
@@ -47,6 +47,39 @@
             "senderId": { "type": "string", "minLength": 1 }
           }
         }
+      },
+      "claudeNativeTools": {
+        "type": "string",
+        "enum": ["deny", "gate"],
+        "description": "Claude Code native tools of jobhunter agents: deny (default; restricted runs never offer them) or gate (the reduced-protection mode N only)."
+      },
+      "pinToolSurface": {
+        "type": "boolean",
+        "description": "before_prompt_build narrows every jobhunter run to its ACL tools and gives a run not started by cron the G_STRAY_RUN notice (default true)."
+      },
+      "proofCarriers": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "type": "string", "enum": ["argv", "env"] },
+        "description": "Where the agent identity proof goes: the --agent-proof argv rewrite, the resolve_exec_env JH_AGENT_PROOF, or both (default both)."
+      },
+      "recordEvents": {
+        "type": "boolean",
+        "description": "Write logs/guard-events-<yyyymmdd>.jsonl with redacted call shapes (test profiles only; default false)."
+      },
+      "protectedRoots": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "read": { "type": "array", "items": { "type": "string", "pattern": "^/" } },
+          "write": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
+        },
+        "description": "Absolute folders other agents may not read (read) or write (write); private/ and the repo are always protected."
+      },
+      "qcVerdictFile": {
+        "type": "boolean",
+        "description": "Fallback F-QC: jobhunter-qc may write its verdict file under work/verdict/ (default false)."
       }
     }
   }

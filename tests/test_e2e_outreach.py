@@ -19,14 +19,14 @@ import unittest
 from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import db, emailcheck, gate, mail, ocrun, sheets_rows
+from jobhunter import db, emailcheck, gate, mail, sheets_rows
 from jobhunter import qc as qcpkg
 from tests.fakes.u1 import write_heartbeat
 from tests.fakes.u3 import FakeReviewer, install_reviewer_hashes
 from tests.fakes.u9 import APP_PW, OWNER, inbound
 from tests.fakes.u9.imap_server import FakeImapServer
 from tests.fakes.u9.smtp_server import FakeSmtpServer
-from tests.fixtures.e2e.support import OWNER_CHAT, World
+from tests.fixtures.e2e.support import OWNER_CHAT, World, install_reviewer
 from tests.helpers import insert_company, insert_contact
 
 OU = "jobhunter-outreach"
@@ -97,9 +97,7 @@ class E2EMailBase(unittest.TestCase):
         prev = qcpkg.SPAWN
         qcpkg.SPAWN = [].append
         self.addCleanup(setattr, qcpkg, "SPAWN", prev)
-        p = mock.patch.object(ocrun, "agent_turn", FakeReviewer("pass"))
-        p.start()
-        self.addCleanup(p.stop)
+        install_reviewer(self, FakeReviewer("pass"))
 
 
 class TestColdEmailThroughMailer(E2EMailBase):

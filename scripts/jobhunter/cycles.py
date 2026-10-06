@@ -19,7 +19,7 @@ import subprocess
 
 from . import breakers, ceilings, config as _config, gate, locks
 from .canon import new_cycle_id, now, seconds_between, ts_add
-from .errors import Denied
+from .errors import CYCLE_DONE, Denied
 from .events import log_event
 
 LANE_AGENTS = {"scout": "jobhunter-scout", "evaluator": "jobhunter-evaluator", "applier": "jobhunter-applier",
@@ -294,7 +294,7 @@ def end(conn, cycle_id: str, summary: dict | None, agent_id: str | None = None) 
     conn.execute("UPDATE cycles SET ended_at = COALESCE(ended_at, ?), status = ?, summary_json = ? WHERE cycle_id = ?",
                  (ts, status, json.dumps(summary, sort_keys=True)[:8000] if summary is not None else None, cycle_id))
     log_event(conn, "cycle_end", cycle_id=cycle_id, status=status, released=released)
-    return {"reply": "NO_REPLY", "cycle_id": cycle_id, "status": status, "released": released}
+    return {"reply": CYCLE_DONE, "cycle_id": cycle_id, "status": status, "released": released}
 
 
 def _release(conn, cycle_id: str, token_note: str) -> dict:

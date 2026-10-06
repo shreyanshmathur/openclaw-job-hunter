@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import unittest
 from unittest import mock
 
@@ -406,6 +407,183 @@ class TestCli(ProfileCase):
             json.dump(fixture("salary.json"), fh)
         rc, env = self.run_cli(["profile", "salary-record", "--file", outside], _Caller("agent", "jobhunter-scout"))
         self.assertEqual((rc, env["code"]), (10, "E_PATH_NOT_ALLOWED"))
+
+    def test_onboarding_records_point_to_the_final_word(self):
+        # onboarding turns are not cycles: the success hint names ONBOARD_DONE, never NO_REPLY (CLI route M6)
+        f = self.home.write_agent_file("scout", "salary.json", json.dumps(fixture("salary.json")))
+        rc, env = self.run_cli(["profile", "salary-record", "--file", f], _Caller("agent", "jobhunter-scout"))
+        self.assertEqual((rc, env["next"]), (0, "reply with the single word ONBOARD_DONE"))
+        f = self.home.write_agent_file("evaluator", "inference.json", json.dumps(fixture("inference.json")))
+        rc, env = self.run_cli(["profile", "infer-record", "--file", f], _Caller("agent", "jobhunter-evaluator"))
+        self.assertEqual((rc, env["next"]), (0, "reply with the single word ONBOARD_DONE"))
+
+
+# ---------------------------------------------------------------- model-facing wording (CLI route design 10, U4)
+ONBOARDING_SKILLS = {
+    "salary": ("scout", "agent-templates/scout/skills/jobhunter-salary/SKILL.template.md"),
+    "profile": ("evaluator", "agent-templates/evaluator/skills/jobhunter-profile/SKILL.template.md"),
+}
+APPLIER_SKILLS = {
+    "resume-tailor": ("applier", "agent-templates/applier/skills/jobhunter-resume-tailor/SKILL.template.md"),
+    "form-answers": ("applier", "agent-templates/applier/skills/jobhunter-form-answers/SKILL.template.md"),
+    "upload": ("applier", "agent-templates/applier/skills/jobhunter-upload/SKILL.template.md"),
+}
+ONBOARDING_PROMPTS = ("prompts/salary_research.md", "prompts/profile_inference.md")
+# a workspace path written without the __WS__ prefix (relative, ~, @, $HOME) in front of work/ or ref/
+_BARE_WS_PATH = re.compile(r"(?<![A-Za-z0-9_])(?<!__WS__/)(?:work|ref)/")
+
+
+def _repo_text(rel: str) -> str:
+    with open(os.path.join(paths.REPO, rel), "r", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _flat(rel: str) -> str:
+    """The file's text with every run of whitespace (line wraps included) as one space."""
+    return " ".join(_repo_text(rel).split())
+
+
+def _steps(text: str) -> list[str]:
+    """Numbered procedure steps, each with its continuation lines."""
+    out = []
+    for line in text.splitlines():
+        if re.match(r"^[0-9]+\. ", line):
+            out.append(line)
+        elif out and line.startswith("   "):
+            out[-1] += " " + line.strip()
+        elif out and not line.strip():
+            continue
+        elif out and line.startswith("#"):
+            break
+    return out
+
+
+class TestSkillWording(unittest.TestCase):
+    """The onboarding and applier skills speak only of the bridged exec/read/write/browser tools, absolute
+    workspace paths, whole-file writes, the jobhunter browser profile and the plain final word."""
+
+    def all_skills(self):
+        return dict(ONBOARDING_SKILLS, **APPLIER_SKILLS)
+
+    def test_ascii_and_no_silent_reply(self):
+        for rel in [p for _, p in self.all_skills().values()] + list(ONBOARDING_PROMPTS):
+            with self.subTest(file=rel):
+                text = _repo_text(rel)
+                text.encode("ascii")
+                self.assertNotIn("NO_REPLY", text)
+                self.assertNotIn(" -- ", text)
+
+    def test_paths_are_absolute_workspace_paths(self):
+        for name, (_role, rel) in self.all_skills().items():
+            with self.subTest(skill=name):
+                text = _repo_text(rel)
+                self.assertEqual(_BARE_WS_PATH.findall(text), [], "write work/ and ref/ paths as __WS__/...")
+                self.assertNotIn("~/", text)
+                self.assertNotIn("$HOME", text)
+                self.assertIn("`~`, `@`, `..` or `$`", _flat(rel), "the skill names the refused path forms")
+
+    def test_tools_are_named_and_there_is_no_edit_tool(self):
+        for name, (_role, rel) in self.all_skills().items():
+            with self.subTest(skill=name):
+                text = _flat(rel)
+                self.assertIn("with the exec tool", text)
+                self.assertIn("with the write tool", text)
+                self.assertNotIn("Edit tool", text)
+                for m in re.finditer(r"edit tool", text):
+                    self.assertEqual(text[m.start() - 3:m.start()], "no ", "only 'no edit tool' may be said")
+        for name in ("salary", "profile", "resume-tailor", "form-answers"):
+            text = _flat(self.all_skills()[name][1])
+            self.assertIn("with the read tool", text, name)
+            self.assertIn("whole file", text, name)
+            self.assertIn("There is no edit tool", text, name)
+
+    def test_every_browser_call_uses_the_jobhunter_profile(self):
+        for name in ("salary", "form-answers", "upload"):
+            text = _repo_text(self.all_skills()[name][1])
+            with self.subTest(skill=name):
+                self.assertIn('"profile": "jobhunter"', text)
+                calls = re.findall(r"\{\"action\": [^`]*\}", text)
+                if name != "form-answers":
+                    self.assertTrue(calls, "show at least one full browser call")
+                for call in calls:
+                    self.assertIn('"profile": "jobhunter"', call)
+
+    def test_onboarding_runs_record_with_exec_and_end_with_onboard_done(self):
+        for name, cmd, out in (("salary", "profile salary-record", "salary.json"),
+                               ("profile", "profile infer-record", "inference.json")):
+            text = _repo_text(ONBOARDING_SKILLS[name][1])
+            with self.subTest(skill=name):
+                steps = _steps(text)
+                self.assertTrue(steps)
+                self.assertEqual(re.findall(r"`[A-Z]+_DONE`", steps[-1]), ["`ONBOARD_DONE`"])
+                flat = _flat(ONBOARDING_SKILLS[name][1])
+                self.assertIn("This run is not a cycle", flat)
+                self.assertIn("Never ask a person anything", flat)
+                self.assertIn("Never type `--agent-proof`", flat)
+                record = [s for s in steps if cmd in s and "with the exec tool" in s]
+                self.assertEqual(len(record), 1, steps)
+                self.assertIn("Write the whole file `__WS__/work/onboarding/%s` with the write tool" % out,
+                              record[0])
+                self.assertIn("`%s --file __WS__/work/onboarding/%s`" % (cmd, out), record[0])
+                fix = [s for s in steps if s.split(" ", 1)[1].startswith("Exit 10")]
+                self.assertEqual(len(fix), 1)
+                self.assertIn("Write the whole file again", fix[0])
+                reads = [s for s in steps if "with the read tool" in s]
+                self.assertIn("`__WS__/ref/", reads[0], "the method file is read first")
+                self.assertTrue(any("`__WS__/work/onboarding/" in s for s in reads[1:]))
+        for rel in ONBOARDING_PROMPTS:
+            self.assertTrue(_repo_text(rel).rstrip().endswith("`ONBOARD_DONE`."), rel)
+
+    def test_salary_browsing_always_passes_the_jobhunter_profile(self):
+        text = _repo_text(ONBOARDING_SKILLS["salary"][1])
+        browse = [s for s in _steps(text) if "browser tool" in s]
+        self.assertEqual(len(browse), 1)
+        self.assertIn('Every browser call passes `"profile": "jobhunter"`', browse[0])
+
+    def test_referenced_ref_files_are_deployed_to_that_role(self):
+        with open(os.path.join(paths.REPO, "openclaw", "agents.json"), "r", encoding="utf-8") as fh:
+            agents = {a["role"]: a for a in json.load(fh)["agents"]}
+        for name, (role, rel) in self.all_skills().items():
+            refs = {r["to"] for r in agents[role].get("ref", [])}
+            with self.subTest(skill=name):
+                for target in re.findall(r"__WS__/ref/([A-Za-z0-9_./-]+?)`", _repo_text(rel)):
+                    top = target.split("/", 1)[0] + "/" if "/" in target else target
+                    self.assertIn(top, refs, target)
+                self.assertIn("jobhunter-" + name, agents[role]["skills"])
+
+    def test_rendered_skills_hold_only_absolute_paths(self):
+        from jobhunter import install
+        ws_root = os.path.join(os.sep, "srv", "jh-test", "ws")
+        for name, (role, rel) in self.all_skills().items():
+            mapping = install.placeholders(repo=os.path.join(os.sep, "srv", "jh-test", "repo"),
+                                           py=os.path.join(os.sep, "usr", "bin", "python3"),
+                                           ws_root=ws_root, role=role, agent_id="jobhunter-" + role)
+            text = install.substitute(_repo_text(rel), mapping)
+            with self.subTest(skill=name):
+                self.assertEqual(re.findall(r"__[A-Z_]+__", text), [])
+                for m in re.finditer(r"(\S*)(?:/work/|/ref/)", text):
+                    self.assertTrue(m.group(1).lstrip("`[\"").startswith(os.path.join(ws_root, role)), m.group(0))
+
+    def test_onboarding_cron_messages_match_the_skills(self):
+        # the jobs are declared by U7 (openclaw/crons.json); checked once they exist
+        with open(os.path.join(paths.REPO, "openclaw", "crons.json"), "r", encoding="utf-8") as fh:
+            jobs = {j.get("key"): j for j in json.load(fh)["jobs"]}
+        found = 0
+        for key, name in (("jobhunter:onboard-salary", "salary"), ("jobhunter:onboard-profile", "profile")):
+            job = jobs.get(key)
+            if job is None:
+                continue
+            found += 1
+            role, rel = ONBOARDING_SKILLS[name]
+            text = _repo_text(rel)
+            with self.subTest(job=key):
+                self.assertEqual(job.get("agent"), "jobhunter-" + role)
+                self.assertIn("jobhunter-" + name, job["message"])
+                self.assertTrue(job["message"].rstrip().endswith("ONBOARD_DONE."), job["message"])
+                for p in re.findall(r"\{WS_ROOT\}/%s/([A-Za-z0-9_./-]+[A-Za-z0-9_])" % role, job["message"]):
+                    self.assertIn("__WS__/" + p, text)
+        if not found:
+            self.skipTest("onboarding cron jobs not declared yet (U7)")
 
 
 if __name__ == "__main__":

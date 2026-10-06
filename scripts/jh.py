@@ -3,7 +3,9 @@
 
     <PY> $REPO/scripts/jh.py <group> [<command>] [args]
 
-Adds scripts/ to sys.path and runs jobhunter.cli.main(), which auto-discovers the command modules.
+Adds scripts/ to sys.path and runs jobhunter.cli.main(), which auto-discovers the command modules. Agent calls
+arrive as `<PY> -I $REPO/scripts/jh.py --agent-proof <T> <args>`: the jobhunter-guard inserts -I and the proof,
+and jh.py refuses an agent proof in an interpreter started without -I (CLI route design 5).
 """
 from __future__ import annotations
 

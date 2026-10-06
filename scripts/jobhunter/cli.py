@@ -1,13 +1,17 @@
 """`jh.py` command line (design 3): discovery, global options, caller checks, envelope, exit codes.
 
-    <PY> $REPO/scripts/jh.py [--cycle <id>] [--quiet] [--human] [--pin-stdin] [--grant <g>] <group> [<cmd>] [args]
+    <PY> $REPO/scripts/jh.py [--agent-proof <T>] [--cycle <id>] [--quiet] [--human] [--pin-stdin] [--grant <g>]
+                             <group> [<cmd>] [args]
 
 - Commands are auto-discovered: every module in jobhunter/commands/ exposes register(subparsers)
   (see jobhunter.commands for the contract). A module that fails to import does not take the rest of
   the CLI down; its error is logged and reported by `selftest` (discovery_errors()).
 - Global options: --quiet, --human, --pin-stdin and --grant are accepted anywhere on the line (cron
   jobs put --quiet last); --cycle is global only before the command words, because `cycle end` and
-  `lock renew` have their own --cycle. There is no --home.
+  `lock renew` have their own --cycle. There is no --home. `--agent-proof <T>` is reserved for the
+  jobhunter-guard: it is accepted only as the very first argument (auth.verify_argv_proof binds it to the
+  arguments after it); `--agent-proof=...` or any other token that starts with `--agent-p` is E_USAGE.
+- No option may be abbreviated (allow_abbrev=False on every parser).
 - Every run prints exactly one JSON envelope (or NO_REPLY with --quiet on success, or text with
   --human) and exits with the number frozen in errors.CODES.
 - Caller class (auth.classify: agent, chat grant, human PIN, system) and permission (the command's caller
@@ -29,7 +33,7 @@ from dataclasses import dataclass
 from . import paths
 from .canon import now
 from .commands import Result
-from .errors import CODES, Denied, exit_code, map_sqlite_error
+from .errors import CODES, FINAL_WORD_HINT, Denied, exit_code, map_sqlite_error
 
 FREE_TEXT_MAX = 4000
 _GLOBAL_FLAGS = ("--quiet", "--human", "--pin-stdin")
@@ -38,6 +42,12 @@ _discovery_errors: list[dict] = []
 
 # ---------------------------------------------------------------- parser
 class _Parser(argparse.ArgumentParser):
+    """Every parser of the tree (subparsers inherit the class): no abbreviated options, errors as envelopes."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs["allow_abbrev"] = False
+        super().__init__(*args, **kwargs)
+
     def error(self, message):  # argparse would print usage and exit 2; we want the envelope
         raise Denied("E_USAGE", message, data={"usage": self.format_usage().strip()})
 
@@ -112,14 +122,25 @@ class GlobalOptions:
     human: bool = False
     pin_stdin: bool = False
     grant: str | None = None
+    agent_proof: str | None = None
+
+
+_PROOF_PREFIX = "--agent-p"
 
 
 def _split_globals(argv: list[str]) -> tuple[GlobalOptions, list[str]]:
     g = GlobalOptions()
     rest: list[str] = []
     i = 0
+    if argv and argv[0] == "--agent-proof":
+        if len(argv) < 2:
+            raise Denied("E_USAGE", "--agent-proof needs a value")
+        g.agent_proof = argv[1]
+        i = 2
     while i < len(argv):
         tok = argv[i]
+        if tok.startswith(_PROOF_PREFIX):
+            raise Denied("E_USAGE", "--agent-proof is reserved for the jobhunter-guard and only allowed first")
         if tok == "--quiet":
             g.quiet = True
         elif tok == "--human":
@@ -146,12 +167,15 @@ def _split_globals(argv: list[str]) -> tuple[GlobalOptions, list[str]]:
 
 
 # ---------------------------------------------------------------- callers
-def classify(argv: list[str], env: dict, stdin, g: GlobalOptions, command: str = "", rest: list | None = None):
+def classify(argv: list[str], env: dict, stdin, g: GlobalOptions, command: str = "", rest: list | None = None,
+             conn=None):
     """Caller class (jobhunter.auth.classify). A chat grant signs the command words and the tokens after
-    them (auth.grant_args)."""
+    them (auth.grant_args); an argv agent proof signs every argument after the proof pair (argv[2:])."""
     from . import auth
     args = auth.grant_args(list(rest if rest is not None else argv), command) if command else None
-    return auth.classify(argv, env, stdin, command=command or None, args=args)
+    proof_rest = list(argv[2:]) if g.agent_proof is not None else None
+    return auth.classify(argv, env, stdin, proof_arg=g.agent_proof, proof_rest=proof_rest, conn=conn,
+                         command=command or None, args=args)
 
 
 def check_callers(caller, callers: str, command: str) -> None:
@@ -164,7 +188,8 @@ def check_callers(caller, callers: str, command: str) -> None:
         elif "R" in callers:
             ok = True   # public read-only (guard rule R7)
         elif not agent:
-            raise Denied("E_GUARD_MISSING", "agent call without JH_AGENT_ID; the jobhunter-guard plugin is not active")
+            raise Denied("E_GUARD_MISSING", "no verified agent identity: this agent call carries no valid "
+                         "jobhunter-guard proof (public read-only commands only)")
         else:
             ok = False
     elif cls == "system":
@@ -294,9 +319,10 @@ def _envelope(code: str, data: dict, message: str, next_: str, retry_after_s, cy
 def _default_next(code: str) -> str:
     n = exit_code(code)
     return {
-        0: "", 1: "stop the cycle and reply NO_REPLY", 2: "fix the call once; do not loop",
-        3: "drop this item and move on", 4: "skip this action type for now", 5: "end the cycle now and reply NO_REPLY",
-        6: "rewrite if budget is left, else drop", 7: "drop this item", 8: "reply NO_REPLY",
+        0: "", 1: "stop the cycle and " + FINAL_WORD_HINT, 2: "fix the call once; do not loop",
+        3: "drop this item and move on", 4: "skip this action type for now",
+        5: "end the cycle now and " + FINAL_WORD_HINT,
+        6: "rewrite if budget is left, else drop", 7: "drop this item", 8: FINAL_WORD_HINT,
         9: "re-read the work list", 10: "fix the input file once", 11: "do the missing step first, or end the cycle",
         12: "the next run retries",
     }.get(n, "")

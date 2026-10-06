@@ -7,12 +7,14 @@ metadata: {"openclaw": {"requires": {"bins": ["python3"]}, "os": ["darwin", "lin
 
 # Stop on the first sign of friction
 
-Every command starts with `__PY__ __REPO__/scripts/jh.py`.
+Every command starts with `__PY__ __REPO__/scripts/jh.py`. Files are whole files you write with the write tool
+under `__WS__/work/<cycle_id>/` (absolute paths; there is no edit tool); drivers are read with the read tool.
+Every browser call carries `"profile": "jobhunter"`.
 
 ## After every navigation
 
-Read `__WS__/ref/drivers/detect_page.js` and run it with this browser call, `fn` being the file's exact text
-(all of it, unchanged):
+Read `__WS__/ref/drivers/detect_page.js` with the read tool and run it with this browser call, `fn` being the
+file's exact text (all of it, unchanged):
 
 ```json
 {"action": "act", "profile": "jobhunter", "kind": "evaluate", "fn": "<exact text of __WS__/ref/drivers/detect_page.js>"}
@@ -22,7 +24,8 @@ A top-level `{"action": "evaluate"}` is not a browser action the guard knows: it
 refused. A changed or shortened text is not an allowlisted driver and is refused too (`G_SCRIPT_NOT_ALLOWED`).
 The other drivers in `__WS__/ref/drivers/` run the same way. `detect_page.js` returns:
 
-* `detect_file`: the detect file (12.11). Write it to `__WS__/work/<cycle_id>/detect-<n>.json`.
+* `detect_file`: the detect file (12.11). Write it with the write tool to
+  `__WS__/work/<cycle_id>/detect-<n>.json`.
 * `hint`: `clear`, `stop` or `needs_human`; `matched`: every signature it saw, most severe first; `top`: the
   most severe one (`id`, `reason_code`, `trip`, `job_needs_human`, and `scope`, the breaker area it stops). A
   page can match several signatures (a LinkedIn restriction is served under a `/checkpoint/` address); the most
@@ -42,11 +45,13 @@ this lane may use; never open a login site it does not name). Sessions expire. B
 before the replies lane reads Gmail, check the session once per site and cycle:
 
 1. Open the site's start page (`https://mail.google.com/mail/u/0/#inbox`, `https://www.linkedin.com/feed/`, or
-   the board page the lane gave you). Run `detect_page.js` and `detect --file` as above.
+   the board page the lane gave you), for example
+   `{"action": "navigate", "profile": "jobhunter", "targetUrl": "https://www.linkedin.com/feed/"}`. Run
+   `detect_page.js` and `detect --file` as above.
 2. Run `__WS__/ref/drivers/read_login_state.js` (act kind `evaluate`, `fn` = the file's exact text). Its
    `state`:
-   * `ok`: go on. Gmail: write its `identity` object to `identity.json` and run
-     `identity check --platform gmail --file <identity.json>`. LinkedIn: the identity check below.
+   * `ok`: go on. Gmail: write its `identity` object to `__WS__/work/<cycle_id>/identity.json` and run
+     `identity check --platform gmail --file <that file>`. LinkedIn: the identity check below.
    * `logged_out` (a sign-in page or a password field): the session expired. Write a detail file with one line
      the person can act on, for example `Gmail is signed out in the agent's browser. Fix: ./jobhunter browser
      login gmail (or ./jobhunter browser import on a Mac), then ./jobhunter breaker reset gmail`, and run
@@ -74,9 +79,18 @@ before the replies lane reads Gmail, check the session once per site and cycle:
 * "Email address needed" or "enter their email" in a LinkedIn invitation dialog.
 * A modal or page you cannot classify, twice in a cycle.
 
-On an ATS company form a visible CAPTCHA or an account wall is not a platform stop: run
-`job set-status <job_uid> --status needs_human --reason captcha_visible` (or `account_required`) and go on with
-the next job (hint `needs_human`).
+On an ATS company form (applier only):
+* A visible CAPTCHA is not a platform stop. The guard hands it to the owner by itself (a chat message with a
+  screenshot and a code for `/jh continue <code>`). Stop typing on that page, run
+  `captcha status --job <job_uid>`, leave the tab open and go on with the next job. The owner solves it; you
+  never do, and you never click inside it.
+* An account wall or an "enter the code we emailed you" page is not a stop when the owner allowed site accounts
+  or email codes for that site: `detect` answers `clear` with `flow: "account"` or `flow: "email_code"`, and the
+  code-owned steps of skill `jobhunter-apply-ats` take over. Without that consent it is a job-level stop (hint
+  `needs_human`): `job set-status <job_uid> --status needs_human --reason account_required` and go on.
+* A phone (SMS) code, an authenticator app, an identity check or a "Sign in with Google, LinkedIn, Microsoft or
+  Apple" page is a stop of that ATS (reason `ats_security`): it always wins over the email-code page, even when
+  both show.
 
 ## What to do on a stop (identical in every browser agent)
 
@@ -87,17 +101,26 @@ the next job (hint `needs_human`).
    actions in a row), run `breaker trip --scope <scope> --reason-code <code> --detail-file <f>`.
 3. If a token is open: before the final click it is `gate fail <token> --reason precondition_changed
    --evidence-file <f>`; after the click it is `gate unknown <token> --note-file <f>`.
-4. Close the tabs this cycle opened, run `cycle end --cycle <cycle_id>`, reply `NO_REPLY`.
+4. Close the tabs this cycle opened, run `cycle end --cycle <cycle_id>`, reply `CYCLE_DONE` (an onboarding
+   run has no cycle: stop using that site and finish as its skill says).
 
 Never solve, bypass or wait out a challenge. Never log in, never enter a code, never create an account. The
 person resets the stop after the cooldown; you never do.
 
-## Guard blocks
+## Guard blocks and OpenClaw refusals
 
-A tool call refused with `G_NO_TOKEN` or `G_NOT_ARMED` means a gate step is missing: go back to it (skill
-`jobhunter-gate`). Any other `G_*` code (`G_STOPPED`, `G_BREAKER_OPEN`, `G_HOST_NEVER`, `G_EXEC_SHAPE`,
-`G_PATH_DENIED`, `G_SCRIPT_NOT_ALLOWED`, ...) means stop: write the block text to a file, run `cycle end`,
-reply `NO_REPLY`.
+A refused call is refused at once; nobody approves it later and nothing waits. A tool call refused with
+`G_NO_TOKEN` or `G_NOT_ARMED` means a gate step is missing: go back to it (skill `jobhunter-gate`). Any other
+refusal means stop:
+
+* any other `G_*` code (`G_STOPPED`, `G_BREAKER_OPEN`, `G_HOST_NEVER`, `G_EXEC_SHAPE`, `G_EXEC_ACL`,
+  `G_EXEC_PARAM`, `G_PATH_DENIED`, `G_TOOL_DENIED`, `G_BROWSER_PROFILE`, `G_SCRIPT_NOT_ALLOWED`, ...);
+* an OpenClaw refusal: a command that is not allowed (an exec allowlist miss or an exec denial), a path outside
+  the workspace, a tool that is not available or not allowed.
+
+Then write the refusal text to `__WS__/work/<cycle_id>/blocked.txt`, run `cycle end`, reply `CYCLE_DONE`. Never
+retry a refused call in another form (another path, another tool, a changed command) and never ask anyone to
+allow it.
 
 ## Identity
 

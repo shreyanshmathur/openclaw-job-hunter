@@ -226,5 +226,11 @@
   "clock": {"max_skew_minutes": 10, "max_backward_minutes": 5},
   "browser": {"profile": "jobhunter", "max_tabs": 5, "lease_minutes": 35, "require_display": true,
               "type_slowly": true, "dwell_seconds": [5, 40]},
-  "dns": {"doh_url": "https://dns.google/resolve"}
+  "dns": {"doh_url": "https://dns.google/resolve"},
+  "otp": {"window_minutes": 10, "poll_seconds": 15, "max_uses_day_per_site": 3, "max_uses_day": 10,
+          "failure_breaker_24h": 3, "after_use": "mark_read"},
+  "accounts": {"max_new_day": 3, "max_new_week": 10, "failure_breaker_24h": 2, "password_length": 20,
+               "key_store": "auto"},
+  "captcha": {"handoff": true, "timeout_minutes": 120, "max_tasks_day": 5, "max_open": 2,
+              "repeat_breaker_per_site_day": 3, "screenshot": true, "screenshot_retention_days": 2}
 }

@@ -126,7 +126,8 @@ STATUS_GROUPS = {
             "Unknown (checking)", "Complaint", "Open"),
     "muted": ("Skipped", "Duplicate", "Closed", "Expired", "Not a fit", "Withdrawn", "No reply", "Auto-reply",
               "Not run", "Not interested", "Not hiring", "Out of office"),
-    "info": ("Replied", "Positive reply", "Screening call", "Interview", "Offer", "Referred", "Referral offered"),
+    "info": ("Replied", "Positive reply", "Screening call", "Interview", "Offer", "Referred", "Referral offered",
+             "Info"),
 }
 
 
@@ -167,6 +168,8 @@ WORK_MODE = {"remote": "Remote", "hybrid": "Hybrid", "onsite": "On site", "unkno
 ATS_NAMES = {
     "greenhouse": "Greenhouse", "lever": "Lever", "ashby": "Ashby", "workday": "Workday",
     "smartrecruiters": "SmartRecruiters", "workable": "Workable", "recruitee": "Recruitee", "bamboohr": "BambooHR",
+    "icims": "iCIMS", "successfactors": "SAP SuccessFactors", "taleo": "Oracle Taleo", "oracle_hcm": "Oracle Cloud HCM",
+    "jobvite": "Jobvite",
 }
 BOARD_NAMES = {
     "linkedin_jobs": "LinkedIn Jobs", "linkedin": "LinkedIn", "linkedin_post": "LinkedIn post", "naukri": "Naukri",
@@ -359,6 +362,8 @@ def scope_label(scope: str | None) -> str:
         return "Email finder"
     if s.startswith("enrich:"):
         return "Email finder: " + enrich_provider_label(s[7:])
+    if s.startswith("ats:"):
+        return "Job forms: " + platform_label(s[4:])
     return _titled(s) if s else ""
 
 
@@ -494,6 +499,11 @@ REASON_SENTENCE = {
     "bounce_strikes": "Too many addresses from this service bounced",
     "provider_errors": "Several calls to the service failed in a row",
     "consecutive_errors": "A job source failed several times in a row",
+    # email codes, site accounts and CAPTCHAs on job forms (scope ats:<platform>)
+    "otp_failures": "Email codes for this site failed 3 times today",
+    "account_failures": "Creating or signing in to a site account failed twice today",
+    "captcha_repeat": "CAPTCHAs kept coming back on this site today",
+    "ats_security": "A job form asked for a phone or authenticator code, an identity check or a social sign-in",
 }
 # Dynamic codes from sources/__init__.py: "http_<status>" for a job API answer (http_429 has its own sentence).
 _HTTP_CODE = re.compile(r"^http_(\d{3})$")
@@ -525,6 +535,24 @@ TODO_BY_REASON = {
 # A pause of one area (a pause:<area> breaker): plain `./jobhunter resume` means all and only clears the global
 # pause file, so the area must be named.
 TODO_PAUSED_AREA = "Run ./jobhunter resume {area} when you want the agent to continue there."
+# ats:<platform> stops of email codes, site accounts and CAPTCHAs
+TODO_ATS = {
+    "otp_failures": "Check the site in the agent's browser and the sender in your mailbox, then ./jobhunter breaker "
+                    "reset {scope}.",
+    "account_failures": "Check the site in the agent's browser (sign in yourself once if needed), then ./jobhunter "
+                        "breaker reset {scope}.",
+    "captcha_repeat": "Nothing now. The site keeps asking for CAPTCHAs; after the waiting time run ./jobhunter breaker "
+                      "reset {scope}.",
+    "ats_security": "Open the site yourself and look at the check. The agent never answers phone or identity checks. "
+                    "Then run ./jobhunter breaker reset {scope}.",
+    "consent_revoked": "Nothing, if you meant it: the agent leaves this site's codes and accounts alone. To allow them "
+                       "again, run ./jobhunter browser consent; that also clears this stop.",
+}
+# job status reasons of the CAPTCHA hand-off and the account steps (Sheet and status)
+STATUS_REASON_LABEL = {"captcha_wait": "Waiting for you to solve a CAPTCHA",
+                       "captcha_resolved": "CAPTCHA solved; queued again",
+                       "captcha_timeout": "CAPTCHA not solved in time",
+                       "account_terms": "The account form needs a box only you can tick"}
 # The sites `./jobhunter browser login <site>` opens (open_login_page in the jobhunter wrapper): every site the
 # consent step knows (identity.CONSENT_SITES). Other scopes get TODO_LOGIN_OTHER instead of a command that
 # would stop with a usage error.
@@ -599,6 +627,9 @@ def todo_sentence(scope: str | None, reason_code: str | None, requires_human: bo
         if provider and (reason_code or "").strip() == "auth_failed":
             return TODO_ENRICH_KEY.format(provider=provider)
         return TODO_ENRICH.format(scope=scope)
+    if scope.startswith("ats:") and (reason_code or "").strip() in TODO_ATS:
+        s = TODO_ATS[(reason_code or "").strip()].format(scope=scope)
+        return s if waiting else s.replace(" after the waiting time", "")
     template = TODO_BY_REASON.get((reason_code or "").strip()) or TODO_DEFAULT
     site = login_site(scope)
     if "{site}" in template and site is None:

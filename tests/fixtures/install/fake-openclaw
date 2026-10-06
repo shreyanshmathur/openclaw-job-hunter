@@ -4,6 +4,35 @@
 Every call is appended as one JSON line to $FAKE_OC_LOG; state lives in $FAKE_OC_STATE/state.json. Both
 variables are required, so an accidental call outside a test does nothing. Supported: the commands that
 install.sh, uninstall.sh and ./jobhunter use, with the flags verified against the real CLI's --help.
+
+Cron jobs keep the fields of OpenClaw 2026.9.5 (`cron list --all --json`: agentId, sessionTarget, payload with
+kind, message, model, fallbacks, thinking, timeoutSeconds, toolsAllow or argv, cwd, env, and delivery.mode).
+`config patch` merges into a config tree (null deletes), which `config get <path>`, `config unset <path>`,
+`sandbox explain --agent <id> --json` and `exec-policy show --json` read. Like OpenClaw 2026.9.5 and later, a patch
+(dry run or not) is refused when an exec object would hold `mode` together with `security` or `ask`, and exec
+policies are layered like OpenClaw's applyExecPolicyLayer: a layer with `mode` replaces security and ask
+(allowlist: allowlist and off, deny: deny and off, full: full and off), so an agent's mode wins over the global
+tools.exec (FAKE_OC_GLOBAL_EXEC='{"ask": "always"}' seeds a global value). With skills.workshop.autonomous.mode
+auto (also when unset, OpenClaw's default) `cron list` shows an enabled system-owned job
+skill-collection-review:<agent> for every agent, which `cron edit|enable|disable|rm` refuse; any other mode lists
+them disabled. Switches:
+  FAKE_OC_VERSION              the `--version` text
+  FAKE_OC_PROBE=ok|missing|system   what a probe job run records (ok: the probe file with both carriers)
+  FAKE_OC_GUARD_PROOF=1        the guard heartbeat reports identity proof version 1 (an old guard)
+  FAKE_OC_HEARTBEAT_ON=restart the heartbeat appears only after `gateway restart` (OpenClaw before 2026.9.7)
+  FAKE_OC_EDIT_IGNORES=<field> `cron edit` does not change that payload field (forces rm and add)
+  FAKE_OC_GATEWAY_DOWN=1       `gateway status` fails
+  FAKE_OC_WORKSHOP_MODE=<mode> seeds skills.workshop.autonomous.mode in a new state (unset: OpenClaw's default)
+  FAKE_OC_APPROVALS_SET_FAIL=1 `approvals set` fails (an install that stops right after the agents patch)
+  FAKE_OC_ADD_FAIL=<agent id>  `agents add` of that agent fails
+  FAKE_OC_DELETE_FAIL=1        `agents delete` fails
+  FAKE_OC_ADD_UPSERTS=1        `cron add` of a known declaration key rewrites the job's fields (OpenClaw 2026.9.8)
+  FAKE_OC_DOCTOR_ERROR=1       `doctor --lint --json` also reports a finding of severity error
+  FAKE_OC_PLUGINS_LIST_FAIL=1  `plugins list` fails
+Like OpenClaw 2026.9.8, `plugins install` of a local path without --force is cancelled (no terminal answers its
+question about a source outside ClawHub), a linked plugin starts disabled, `plugins enable jobhunter-guard` is
+refused while its config has no repo, and `doctor --lint --json` reports ok false with warnings only (the
+skill-workshop-tool-policy finding of every agent and a loopback note) and exits 1.
 """
 import datetime
 import json
@@ -28,10 +57,13 @@ def load():
         with open(STATE_FILE) as fh:
             return json.load(fh)
     except (OSError, ValueError):
+        cfg = {"agents": {"entries": {"main": {"tools": {"exec": {"mode": "full"}}}}}}
+        if os.environ.get("FAKE_OC_WORKSHOP_MODE"):
+            cfg["skills"] = {"workshop": {"autonomous": {"mode": os.environ["FAKE_OC_WORKSHOP_MODE"]}}}
         return {"configured": os.environ.get("FAKE_OC_CONFIGURED", "1") == "1", "agents": [], "crons": {},
                 "next_id": 1, "plugins": [], "profiles": ["openclaw"], "patches": [], "guard_repo": "",
                 "approvals": {"version": 1, "defaults": {}, "agents": {"main": {"security": "full"}}},
-                "extradirs": None}
+                "extradirs": None, "config": cfg}
 
 
 def save(st):
@@ -46,6 +78,134 @@ def opt(args, name, default=None):
         if i + 1 < len(args):
             return args[i + 1]
     return default
+
+
+def merge(dst, patch):
+    """JSON merge patch: objects merge, null deletes, everything else replaces."""
+    for k, v in patch.items():
+        if v is None:
+            dst.pop(k, None)
+        elif isinstance(v, dict) and isinstance(dst.get(k), dict):
+            merge(dst[k], v)
+        elif isinstance(v, dict):
+            dst[k] = merge({}, v)          # a delete inside a new object deletes nothing
+        else:
+            dst[k] = json.loads(json.dumps(v))
+    return dst
+
+
+def split_path(path):
+    return [p for p in path.replace('["', ".").replace('"]', "").split(".") if p]
+
+
+def get_path(tree, path):
+    cur = tree
+    for part in split_path(path):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def str_list(raw):
+    return [t for t in raw.replace(",", " ").split() if t] if raw is not None else None
+
+
+def heartbeat(st):
+    repo = st.get("guard_repo")
+    if not repo:
+        return
+    with open(os.path.join(repo, "private", "home.json")) as fh:
+        home = json.load(fh)
+    gd = os.path.join(repo, "state", "guard")
+    os.makedirs(gd, exist_ok=True)
+    ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    pv = 1 if os.environ.get("FAKE_OC_GUARD_PROOF") == "1" else 2
+    carriers = (home.get("cli_route") or {}).get("carriers") or ["argv", "env"]
+    with open(os.path.join(gd, "heartbeat.json"), "w") as fh:
+        json.dump({"install_id": home["install_id"], "version": "fake", "loaded_at": ts, "beat_at": ts,
+                   "proof_version": pv, "carriers": carriers, "pin_tool_surface": True,
+                   "pin_hook_seen_at": None}, fh)          # OpenClaw 2026.9.8 without allowConversationAccess
+
+
+MODE_POLICY = {"deny": ("deny", "off"), "allowlist": ("allowlist", "off"), "ask": ("allowlist", "on-miss"),
+               "auto": ("allowlist", "on-miss"), "full": ("full", "off")}
+SKILL_REVIEW_TOOLS = ["ls", "read", "write", "edit", "apply_patch", "exec", "process"]
+
+
+def exec_layer(base, layer):
+    """OpenClaw's applyExecPolicyLayer: a mode replaces security and ask; legacy keys drop an inherited mode."""
+    layer = layer if isinstance(layer, dict) else {}
+    if layer.get("mode"):
+        sec, ask = MODE_POLICY[layer["mode"]]
+        return dict(base, mode=layer["mode"], security=sec, ask=ask)
+    if "security" in layer or "ask" in layer:
+        out = {k: v for k, v in base.items() if k != "mode"}
+        out.update(security=layer.get("security", base.get("security")), ask=layer.get("ask", base.get("ask")))
+        return out
+    return base
+
+
+def agent_exec(st, aid):
+    eff = {"security": "full", "ask": "on-miss", "mode": "full"}       # OpenClaw-like defaults
+    glob = json.loads(os.environ.get("FAKE_OC_GLOBAL_EXEC") or "{}")
+    eff = exec_layer(eff, glob)
+    eff = exec_layer(eff, get_path(st["config"], "agents.entries.%s.tools.exec" % aid))
+    el = get_path(st["config"], "agents.entries.%s.tools.elevated.enabled" % aid)
+    return eff, (True if el is None else bool(el))
+
+
+def mode_conflicts(cfg):
+    """The schema errors of OpenClaw 2026.9.5 and later for exec objects that mix mode with security or ask."""
+    objs = [("tools.exec", get_path(cfg, "tools.exec"))]
+    objs += [("agents.entries.%s.tools.exec" % a, get_path(cfg, "agents.entries.%s.tools.exec" % a))
+             for a in sorted((get_path(cfg, "agents.entries") or {}))]
+    return ["%s.mode: mode cannot be combined with security or ask in the same exec object" % path
+            for path, obj in objs if isinstance(obj, dict) and "mode" in obj and ("security" in obj or "ask" in obj)]
+
+
+def workshop_mode(st):
+    m = get_path(st["config"], "skills.workshop.autonomous.mode")
+    return m if m in ("off", "propose", "auto") else "auto"
+
+
+def system_jobs(st):
+    """OpenClaw's projection of system-owned skill review jobs: one per configured agent."""
+    ids = sorted(set([a["id"] for a in st["agents"]] + list((get_path(st["config"], "agents.entries") or {}))))
+    on = workshop_mode(st) == "auto"
+    return [{"id": "sys-review-%s" % a, "name": "skill-collection-review-%s" % a,
+             "declarationKey": "skill-collection-review:%s" % a, "enabled": on, "agentId": a,
+             "sessionTarget": "isolated", "payload": {"kind": "agentTurn", "message": "Review your skills.",
+                                                      "toolsAllow": list(SKILL_REVIEW_TOOLS)},
+             "delivery": {"mode": "none"}} for a in ids]
+
+
+def job_row(key, v):
+    return dict({"id": v["id"], "name": v["name"], "declarationKey": key, "enabled": v["enabled"]},
+                **{k: v[k] for k in ("agentId", "sessionTarget", "payload", "delivery") if k in v})
+
+
+def probe_run(st, row):
+    """A probe job run: what an agent that ran `jh.py whoami` and wrote work/probe/ok.txt leaves behind."""
+    mode = os.environ.get("FAKE_OC_PROBE", "ok")
+    repo = st.get("guard_repo")
+    if mode == "missing" or not repo:
+        return
+    with open(os.path.join(repo, "private", "home.json")) as fh:
+        home = json.load(fh)
+    aid = row.get("agentId")
+    role = aid.split("-", 1)[1]
+    pdir = os.path.join(repo, "state", "probe")
+    os.makedirs(pdir, exist_ok=True)
+    rec = {"at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "agent_id": aid,
+           "carriers": ["argv", "env"] if mode == "ok" else [], "session": "0" * 16, "markers": ["OPENCLAW_SHELL"],
+           "class": "agent" if mode == "ok" else "system"}
+    with open(os.path.join(pdir, aid + ".json"), "w") as fh:
+        json.dump(rec, fh)
+    wd = os.path.join(home["ws_root"], role, "work", "probe")
+    os.makedirs(wd, exist_ok=True)
+    with open(os.path.join(wd, "ok.txt"), "w") as fh:
+        fh.write("OK")
 
 
 argv = sys.argv[1:]
@@ -72,8 +232,18 @@ elif cmd == ["config", "get"]:
         print("local")
     elif path == "skills.load.extraDirs" and st.get("extradirs") is not None:
         out(st["extradirs"])
+    elif get_path(st["config"], path) is not None and path not in ("gateway.mode", "skills.load.extraDirs"):
+        out(get_path(st["config"], path))
     else:
         die("config path not set: %s" % path, 1)
+elif cmd == ["config", "unset"]:
+    parts = split_path(rest[0] if rest else "")
+    parent = get_path(st["config"], ".".join(parts[:-1])) if parts else None
+    if not isinstance(parent, dict) or parts[-1] not in parent:
+        die("config path not set: %s" % (rest[0] if rest else ""), 1)
+    del parent[parts[-1]]
+    st.setdefault("unsets", []).append(rest[0])
+    print("removed")
 elif argv[:1] == ["onboard"]:
     if "--non-interactive" not in argv or "--accept-risk" not in argv:
         die("onboard needs --non-interactive --accept-risk")
@@ -86,14 +256,23 @@ elif argv[:1] == ["onboard"]:
             die("Missing --anthropic-api-key (or ANTHROPIC_API_KEY in env)", 1)
     st["configured"] = True
     out({"ok": True})
-elif cmd == ["gateway", "status"] or cmd == ["gateway", "start"] or cmd == ["gateway", "install"]:
+elif cmd == ["gateway", "status"]:
+    if os.environ.get("FAKE_OC_GATEWAY_DOWN") == "1":
+        die("Gateway: not running (fake)", 1)
     print("Gateway: running (fake)")
+elif cmd == ["gateway", "start"] or cmd == ["gateway", "install"]:
+    print("Gateway: running (fake)")
+elif cmd == ["gateway", "restart"]:
+    heartbeat(st)
+    print("Gateway: restarted (fake)")
 elif cmd == ["agents", "list"]:
     out([{"id": a["id"], "workspace": a["workspace"]} for a in st["agents"]])
 elif cmd == ["agents", "add"]:
     aid = rest[0]
     if any(a["id"] == aid for a in st["agents"]):
         die("agent exists: %s" % aid, 1)
+    if os.environ.get("FAKE_OC_ADD_FAIL") == aid:
+        die("agents add failed (fake)", 1)
     if "--workspace" not in rest or "--non-interactive" not in rest:
         die("agents add needs --workspace and --non-interactive")
     st["agents"].append({"id": aid, "workspace": opt(rest, "--workspace"), "model": opt(rest, "--model")})
@@ -101,7 +280,11 @@ elif cmd == ["agents", "add"]:
 elif cmd == ["agents", "set-identity"] or cmd == ["models", "auth"]:
     print("ok")
 elif cmd == ["agents", "delete"]:
+    if os.environ.get("FAKE_OC_DELETE_FAIL") == "1":
+        die("agents delete failed (fake)", 1)
     st["agents"] = [a for a in st["agents"] if a["id"] != rest[0]]
+    (get_path(st["config"], "agents.entries") or {}).pop(rest[0], None)     # an agent is its config entry
+    st.setdefault("deleted_agents", []).append(rest[0])
     out({"ok": True})
 elif cmd == ["config", "patch"]:
     f = opt(rest, "--file")
@@ -110,8 +293,20 @@ elif cmd == ["config", "patch"]:
     bad = [k for k in patch if k not in ("agents", "plugins", "skills", "browser")]
     if bad:
         die("patch touches %s" % bad, 1)
+    trial = merge(json.loads(json.dumps(st["config"])), {k: v for k, v in patch.items() if k in ("agents", "plugins")})
+    errors = mode_conflicts(trial)
+    if errors:
+        st.setdefault("refused_patches", []).append(patch)
+        save(st)
+        if "--json" in rest:
+            out({"ok": False, "errors": [{"kind": "schema", "message": e} for e in errors]})
+        die("config patch refused: %s" % "; ".join(errors), 1)
     if "--dry-run" not in rest:
         st["patches"].append(patch)
+        merge(st["config"], {k: v for k, v in patch.items() if k in ("agents", "plugins")})
+        ws = (patch.get("skills") or {}).get("workshop")
+        if ws is not None:
+            merge(st["config"], {"skills": {"workshop": ws}})
         g = (((patch.get("plugins") or {}).get("entries") or {}).get("jobhunter-guard") or {})
         if isinstance(g, dict) and (g.get("config") or {}).get("repo"):
             st["guard_repo"] = g["config"]["repo"]
@@ -124,30 +319,43 @@ elif cmd == ["config", "validate"]:
 elif cmd == ["approvals", "get"]:
     out(st["approvals"])
 elif cmd == ["approvals", "set"]:
+    if os.environ.get("FAKE_OC_APPROVALS_SET_FAIL") == "1":
+        die("approvals set failed (fake)", 1)
     with open(opt(rest, "--file")) as fh:
         st["approvals"] = json.load(fh)
     out({"ok": True})
 elif cmd == ["plugins", "list"]:
+    if os.environ.get("FAKE_OC_PLUGINS_LIST_FAIL") == "1":
+        die("plugins list failed (fake)", 1)
     out({"plugins": [{"id": p} for p in st["plugins"]]})
 elif cmd == ["plugins", "install"]:
     if "--link" not in rest:
         die("expected --link")
-    if "jobhunter-guard" in st["plugins"]:
-        die("already installed", 1)
-    st["plugins"].append("jobhunter-guard")
-    print("installed")
-elif cmd == ["plugins", "enable"] or cmd == ["plugins", "disable"]:
+    print("WARNING - Installing plugin from local path: %s" % ([t for t in rest if not t.startswith("-")] or ["?"])[0])
+    print("This source is outside ClawHub review and trust metadata.")
+    if "--force" not in rest:
+        print("Install cancelled; rerun with --force after reviewing the source.")
+        save(st)
+        sys.exit(1)
+    if "jobhunter-guard" not in st["plugins"]:
+        st["plugins"].append("jobhunter-guard")
+    st["plugin_enabled"] = False
+    print('Installed plugin "jobhunter-guard" without enabling it because it requires configuration first.')
+elif cmd == ["plugins", "enable"]:
+    conf = get_path(st["config"], "plugins.entries.jobhunter-guard.config")
+    if rest[:1] == ["jobhunter-guard"] and not (isinstance(conf, dict) and conf.get("repo")):
+        st.setdefault("refused_enables", []).append(rest[0])
+        save(st)
+        die("Config validation failed: plugins.entries.jobhunter-guard.config.repo: invalid config: must have "
+            "required property 'repo'", 1)
+    st["plugin_enabled"] = True
+    print("ok")
+elif cmd == ["plugins", "disable"]:
+    st["plugin_enabled"] = False
     print("ok")
 elif cmd == ["plugins", "reload"]:
-    repo = st.get("guard_repo")
-    if repo:
-        with open(os.path.join(repo, "private", "home.json")) as fh:
-            iid = json.load(fh)["install_id"]
-        gd = os.path.join(repo, "state", "guard")
-        os.makedirs(gd, exist_ok=True)
-        ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        with open(os.path.join(gd, "heartbeat.json"), "w") as fh:
-            json.dump({"install_id": iid, "version": "fake", "loaded_at": ts, "beat_at": ts}, fh)
+    if os.environ.get("FAKE_OC_HEARTBEAT_ON") != "restart":
+        heartbeat(st)
     print("reloaded")
 elif cmd == ["plugins", "uninstall"]:
     st["plugins"] = [p for p in st["plugins"] if p not in rest]
@@ -162,6 +370,8 @@ elif argv[:1] == ["browser"]:
         print("\n".join(st["profiles"]))
     elif b[:1] == ["create-profile"]:
         st["profiles"].append(opt(b, "--name"))
+        # OpenClaw 2026.9.8 draws a progress spinner on stderr, one character per line in a log (live run 4)
+        sys.stderr.write("\n".join("Loading OpenClaw CLI") + "\n")
         print("created")
     elif b[:1] == ["delete-profile"]:
         st["profiles"] = [p for p in st["profiles"] if p != opt(b, "--name")]
@@ -224,39 +434,109 @@ elif cmd == ["channels", "status"]:
     print("whatsapp: not linked")
 elif cmd == ["cron", "add"]:
     key = opt(rest, "--declaration-key")
-    for required in ("--name", "--display-name", "--declaration-key", "--no-deliver", "--disabled"):
+    for required in ("--name", "--declaration-key", "--no-deliver"):
         if required not in rest:
             die("cron add without %s" % required)
+    if key.startswith("jobhunter:") and not key.startswith("jobhunter:qc-review-") and "--display-name" not in rest:
+        die("cron add without --display-name")
     if "--command-argv" in rest:
-        json.loads(opt(rest, "--command-argv"))
-    if key in st["crons"]:
+        payload = {"kind": "command", "argv": json.loads(opt(rest, "--command-argv")), "cwd": opt(rest, "--command-cwd"),
+                   "env": {}, "timeoutSeconds": int(opt(rest, "--timeout-seconds", "0"))}
+    else:
+        if opt(rest, "--tools") is None:
+            die("agent cron add without --tools")
+        payload = {"kind": "agentTurn", "message": opt(rest, "--message"), "model": opt(rest, "--model"),
+                   "fallbacks": str_list(opt(rest, "--fallbacks")) or [], "thinking": opt(rest, "--thinking"),
+                   "timeoutSeconds": int(opt(rest, "--timeout-seconds", "0")), "toolsAllow": str_list(opt(rest, "--tools"))}
+    fields = {"name": opt(rest, "--name"), "agentId": opt(rest, "--agent"),
+              "sessionTarget": opt(rest, "--session") or "isolated", "payload": payload, "delivery": {"mode": "none"}}
+    if key in st["crons"] and os.environ.get("FAKE_OC_ADD_UPSERTS") == "1":
+        # OpenClaw 2026.9.8: add of a known declaration key rewrites the job (id and enabled state kept)
+        st["crons"][key].update(fields)
+    elif key in st["crons"]:
+        # a declaration key makes add idempotent: the existing job is kept as it is (only its name follows), so a
+        # job edited behind the installer's back stays drifted until the repair pass of install.sh step 13
         st["crons"][key]["name"] = opt(rest, "--name")
     else:
-        st["crons"][key] = {"id": "job-%03d" % st["next_id"], "enabled": False, "name": opt(rest, "--name")}
+        st["crons"][key] = dict(fields, id="job-%03d" % st["next_id"], enabled="--disabled" not in rest)
         st["next_id"] += 1
     out({"ok": True, "id": st["crons"][key]["id"]})
 elif cmd == ["cron", "list"]:
-    jobs = [{"id": v["id"], "name": v["name"], "declarationKey": k, "enabled": v["enabled"]}
-            for k, v in sorted(st["crons"].items())]
+    jobs = [job_row(k, v) for k, v in sorted(st["crons"].items())] + system_jobs(st)
     out({"jobs": jobs, "total": len(jobs), "limit": 200, "hasMore": False})
-elif cmd in (["cron", "edit"], ["cron", "enable"], ["cron", "disable"], ["cron", "rm"], ["cron", "run"]):
-    jid = rest[0] if rest else ""
+elif cmd in (["cron", "edit"], ["cron", "enable"], ["cron", "disable"], ["cron", "rm"], ["cron", "run"],
+             ["cron", "runs"]):
+    jid = rest[0] if rest and not rest[0].startswith("--") else opt(rest, "--id", "")
+    if jid.startswith("sys-review-") and cmd[1] != "runs":
+        die("system-owned monitor jobs cannot be edited by cron clients", 1)
     hit = [k for k, v in st["crons"].items() if v["id"] == jid]
     if not hit:
         die("no such job %s" % jid, 1)
+    job = st["crons"][hit[0]]
     if cmd[1] == "enable":
-        st["crons"][hit[0]]["enabled"] = True
+        job["enabled"] = True
     elif cmd[1] == "disable":
-        st["crons"][hit[0]]["enabled"] = False
+        job["enabled"] = False
     elif cmd[1] == "rm":
         del st["crons"][hit[0]]
+    elif cmd[1] == "edit":
+        ignore = os.environ.get("FAKE_OC_EDIT_IGNORES", "")
+        p = job.setdefault("payload", {})
+        for flag, field, conv in (("--message", "message", str), ("--model", "model", str),
+                                  ("--thinking", "thinking", str), ("--timeout-seconds", "timeoutSeconds", int),
+                                  ("--tools", "toolsAllow", str_list), ("--fallbacks", "fallbacks", str_list),
+                                  ("--command-argv", "argv", json.loads), ("--command-cwd", "cwd", str)):
+            if flag in rest and field != ignore:
+                p[field] = conv(opt(rest, flag))
+        if "--clear-fallbacks" in rest:
+            p["fallbacks"] = []
+        if "--clear-tools" in rest:
+            p.pop("toolsAllow", None)
+        if "--agent" in rest:
+            job["agentId"] = opt(rest, "--agent")
+        if "--session" in rest:
+            job["sessionTarget"] = opt(rest, "--session")
+        if "--no-deliver" in rest:
+            job["delivery"] = {"mode": "none"}
+    elif cmd[1] == "run":
+        if "--wait" in rest and hit[0].startswith("jobhunter:probe-"):
+            probe_run(st, job)
+        text = "OK" if hit[0].startswith("jobhunter:qc-review") else "DONE"
+        out({"ok": True, "status": "ok", "summary": text, "text": text})
+        save(st)
+        sys.exit(0)
+    elif cmd[1] == "runs":
+        out({"runs": []})
+        save(st)
+        sys.exit(0)
     out({"ok": True})
-elif cmd == ["cron", "runs"]:
-    out({"runs": []})
 elif argv[:1] == ["agent"]:
     out({"ok": True, "agent": opt(argv, "--agent"), "text": "OK"})
 elif cmd == ["sandbox", "explain"]:
-    print("tools: none (fake)")
+    aid = opt(rest, "--agent") or "main"
+    eff, elevated = agent_exec(st, aid)
+    if "--json" in rest:
+        out({"agentId": aid, "tools": {"exec": eff, "elevated": {"enabled": elevated}}})
+    else:
+        print("agent %s exec security %s ask %s (fake)" % (aid, eff["security"], eff["ask"]))
+elif cmd == ["exec-policy", "show"]:
+    ids = sorted(set(list((get_path(st["config"], "agents.entries") or {}).keys())))
+    out({"config": get_path(st["config"], "tools.exec") or {}, "approvals": st["approvals"],
+         "effective": {"agents": {i: dict(agent_exec(st, i)[0], **{
+             k: v for k, v in (st["approvals"].get("agents", {}).get(i) or {}).items() if k in ("askFallback",)})
+             for i in ids}}})
+elif argv[:1] == ["doctor"] and "--lint" in argv and "--json" in argv:
+    findings = [{"checkId": "core/doctor/node-hosting-preconditions", "severity": "warning",
+                 "message": "Gateway is only bound to loopback.", "path": "gateway.bind"}]
+    for a in sorted(x["id"] for x in st["agents"]):
+        findings.append({"checkId": "core/doctor/skill-workshop-tool-policy", "severity": "warning",
+                         "message": 'agents.entries.%s.tools.allow does not include "skill_workshop".' % a,
+                         "path": "agents.entries.%s.tools.allow" % a, "target": a})
+    if os.environ.get("FAKE_OC_DOCTOR_ERROR") == "1":
+        findings.append({"checkId": "core/doctor/config", "severity": "error", "message": "config is invalid (fake)"})
+    out({"schemaVersion": 1, "ok": not findings, "checksRun": 3, "checksSkipped": 0, "findings": findings})
+    save(st)
+    sys.exit(1 if findings else 0)
 elif argv[:1] == ["doctor"] or cmd == ["skills", "check"]:
     print("ok")
 else:

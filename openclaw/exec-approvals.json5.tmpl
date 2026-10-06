@@ -1,21 +1,34 @@
-// Exec approvals entries for the jobhunter agents (design 10.3 step 9; default, not optional).
+// Exec approvals entries for the jobhunter agents (design 10.3 step 9, install.sh step 8; CLI route design 6.2).
 //
 // `jh.py install render-approvals --current <approvals get --json output>` merges one entry per jobhunter
 // agent into the "agents" map of the host approvals document and writes state/install/approvals.json, which
 // install.sh uploads with `openclaw approvals set --file`. "defaults" and every other agent are kept exactly
 // as they were. uninstall.sh runs the same command with --remove.
 //
-// __PY__ is the absolute python3 path from private/home.json. __ARG_PATTERN__ is rendered by code
-// (jobhunter.install.arg_pattern): ^<repo, regex escaped>/scripts/jh\.py( --cycle C[0-9A-Z]+)?( --quiet)?
-// followed by any command that is not human-only (jobhunter.install.HUMAN_ONLY_WORDS: approvals, PIN changes,
-// limits, the email finder's connect, disconnect, retry, test and find --include-reserve, and every install
-// helper, among them the browser consent record and revoke).
+// Never ask: "ask" is off and "askFallback" is deny for every jobhunter agent, so a command outside the
+// allowlist is refused at once and nothing ever waits for a person. "autoAllowSkills" is false in both entries:
+// OpenClaw resolves it as the agent's value, else agents["*"]'s, else defaults', so an owner's wildcard or default
+// can never let skill binaries run for a jobhunter agent. OpenClaw also prepends agents["*"].allowlist to every
+// agent's allowlist; `jh.py install verify-exec-policy` (install step 8, ./jobhunter doctor) fails while such
+// wildcard entries exist or a jobhunter entry holds anything but the rows below.
+//
+// __PY__ is the absolute python3 path from private/home.json. __ARG_PATTERN__ is rendered per agent by code
+// (jobhunter.install.arg_pattern(repo, agent_id, carrier)) and matched against argv[1:] joined by spaces:
+//   ^-I <repo, regex escaped>/scripts/jh\.py --agent-proof jhp2\.<this agent id>\.<10 digits>\.<16 hex>\.<16 hex>\.<64 hex>
+//   ( --cycle C[0-9A-Z]+)?( --quiet)? <a command that is not human-only> then tokens of [A-Za-z0-9_./:@+=,%-]
+//   only (no token starting with =), anchored at the end.
+// python must run with -I (isolated) and the identity proof must name this agent; the proof's signature is
+// checked by jh.py, the pattern only checks its shape. With `--identity-carrier env` the --agent-proof group
+// is left out (the guard then adds -I only). Human-only commands (jobhunter.install.HUMAN_ONLY_WORDS:
+// approvals, PIN changes, limits, the email finder's connect, disconnect, retry, test and find
+// --include-reserve, browser consent, qc smoke and every install helper) never match.
 {
   // agents whose tools include exec
   "exec_agent": {
     "security": "allowlist",
-    "ask": "on-miss",
+    "ask": "off",
     "askFallback": "deny",
+    "autoAllowSkills": false,
     "allowlist": [
       {"pattern": "__PY__", "argPattern": "__ARG_PATTERN__"}
     ]
@@ -25,6 +38,7 @@
     "security": "deny",
     "ask": "off",
     "askFallback": "deny",
+    "autoAllowSkills": false,
     "allowlist": []
   }
 }

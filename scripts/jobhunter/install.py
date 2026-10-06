@@ -7,18 +7,28 @@ plus private/home.json and the config into:
 - the exact `openclaw cron add` and `cron edit` argument lists (render_cron_commands, render_failure_alerts),
 - the per-agent workspaces under WS_ROOT (render_workspaces),
 - the config patches (render_agents_patch, render_guard_config, uninstall_patch, extra_dirs_patch),
-- the merged exec approvals document (merge_approvals),
-- the install manifest (state/install-manifest.json),
+- the merged exec approvals document (merge_approvals, one argPattern per agent: arg_pattern),
+- the install manifest (state/install-manifest.json) with the cron job specs that every `cron run` is checked
+  against (cron_specs, job_drift) and the full-field repair of a drifted job (repair_commands),
+- the explicit exec policy of every jobhunter agent and the checks of its effective merge (exec_policy,
+  exec_policy_problems, unconfined),
+- the CLI route switches in private/home.json (`cli_route`: identity carriers, QC reply mode, tool mode) and the
+  probe version stamp,
 - the per-site browser consent in private/consent.json (the Chrome login import of ./jobhunter browser consent)
-  and the read-only login check verdicts after an import.
+  and the read-only login check verdicts after an import,
+- the Claude Code version each jobhunter model needs (claude_model_check) and the verdict on
+  `openclaw doctor --lint --json` by finding severity (doctor_verdict).
 
 Nothing here calls openclaw. install.sh, uninstall.sh and ./jobhunter run the rendered commands through the
-install's own binary and profile. The CLI surface is jobhunter.commands.install.
+install's own binary and profile; the few read-backs that need a live OpenClaw (verify-exec-policy,
+run-preflight) live in jobhunter.commands.install on top of jobhunter.ocrun. The CLI surface is
+jobhunter.commands.install.
 """
 from __future__ import annotations
 
 import datetime as _dt
 import glob
+import hashlib
 import json
 import os
 import re
@@ -26,7 +36,7 @@ import shlex
 import shutil
 import time
 
-from . import paths
+from . import ocrun, paths
 from .canon import now, sha256_file
 from .errors import Denied
 
@@ -43,6 +53,51 @@ FAILURE_ALERT_ARGS = ("--failure-alert-after", "2", "--failure-alert-cooldown", 
 OWNER_PLACEHOLDERS = frozenset({"", "+10000000000"})
 LANE_JOBS = {"scout": "jobhunter:scout", "evaluator": "jobhunter:evaluate", "applier": "jobhunter:apply",
              "outreach": "jobhunter:outreach", "replies": "jobhunter:replies"}
+CRON_KINDS = ("command", "agent", "agent-oneshot")
+# the plain word an agent run ends with, per purpose (CLI route 6.3, M6); never NO_REPLY
+FINAL_WORDS = {"lane": "CYCLE_DONE", "probe": "PROBE_DONE", "onboarding": "ONBOARD_DONE"}
+QC_REVIEW_KEY = "jobhunter:qc-review"
+PROBE_ROLES = ("scout", "evaluator", "applier", "outreach")
+# OpenClaw versions before this one need a Gateway restart after plugin changes (CLI route M8)
+RESTART_BELOW = (2026, 9, 7)
+# claude flags OpenClaw needs for restricted runs (CLI route 6.5, m6), read from `claude --help`
+CLAUDE_FLAGS = ("--tools", "--strict-mcp-config", "--setting-sources")
+# the oldest Claude Code that runs a model, for the models the jobhunter agents and jobs use. Claude Code refuses an
+# unknown model only at the first run ("Claude Code 2.1.270 does not support this model; 2.1.280 or newer
+# required"), so install step 3 compares the version first. Add a model here when Claude Code names its minimum.
+CLAUDE_MODEL_MINIMUM = {"claude-opus-5-5": (2, 1, 280)}
+# `openclaw doctor --lint --json` (OpenClaw 2026.9.8 reports ok false for warnings only): findings of these
+# severities never fail ./jobhunter doctor; any other severity (error, or one this list does not know) does
+DOCTOR_WARN_SEVERITIES = ("warning", "warn")
+DOCTOR_QUIET_SEVERITIES = ("info", "notice", "debug")
+# warnings the project's own policy causes for every jobhunter agent, and why they are expected
+DOCTOR_EXPECTED_AGENT_CHECKS = {
+    "core/doctor/skill-workshop-tool-policy": "the jobhunter agents never get the skill_workshop tool; install step 7b "
+                                              "sets the Skill Workshop to propose"}
+CARRIER_CHOICES = {"argv+env": ["argv", "env"], "argv": ["argv"], "env": ["env"]}
+QC_REPLY_MODES = ("run", "file")
+CLI_TOOL_MODES = ("restricted", "native")
+CLI_ROUTE_DEFAULT = {"carriers": ["argv", "env"], "qc_reply": "run", "cli_tools": "restricted"}
+EXEC_POLICIES = ("allowlist", "deny")
+# explicit per-agent exec values (CLI route 6.1). `mode` only: OpenClaw 2026.9.5 and later refuse `mode` together
+# with `security` or `ask` in one exec object. mode allowlist is security allowlist with ask off, deny is security
+# deny with ask off, full is security full with ask off, and a per-agent mode replaces any security and ask the
+# agent would inherit from the global tools.exec, so a global value cannot leak in.
+EXEC_ALLOWLIST = {"mode": "allowlist", "host": "gateway", "strictInlineEval": True, "safeBins": [],
+                  "safeBinTrustedDirs": []}
+EXEC_DENY = {"mode": "deny", "safeBins": [], "safeBinTrustedDirs": []}
+EXEC_FULL = {"mode": "full", "host": "gateway", "strictInlineEval": True, "safeBins": [], "safeBinTrustedDirs": []}
+# per-agent exec keys of older installs that the agents patch deletes in the same write (JSON null), so the merged
+# object never holds `mode` next to them (that fails the dry run) and no unset leaves a gap before the patch
+LEGACY_EXEC_KEYS = ("security", "ask")
+ELEVATED_OFF = {"enabled": False}
+# OpenClaw's Skill Workshop: with skills.workshop.autonomous.mode "auto" (its default) OpenClaw keeps an enabled,
+# system-owned weekly job `skill-collection-review:<agent>` for every agent, which cron clients can neither edit,
+# disable nor remove. Any other mode keeps those jobs disabled; install sets "propose" with the owner's consent.
+WORKSHOP_MODE_PATH = "skills.workshop.autonomous.mode"
+WORKSHOP_MODES = ("off", "propose", "auto")
+WORKSHOP_SAFE_MODE = "propose"
+SKILL_REVIEW_PREFIX = "skill-collection-review:"
 PATH_OK_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 PROTECTED_HOME_DIRS = ("Documents", "Desktop", "Downloads", os.path.join("Library", "Mobile Documents"))
 PLACEHOLDER_RE = re.compile(r"__[A-Z][A-Z0-9_]*__")
@@ -159,6 +214,15 @@ def load_agents(root: str | None = None) -> list[dict]:
             raise Denied("E_VALIDATION", "agent ids must be unique and start with jobhunter-", data={"id": a["id"]})
         if paths.AGENT_ROLES.get(a["id"]) != a["role"]:
             raise Denied("E_VALIDATION", "agent %s must have role %s" % (a["id"], paths.AGENT_ROLES.get(a["id"])))
+        pol = a.get("exec_policy")
+        if pol not in EXEC_POLICIES:
+            raise Denied("E_VALIDATION", "agents.json entry needs exec_policy allowlist or deny", data={"agent": a["id"]})
+        if (pol == "allowlist") != ("exec" in a["tools_allow"]):
+            raise Denied("E_VALIDATION", "exec_policy allowlist goes with the exec tool, deny without it",
+                         data={"agent": a["id"]})
+        if not {"edit", "apply_patch"} <= set(a["tools_deny"]):
+            raise Denied("E_VALIDATION", "every agent denies edit and apply_patch (whole-file writes only)",
+                         data={"agent": a["id"]})
         seen.add(a["id"])
     return agents
 
@@ -173,10 +237,40 @@ def load_crons(root: str | None = None) -> dict:
     for j in jobs:
         if not str(j.get("key", "")).startswith(CRON_PREFIX) or j["key"] in keys:
             raise Denied("E_VALIDATION", "cron keys must be unique and start with jobhunter:", data={"key": j.get("key")})
-        if j.get("kind") not in ("command", "agent"):
-            raise Denied("E_VALIDATION", "cron kind must be command or agent", data={"key": j["key"]})
+        if j.get("kind") not in CRON_KINDS:
+            raise Denied("E_VALIDATION", "cron kind must be command, agent or agent-oneshot", data={"key": j["key"]})
+        if j["kind"] != "command":
+            tools_list(j)
+            purpose = j.get("purpose")
+            if j["kind"] == "agent":
+                word = FINAL_WORDS.get(purpose)
+                msg = str(j.get("message") or "")
+                if not word or not msg.endswith("reply with the single word %s." % word) or "NO_REPLY" in msg:
+                    raise Denied("E_VALIDATION", "an agent job needs a purpose (lane, probe, onboarding) and a "
+                                 "message that ends with its final word", data={"key": j["key"]})
+            elif purpose != "qc" or j.get("message") is not None or j.get("schedule") is not None:
+                raise Denied("E_VALIDATION", "agent-oneshot is the QC review spec only (no message, no schedule)",
+                             data={"key": j["key"]})
         keys.add(j["key"])
     return doc
+
+
+def tools_list(job: dict) -> list[str]:
+    """The explicit tools of an agent job (`--tools`). Absent or `*` is refused: every jobhunter run is a
+    restricted run (CLI route 6.3); an empty list is allowed only for the QC one-shot spec."""
+    raw = job.get("tools")
+    if not isinstance(raw, str):
+        raise Denied("E_VALIDATION", "agent job has no explicit tools list", data={"key": job.get("key")})
+    items = [t for t in re.split(r"[,\s]+", raw) if t]
+    if "*" in items or (not items and job.get("kind") != "agent-oneshot"):
+        raise Denied("E_VALIDATION", "agent job tools must be an explicit list, never * or empty",
+                     data={"key": job.get("key")})
+    return items
+
+
+def declared_jobs(crons: dict) -> list[dict]:
+    """The jobs install creates (everything except the agent-oneshot spec)."""
+    return [j for j in crons["jobs"] if j["kind"] != "agent-oneshot"]
 
 
 def load_config(root: str | None = None) -> dict:
@@ -333,44 +427,233 @@ def _lane_for_key(key: str) -> str | None:
     return None
 
 
-def render_cron_commands(crons: dict, *, py: str, repo: str, tz: str, dispatch_mode: str = "dispatcher",
-                         lanes: dict | None = None) -> list[list[str]]:
+def _mapping(py: str, repo: str, ws_root: str) -> dict:
+    return {"PY": py, "REPO": repo, "WS_ROOT": ws_root}
+
+
+def _check_args(args: list[str], key: str) -> None:
+    for a in args:
+        if "\n" in a or "\r" in a or "\x00" in a:
+            raise Denied("E_VALIDATION", "cron argument contains a line break", data={"key": key})
+
+
+def _fallbacks_list(job: dict) -> list[str]:
+    return [f for f in re.split(r"[,\s]+", str(job.get("fallbacks") or "")) if f]
+
+
+# A command job runs with the Gateway's environment. When the Gateway was started from a Claude Code terminal that
+# environment carries Claude Code's markers, which would make jh.py treat the job as an unproven agent
+# (auth.harness_markers); the job therefore starts jh.py through env with those two names removed.
+COMMAND_ENV_PREFIX = ("/usr/bin/env", "-u", "CLAUDECODE", "-u", "CLAUDE_CODE_ENTRYPOINT")
+
+
+def command_argv(job: dict, mapping: dict) -> list[str]:
+    """The argv of a command job: COMMAND_ENV_PREFIX, then the declared argv with its placeholders filled in."""
+    return list(COMMAND_ENV_PREFIX) + [_subst(str(a), mapping) for a in job["argv"]]
+
+
+def cron_add_args(job: dict, *, py: str, repo: str, ws_root: str, tz: str, dispatch_mode: str = "dispatcher",
+                  lanes: dict | None = None, disabled: bool = True) -> list[str]:
+    """`openclaw cron add` arguments (without the binary and profile) of one declared job."""
+    if job["kind"] == "agent-oneshot":
+        raise Denied("E_VALIDATION", "the QC one-shot spec is not created by install", data={"key": job["key"]})
+    mapping = _mapping(py, repo, ws_root)
+    args = ["cron", "add", "--name", job["name"], "--display-name", job["display"], "--declaration-key", job["key"]]
+    if job["kind"] == "agent":
+        args += ["--agent", job["agent"], "--session", "isolated"]
+    schedule = dict(job.get("schedule") or {})
+    if job["kind"] == "agent" and job.get("purpose") == "lane" and dispatch_mode == "cron_schedule":
+        schedule = fallback_schedule((lanes or {}).get(_lane_for_key(job["key"]) or ""))
+    if "every" in schedule:
+        args += ["--every", str(schedule["every"])]
+    elif "cron" in schedule:
+        args += ["--cron", str(schedule["cron"]), "--tz", tz]
+        if schedule.get("stagger"):
+            args += ["--stagger", str(schedule["stagger"])]
+    else:
+        raise Denied("E_VALIDATION", "cron job has no schedule", data={"key": job["key"]})
+    if job["kind"] == "command":
+        argv = command_argv(job, mapping)
+        args += ["--command-argv", json.dumps(argv, separators=(",", ":")), "--command-cwd", repo,
+                 "--timeout-seconds", str(int(job["timeout_s"])),
+                 "--no-output-timeout-seconds", str(int(job["no_output_timeout_s"])),
+                 "--output-max-bytes", "4000"]
+    else:
+        args += ["--tools", ",".join(tools_list(job)), "--message", _subst(job["message"], mapping),
+                 "--model", job["model"], "--fallbacks", ",".join(_fallbacks_list(job)),
+                 "--thinking", job["thinking"], "--timeout-seconds", str(int(job["timeout_s"]))]
+    args += ["--no-deliver"] + (["--disabled"] if disabled else [])
+    _check_args(args, job["key"])
+    return args
+
+
+def render_cron_commands(crons: dict, *, py: str, repo: str, ws_root: str, tz: str,
+                         dispatch_mode: str = "dispatcher", lanes: dict | None = None) -> list[list[str]]:
     """The `openclaw cron add` argument lists (without the binary and profile) for every declared job.
-    Every job is created --disabled with --no-deliver and its --declaration-key (idempotent)."""
-    mapping = {"PY": py, "REPO": repo}
-    out: list[list[str]] = []
-    for job in crons["jobs"]:
-        args = ["cron", "add", "--name", job["name"], "--display-name", job["display"],
-                "--declaration-key", job["key"]]
-        if job["kind"] == "agent":
-            args += ["--agent", job["agent"], "--session", "isolated"]
-        schedule = dict(job.get("schedule") or {})
-        if job["kind"] == "agent" and dispatch_mode == "cron_schedule":
-            schedule = fallback_schedule((lanes or {}).get(_lane_for_key(job["key"]) or ""))
-        if "every" in schedule:
-            args += ["--every", str(schedule["every"])]
-        elif "cron" in schedule:
-            args += ["--cron", str(schedule["cron"]), "--tz", tz]
-            if schedule.get("stagger"):
-                args += ["--stagger", str(schedule["stagger"])]
-        else:
-            raise Denied("E_VALIDATION", "cron job has no schedule", data={"key": job["key"]})
-        if job["kind"] == "command":
-            argv = [_subst(str(a), mapping) for a in job["argv"]]
-            args += ["--command-argv", json.dumps(argv, separators=(",", ":")), "--command-cwd", repo,
-                     "--timeout-seconds", str(int(job["timeout_s"])),
-                     "--no-output-timeout-seconds", str(int(job["no_output_timeout_s"])),
-                     "--output-max-bytes", "4000"]
-        else:
-            args += ["--tools", job["tools"], "--message", _subst(job["message"], mapping),
-                     "--model", job["model"], "--fallbacks", job.get("fallbacks", ""),
-                     "--thinking", job["thinking"], "--timeout-seconds", str(int(job["timeout_s"]))]
-        args += ["--no-deliver", "--disabled"]
-        for a in args:
-            if "\n" in a or "\r" in a or "\x00" in a:
-                raise Denied("E_VALIDATION", "cron argument contains a line break", data={"key": job["key"]})
-        out.append(args)
+    Every job is created --disabled with --no-deliver and its --declaration-key (idempotent). Agent jobs always
+    carry their explicit --tools list (restricted runs); the QC one-shot spec is skipped (6.3.2)."""
+    return [cron_add_args(job, py=py, repo=repo, ws_root=ws_root, tz=tz, dispatch_mode=dispatch_mode, lanes=lanes)
+            for job in declared_jobs(crons)]
+
+
+# ---------------------------------------------------------------- cron specs and drift (CLI route 6.3.1)
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def env_sha256(env) -> str:
+    """Digest of a command job's environment: sha256 of its canonical JSON (sorted keys, no spaces)."""
+    env = env if isinstance(env, dict) else {}
+    return sha256_text(json.dumps({str(k): str(v) for k, v in env.items()}, sort_keys=True, separators=(",", ":")))
+
+
+def job_spec(job: dict, *, py: str, repo: str, ws_root: str, qc_reply: str = "run") -> dict:
+    """The manifest spec of one job, after placeholder substitution. Agent kinds: {agent, session, kind, tools
+    (sorted), model, fallbacks (list), thinking, timeout_s, message_sha256, delivery}; command jobs: {kind, argv,
+    cwd, env_sha256, timeout_s}. The QC one-shot has message_sha256 None (each run hashes its own message) and,
+    in F-QC mode (cli_route.qc_reply file), tools ["write"]."""
+    mapping = _mapping(py, repo, ws_root)
+    if job["kind"] == "command":
+        return {"kind": "command", "argv": command_argv(job, mapping), "cwd": repo,
+                "env_sha256": env_sha256({}), "timeout_s": int(job["timeout_s"])}
+    tools = sorted(tools_list(job))
+    if job["key"] == QC_REVIEW_KEY and qc_reply == "file":
+        tools = ["write"]
+    msg = job.get("message")
+    return {"agent": job["agent"], "session": "isolated", "kind": job["kind"], "tools": tools,
+            "model": job["model"], "fallbacks": _fallbacks_list(job), "thinking": job["thinking"],
+            "timeout_s": int(job["timeout_s"]),
+            "message_sha256": sha256_text(_subst(msg, mapping)) if isinstance(msg, str) else None,
+            "delivery": "none"}
+
+
+def cron_specs(crons: dict, *, py: str, repo: str, ws_root: str, qc_reply: str = "run") -> dict:
+    """{key: spec} for every job in crons.json, the QC one-shot spec included (written to the manifest)."""
+    return {j["key"]: job_spec(j, py=py, repo=repo, ws_root=ws_root, qc_reply=qc_reply) for j in crons["jobs"]}
+
+
+AGENT_SPEC_FIELDS = ("agent", "session", "tools", "model", "fallbacks", "thinking", "timeout_s", "message_sha256",
+                     "delivery")
+COMMAND_SPEC_FIELDS = ("argv", "cwd", "env_sha256", "timeout_s")
+
+
+def _int_or_none(v):
+    try:
+        return int(v) if v is not None and not isinstance(v, bool) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_listed_job(entry) -> dict:
+    """One row of `openclaw cron list --all --json` in the spec shape (job agentId, sessionTarget, delivery.mode;
+    payload kind, toolsAllow, message, model, fallbacks, thinking, timeoutSeconds, argv, cwd, env) [verify V14].
+    A missing field stays None, so it never equals a declared value."""
+    entry = entry if isinstance(entry, dict) else {}
+    p = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+    kind = p.get("kind")
+    if kind == "command":
+        argv = p.get("argv")
+        return {"kind": "command", "argv": [str(a) for a in argv] if isinstance(argv, list) else None,
+                "cwd": p.get("cwd"), "env_sha256": env_sha256(p.get("env") or {}),
+                "timeout_s": _int_or_none(p.get("timeoutSeconds"))}
+    tools = p.get("toolsAllow")
+    fallbacks = p.get("fallbacks")
+    delivery = entry.get("delivery")
+    return {"kind": "agent" if kind == "agentTurn" else kind, "agent": entry.get("agentId"),
+            "session": entry.get("sessionTarget"),
+            "tools": sorted(str(t) for t in tools) if isinstance(tools, list) else None,
+            "model": p.get("model"), "fallbacks": [str(f) for f in fallbacks] if isinstance(fallbacks, list) else [],
+            "thinking": p.get("thinking"), "timeout_s": _int_or_none(p.get("timeoutSeconds")),
+            "message_sha256": sha256_text(p["message"]) if isinstance(p.get("message"), str) else None,
+            "delivery": delivery.get("mode") if isinstance(delivery, dict) else None}
+
+
+def job_drift(spec: dict, entry) -> list[str]:
+    """Names (never values) of the fields where a listed job differs from its spec. A job whose toolsAllow is
+    absent or contains * always drifts. `enabled` and the schedule are not compared. A listed agent job whose
+    message holds a live at sign (a Claude Code file mention, D12) also drifts in `message_mention`, as in
+    ocrun.job_drift, so the install repair line names the same fields as the preflight refusal (O8)."""
+    got = normalize_listed_job(entry)
+    if spec.get("kind") == "command":
+        if got.get("kind") != "command":
+            return ["kind"]
+        return [f for f in COMMAND_SPEC_FIELDS if spec.get(f) != got.get(f)]
+    if got.get("kind") != "agent":
+        return ["kind"]
+    fields = AGENT_SPEC_FIELDS if spec.get("message_sha256") is not None else \
+        tuple(f for f in AGENT_SPEC_FIELDS if f != "message_sha256")
+    out = [f for f in fields if spec.get(f) != got.get(f)]
+    if (got.get("tools") is None or "*" in got["tools"]) and "tools" not in out:
+        out.append("tools")
+    p = entry.get("payload") if isinstance(entry, dict) and isinstance(entry.get("payload"), dict) else {}
+    if isinstance(p.get("message"), str) and ocrun.has_file_mention(p["message"]):
+        out.append("message_mention")
     return out
+
+
+def listed_jobs(doc) -> dict:
+    """{declarationKey: raw row} for jobhunter jobs of a cron list."""
+    rows = doc.get("jobs") if isinstance(doc, dict) else doc
+    out = {}
+    for r in rows if isinstance(rows, list) else []:
+        if isinstance(r, dict):
+            key = r.get("declarationKey") or r.get("declaration_key") or ""
+            if isinstance(key, str) and key.startswith(CRON_PREFIX) and r.get("id"):
+                out[key] = r
+    return out
+
+
+def cron_drift(crons: dict, cron_list_doc, *, py: str, repo: str, ws_root: str, qc_reply: str = "run") -> dict:
+    """{key: [fields]} for every declared job that is listed and differs from its spec."""
+    specs = cron_specs(crons, py=py, repo=repo, ws_root=ws_root, qc_reply=qc_reply)
+    rows = listed_jobs(cron_list_doc)
+    out = {}
+    for job in declared_jobs(crons):
+        row = rows.get(job["key"])
+        if row is None:
+            continue
+        d = job_drift(specs[job["key"]], row)
+        if d:
+            out[job["key"]] = d
+    return out
+
+
+def cron_edit_args(job: dict, job_id: str, *, py: str, repo: str, ws_root: str) -> list[str]:
+    """`cron edit <id>` carrying every declared field of the job (6.3.1)."""
+    mapping = _mapping(py, repo, ws_root)
+    if job["kind"] == "command":
+        argv = command_argv(job, mapping)
+        args = ["cron", "edit", str(job_id), "--command-argv", json.dumps(argv, separators=(",", ":")),
+                "--command-cwd", repo, "--timeout-seconds", str(int(job["timeout_s"])),
+                "--no-output-timeout-seconds", str(int(job["no_output_timeout_s"]))]
+    else:
+        fb = _fallbacks_list(job)
+        args = ["cron", "edit", str(job_id), "--agent", job["agent"], "--session", "isolated",
+                "--tools", ",".join(tools_list(job)), "--message", _subst(job["message"], mapping),
+                "--model", job["model"]] + (["--fallbacks", ",".join(fb)] if fb else ["--clear-fallbacks"]) + \
+               ["--thinking", job["thinking"], "--timeout-seconds", str(int(job["timeout_s"])), "--no-deliver"]
+    _check_args(args, job["key"])
+    return args
+
+
+def repair_commands(crons: dict, cron_list_doc, *, py: str, repo: str, ws_root: str, tz: str,
+                    dispatch_mode: str = "dispatcher", lanes: dict | None = None, replace: bool = False) -> dict:
+    """Commands that bring drifted jobs back to their declaration (install step 13). First pass: one
+    full-field `cron edit <id>` per drifted job. With replace (the re-list still differs): `cron rm <id>` then the
+    `cron add` of the job, created enabled when the listed job was enabled. Returns {commands, drift}."""
+    drift = cron_drift(crons, cron_list_doc, py=py, repo=repo, ws_root=ws_root)
+    rows = listed_jobs(cron_list_doc)
+    by_key = {j["key"]: j for j in declared_jobs(crons)}
+    cmds = []
+    for key in sorted(drift):
+        job, row = by_key[key], rows[key]
+        if replace:
+            cmds.append(["cron", "rm", str(row["id"])])
+            cmds.append(cron_add_args(job, py=py, repo=repo, ws_root=ws_root, tz=tz, dispatch_mode=dispatch_mode,
+                                      lanes=lanes, disabled=not bool(row.get("enabled"))))
+        else:
+            cmds.append(cron_edit_args(job, row["id"], py=py, repo=repo, ws_root=ws_root))
+    return {"commands": cmds, "drift": drift}
 
 
 def notify_target(cfg: dict) -> tuple[str, str] | None:
@@ -430,11 +713,17 @@ def read_manifest() -> dict:
         return {}
 
 
+REPLACED_MANIFEST_KEYS = ("cron_specs", "probe_stamp")
+
+
 def merge_manifest(update: dict) -> dict:
-    """Merge into state/install-manifest.json: dicts merge, lists are unioned (order kept), scalars replace."""
+    """Merge into state/install-manifest.json: dicts merge, lists are unioned (order kept), scalars replace.
+    cron_specs and probe_stamp are replaced as a whole."""
     cur = read_manifest()
     for k, v in update.items():
-        if isinstance(v, dict) and isinstance(cur.get(k), dict):
+        if k in REPLACED_MANIFEST_KEYS:
+            cur[k] = v
+        elif isinstance(v, dict) and isinstance(cur.get(k), dict):
             cur[k] = dict(cur[k], **v)
         elif isinstance(v, list) and isinstance(cur.get(k), list):
             cur[k] = cur[k] + [x for x in v if x not in cur[k]]
@@ -446,22 +735,33 @@ def merge_manifest(update: dict) -> dict:
     return cur
 
 
-def store_cron_ids(cron_list_doc, crons: dict, dispatch_mode: str = "dispatcher") -> dict:
-    """Record the job ids from a cron list in the manifest and in private/home.json (`cron_jobs`). Returns
-    {cron_jobs, missing, enabled_agent_jobs}."""
+def store_cron_ids(cron_list_doc, crons: dict, dispatch_mode: str = "dispatcher", specs: dict | None = None) -> dict:
+    """Record the job ids from a cron list in the manifest and in private/home.json (`cron_jobs`), and the job
+    specs (`cron_specs`, 6.3.1) when given. Returns {cron_jobs, missing, enabled_agent_jobs}."""
     found = cron_jobs_from_list(cron_list_doc)
-    ids = {k: v["id"] for k, v in found.items()}
-    declared = [j["key"] for j in crons["jobs"]]
-    missing = [k for k in declared if k not in found]
+    declared_keys = {j["key"] for j in declared_jobs(crons)}
+    ids = {k: v["id"] for k, v in found.items() if k in declared_keys}
+    missing = [j["key"] for j in declared_jobs(crons) if j["key"] not in found]
     agent_keys = [j["key"] for j in crons["jobs"] if j["kind"] == "agent"]
-    enabled_agent = [k for k in agent_keys if found.get(k, {}).get("enabled")] if dispatch_mode == "dispatcher" else []
-    merge_manifest({"cron_jobs": ids})
+    enabled_agent = [k for k in agent_keys if found.get(k, {}).get("enabled") and
+                     (dispatch_mode == "dispatcher" or _job(crons, k).get("purpose") != "lane")]
+    update = {"cron_jobs": ids}
+    if specs is not None:
+        update["cron_specs"] = specs
+    merge_manifest(update)
     hf = paths.home_file()
     if os.path.exists(hf):
         h = paths.home()
         h["cron_jobs"] = dict(h.get("cron_jobs") or {}, **ids)
         write_json(hf, h)
     return {"cron_jobs": ids, "missing": missing, "enabled_agent_jobs": enabled_agent}
+
+
+def _job(crons: dict, key: str) -> dict:
+    for j in crons["jobs"]:
+        if j["key"] == key:
+            return j
+    return {}
 
 
 def known_job_ids(extra_list_doc=None) -> dict:
@@ -478,12 +778,13 @@ def select_jobs(crons: dict, which: str, lane: str | None = None, dispatch_mode:
     all: every job; resume: command jobs with enable_on_resume (plus agent jobs in cron_schedule mode);
     pause: jobs that `pause all` disables (everything except keep_running_when_paused);
     agents: agent jobs; lane: the agent job of `lane`."""
-    jobs = crons["jobs"]
+    jobs = declared_jobs(crons)
     if which == "all":
         return [j["key"] for j in jobs]
     if which == "resume":
+        # probe and onboarding jobs are never enabled: only ./jobhunter and install.sh run them, after preflight
         return [j["key"] for j in jobs if (j["kind"] == "command" and j.get("enable_on_resume"))
-                or (j["kind"] == "agent" and dispatch_mode == "cron_schedule")]
+                or (j["kind"] == "agent" and j.get("purpose") == "lane" and dispatch_mode == "cron_schedule")]
     if which == "pause":
         return [j["key"] for j in jobs if not j.get("keep_running_when_paused")]
     if which == "agents":
@@ -720,19 +1021,62 @@ def regex_escape_path(p: str) -> str:
 
 
 HUMAN_ONLY_WORDS = ("approve", "skip", "edit", "forget", "unpause", "auth", "mail connect", "mail import-history",
-                    "sheet connect", "qc golden", "config raise", "approval set", "tier set", "linkedin enable",
-                    "breaker reset", "reconcile confirm-not-sent", "companies", "contacts split",
+                    "sheet connect", "qc golden", "qc smoke", "config raise", "approval set", "tier set",
+                    "linkedin enable", "breaker reset", "reconcile confirm-not-sent", "companies", "contacts split",
                     "exclusions (remove|import --deactivate)", "enrich (connect|disconnect|retry|test)",
-                    "enrich find .*--i[a-z-]*", "answers add", "install")
+                    "enrich find .*--i[a-z-]*", "answers add", "browser consent", "install", "accounts forget",
+                    "continue")
 # `enrich find .*--i[a-z-]*` also catches an abbreviated --include-reserve (argparse accepts unique prefixes);
 # `install` covers every install helper, among them consent-record and consent-revoke: agents run none of them.
+TOKEN_CLASS = "[A-Za-z0-9_./:@+=,%-]"      # the guard's R2 token class (exec_parse.ts TOKEN_RE)
+AGENT_ID_RE = re.compile(r"^jobhunter-[a-z]{2,20}$")
 
 
-def arg_pattern(repo: str) -> str:
-    """argPattern of the exec allowlist entry (10.3 step 9): jh.py only, optional --cycle and --quiet, and never
-    a human-only command. Matched against argv[1:] joined by spaces."""
-    return ("^%s/scripts/jh\\.py( --cycle C[0-9A-Z]+)?( --quiet)? (?!(%s)( |$))[a-z]"
-            % (regex_escape_path(repo), "|".join(HUMAN_ONLY_WORDS)))
+def carriers_of(carrier) -> list[str]:
+    """["argv", "env"] for "argv+env" (or an already split list). Anything else is refused."""
+    if isinstance(carrier, (list, tuple)):
+        items = [str(c) for c in carrier]
+        if items and set(items) <= {"argv", "env"} and len(set(items)) == len(items):
+            return [c for c in ("argv", "env") if c in items]
+    elif carrier in CARRIER_CHOICES:
+        return list(CARRIER_CHOICES[carrier])
+    raise Denied("E_USAGE", "the identity carrier must be argv+env, argv or env")
+
+
+NATIVE_ACCEPT_TEXT = ("--cli-tools native needs --i-accept-reduced-protection: Claude Code's own tools then bypass "
+                      "the exec allowlist and workspaceOnly, and AskUserQuestion can wait")
+NATIVE_CARRIER_TEXT = ("--cli-tools native works only with the argv identity carrier (--identity-carrier argv): Claude "
+                       "Code's own Bash never gets the env proof, because the guard's resolve_exec_env does not run for it")
+
+
+def check_cli_tools(cli_tools, accept_reduced=None, carriers=None, code: str = "E_USAGE", hint: str = "") -> str:
+    """The one check of the agent tool mode (CLI route 6.6), used by every renderer and by the cli_route reader
+    and writer: restricted or native, and native only with the reduced-protection acceptance (when
+    accept_reduced is given) and with the argv identity carrier alone (when carriers is given). Returns the mode;
+    Denied(code) otherwise, with hint appended."""
+    if cli_tools not in CLI_TOOL_MODES:
+        raise Denied(code, "cli tools must be restricted or native" + hint)
+    if cli_tools == "native":
+        if accept_reduced is not None and not accept_reduced:
+            raise Denied(code, NATIVE_ACCEPT_TEXT + hint)
+        if carriers is not None and carriers_of(carriers) != ["argv"]:
+            raise Denied(code, NATIVE_CARRIER_TEXT + hint)
+    return cli_tools
+
+
+def arg_pattern(repo: str, agent_id: str, carrier="argv+env") -> str:
+    """argPattern of one agent's exec allowlist entry (CLI route 6.2), matched against argv[1:] joined by spaces:
+    python -I, this repo's jh.py, the guard's argv proof naming this agent (not with the env carrier alone),
+    optional --cycle and --quiet, a command that is not human-only, then only tokens of the R2 class (no token
+    starting with =), anchored at the end. The pattern checks the proof's shape; jh.py checks its signature."""
+    if not AGENT_ID_RE.match(str(agent_id)):
+        raise Denied("E_VALIDATION", "not a jobhunter agent id", data={"agent": agent_id})
+    proof = ""
+    if "argv" in carriers_of(carrier):
+        proof = (" --agent-proof jhp2\\.%s\\.[0-9]{10}\\.[0-9a-f]{16}\\.[0-9a-f]{16}\\.[0-9a-f]{64}"
+                 % regex_escape_path(agent_id))
+    return ("^-I %s/scripts/jh\\.py%s( --cycle C[0-9A-Z]+)?( --quiet)? (?!(%s)( |$))[a-z][a-z0-9-]*( (?!=)%s+)*$"
+            % (regex_escape_path(repo), proof, "|".join(HUMAN_ONLY_WORDS), TOKEN_CLASS))
 
 
 def _walk_subst(obj, typed: dict, text: dict):
@@ -760,12 +1104,36 @@ def _template(name: str, root: str | None = None):
     return _read_json(os.path.join(root or source_root(), "openclaw", name), "openclaw/" + name)
 
 
+def exec_policy(agent: dict, cli_tools: str = "restricted", accept_reduced: bool = False) -> dict:
+    """The explicit tools.exec object of one agent (6.1): allowlist and never ask, deny for jobhunter-qc. Mode N
+    (cli_tools native) renders full for the tool agents, and only together with the reduced-protection
+    acceptance."""
+    check_cli_tools(cli_tools, accept_reduced)
+    if agent.get("exec_policy") == "deny":
+        return json.loads(json.dumps(EXEC_DENY))
+    if agent.get("exec_policy") != "allowlist":
+        raise Denied("E_VALIDATION", "agents.json entry needs exec_policy", data={"agent": agent.get("id")})
+    return json.loads(json.dumps(EXEC_FULL if cli_tools == "native" else EXEC_ALLOWLIST))
+
+
+def exec_patch_value(agent: dict, cli_tools: str = "restricted", accept_reduced: bool = False) -> dict:
+    """tools.exec as written by the agents patch: the explicit policy plus a JSON null (delete) for every legacy
+    key, so a merge into an older install's {security, ask} object still validates."""
+    out = exec_policy(agent, cli_tools, accept_reduced)
+    out.update({k: None for k in LEGACY_EXEC_KEYS})
+    return out
+
+
 def render_agents_patch(agents: list[dict], *, ws_root: str, repo: str, py: str, route: str = "cli",
-                        root: str | None = None) -> dict:
+                        root: str | None = None, cli_tools: str = "restricted", accept_reduced: bool = False,
+                        qc_reply: str = "run") -> dict:
     """{"agents": {"entries": {"jobhunter-*": {...}}}} from agents.patch.json5.tmpl. Nothing outside
-    agents.entries["jobhunter-*"] is ever produced."""
+    agents.entries["jobhunter-*"] is ever produced. tools.exec and tools.elevated are always explicit (6.1). In
+    F-QC mode (qc_reply file) jobhunter-qc may use the write tool (its verdict file only; exec stays deny)."""
     if route not in ("cli", "api_key"):
         raise Denied("E_USAGE", "route must be cli or api_key")
+    if qc_reply not in QC_REPLY_MODES:
+        raise Denied("E_USAGE", "qc reply must be run or file")
     tmpl = _template("agents.patch.json5.tmpl", root)
     if not isinstance(tmpl, dict):
         raise Denied("E_VALIDATION", "agents.patch.json5.tmpl must be one object")
@@ -773,8 +1141,13 @@ def render_agents_patch(agents: list[dict], *, ws_root: str, repo: str, py: str,
     for a in agents:
         models = [a["model"]] + list(a.get("fallbacks") or [])
         runtime = {m: {"agentRuntime": {"id": "claude-cli"}} for m in models} if route == "cli" else _OMIT
-        typed = {"__MODEL__": a["model"], "__SKILLS__": list(a["skills"]), "__TOOLS_ALLOW__": list(a["tools_allow"]),
-                 "__TOOLS_DENY__": list(a["tools_deny"]), "__MODELS_RUNTIME__": runtime}
+        allow, deny = list(a["tools_allow"]), list(a["tools_deny"])
+        if a["id"] == "jobhunter-qc" and qc_reply == "file":
+            allow, deny = ["write"], [t for t in deny if t != "write"]
+        typed = {"__MODEL__": a["model"], "__SKILLS__": list(a["skills"]), "__TOOLS_ALLOW__": allow,
+                 "__TOOLS_DENY__": deny, "__MODELS_RUNTIME__": runtime,
+                 "__EXEC_POLICY__": exec_patch_value(a, cli_tools, accept_reduced),
+                 "__ELEVATED__": dict(ELEVATED_OFF)}
         text = placeholders(repo=repo, py=py, ws_root=ws_root, role=a["role"], agent_id=a["id"])
         entries[a["id"]] = _walk_subst(tmpl, typed, text)
     patch = {"agents": {"entries": entries}}
@@ -783,8 +1156,9 @@ def render_agents_patch(agents: list[dict], *, ws_root: str, repo: str, py: str,
 
 
 def assert_patch_scope(patch: dict, agent_ids: list[str]) -> None:
-    """A patch may only touch agents.entries of our agents and plugins.entries.jobhunter-guard, and
-    skills.load.extraDirs; never bindings, channels, agents.defaults or browser.defaultProfile."""
+    """A patch may only touch agents.entries of our agents and plugins.entries.jobhunter-guard,
+    skills.load.extraDirs, and skills.workshop.autonomous.mode set to a mode without the weekly reviews (with the
+    owner's consent, workshop_patch); never bindings, channels, agents.defaults or browser.defaultProfile."""
     allowed_top = {"agents", "plugins", "skills", "browser"}
     bad = [k for k in patch if k not in allowed_top]
     if "agents" in patch:
@@ -795,8 +1169,12 @@ def assert_patch_scope(patch: dict, agent_ids: list[str]) -> None:
         p = patch["plugins"]
         if set(p) != {"entries"} or set(p["entries"]) - {GUARD_PLUGIN_ID}:
             bad.append("plugins")
-    if "skills" in patch and set(patch["skills"]) != {"load"}:
-        bad.append("skills")
+    if "skills" in patch:
+        s = patch["skills"]
+        ws = s.get("workshop") if isinstance(s, dict) else None
+        if not isinstance(s, dict) or set(s) not in ({"load"}, {"workshop"}) or (
+                ws is not None and ws not in [{"autonomous": {"mode": m}} for m in ("off", WORKSHOP_SAFE_MODE)]):
+            bad.append("skills")
     if "browser" in patch:
         b = patch["browser"]
         if set(b) != {"profiles"} or set(b["profiles"]) != {BROWSER_PROFILE}:
@@ -805,10 +1183,32 @@ def assert_patch_scope(patch: dict, agent_ids: list[str]) -> None:
         raise Denied("E_VALIDATION", "config patch leaves its allowed scope", data={"keys": bad})
 
 
-def render_guard_config(*, repo: str, py: str, cfg: dict) -> dict:
-    """plugins.entries.jobhunter-guard.config (1.4)."""
+def oc_state_dir(profile: str | None = None, home_dir: str | None = None) -> str:
+    """OpenClaw's state folder: ~/.openclaw, or ~/.openclaw-<profile>, resolved absolute."""
+    home_dir = home_dir if home_dir is not None else os.path.expanduser("~")
+    d = os.path.join(home_dir, ".openclaw-%s" % profile if profile else ".openclaw")
+    return os.path.realpath(d)
+
+
+def render_guard_config(*, repo: str, py: str, cfg: dict, ws_root: str | None = None, state_dir: str | None = None,
+                        carriers=("argv", "env"), cli_tools: str = "restricted", qc_verdict_file: bool = False) -> dict:
+    """plugins.entries.jobhunter-guard.config (1.4, CLI route 6.4): native Claude Code tools denied (gated only
+    in mode N), the tool-surface pin, the identity carriers, path-based protected roots for every other agent
+    (reads: private/ and the OpenClaw state folder; writes: the repo, WS_ROOT and the state folder) and the F-QC
+    verdict file switch. Event recording stays off (jhtest only). Mode N (cli_tools native) needs the argv
+    carrier alone (check_cli_tools)."""
+    check_cli_tools(cli_tools, carriers=list(carriers))
+    ws_root = ws_root or os.path.join(repo, "workspaces")
+    state_dir = state_dir or oc_state_dir()
     conf = {"repo": repo, "python": py, "homeFile": os.path.join(repo, "private", "home.json"),
-            "publicReadonlyAgents": ["main"]}
+            "publicReadonlyAgents": ["main"],
+            "claudeNativeTools": "gate" if cli_tools == "native" else "deny",
+            "pinToolSurface": cli_tools != "native",
+            "proofCarriers": carriers_of(list(carriers)),
+            "recordEvents": False,
+            "protectedRoots": {"read": [os.path.join(repo, "private"), state_dir],
+                               "write": [repo, ws_root, state_dir]},
+            "qcVerdictFile": bool(qc_verdict_file)}
     target = notify_target(cfg)
     if target is not None:
         conf["ownerFallback"] = [{"channel": target[0], "senderId": target[1]}]
@@ -827,6 +1227,92 @@ def uninstall_patch(agents: list[dict]) -> dict:
              "plugins": {"entries": {GUARD_PLUGIN_ID: None}}}
     assert_patch_scope(patch, [a["id"] for a in agents])
     return patch
+
+
+def confine_patch(agents: list[dict], present: list[str]) -> dict | None:
+    """The fail-closed config of an install that stopped before the restrictions of its agents were verified:
+    for every declared jobhunter agent that is still present, exec deny, elevated off, workspace-only files and
+    every tool it could use denied. Absent agents are left out (a patch would create a bare entry). None when no
+    jobhunter agent is present."""
+    entries = {}
+    for a in agents:
+        if a["id"] not in present:
+            continue
+        deny = sorted(set(a["tools_deny"]) | set(a["tools_allow"]) | {"exec", "read", "write", "browser"})
+        entries[a["id"]] = {"tools": {"deny": deny, "fs": {"workspaceOnly": True},
+                                      "exec": dict(EXEC_DENY, **{k: None for k in LEGACY_EXEC_KEYS}),
+                                      "elevated": dict(ELEVATED_OFF)}}
+    if not entries:
+        return None
+    patch = {"agents": {"entries": entries}}
+    assert_patch_scope(patch, [a["id"] for a in agents])
+    return patch
+
+
+def agent_ids_from_list(doc) -> list[str]:
+    """Agent ids from `openclaw agents list --json` output (a list of rows, or an object with `agents`)."""
+    rows = doc.get("agents") if isinstance(doc, dict) else doc
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        aid = r.get("id") if isinstance(r, dict) else r
+        if isinstance(aid, str) and aid and aid not in out:
+            out.append(aid)
+    return out
+
+
+# ---------------------------------------------------------------- Skill Workshop and foreign jobs
+def workshop_mode(text) -> str:
+    """skills.workshop.autonomous.mode from `openclaw config get <path> --json` output: "off", "propose" or
+    "auto". Unset, unreadable or unknown counts as "auto", OpenClaw's default (fail closed)."""
+    v = text
+    if isinstance(v, str):
+        t = v.strip()
+        try:
+            v = json.loads(t) if t else None
+        except ValueError:
+            v = t.strip("'\"")
+    if isinstance(v, dict):
+        v = v.get("value")
+    return v if v in WORKSHOP_MODES else "auto"
+
+
+def workshop_patch(mode: str = WORKSHOP_SAFE_MODE) -> dict:
+    """The one global key install may change, with the owner's consent: the Skill Workshop's autonomous mode, so
+    OpenClaw keeps its weekly skill review jobs of the jobhunter agents disabled."""
+    if mode not in ("off", WORKSHOP_SAFE_MODE):
+        raise Denied("E_USAGE", "the Skill Workshop mode must be off or %s" % WORKSHOP_SAFE_MODE)
+    patch = {"skills": {"workshop": {"autonomous": {"mode": mode}}}}
+    assert_patch_scope(patch, [])
+    return patch
+
+
+def _row_agent(r: dict):
+    a = r.get("agentId") or r.get("agent_id") or r.get("agent")
+    return a if isinstance(a, str) and a else None
+
+
+def foreign_agent_jobs(cron_list_doc, agent_ids, known_ids) -> list[dict]:
+    """Jobs of a `cron list --all --json` that run one of our agents but are not an automation of this install
+    (their id is not one of the manifest's job ids): OpenClaw's own skill-collection-review:<agent> monitors, a
+    leftover QC one-shot, a job someone added by hand. [{id, key, agent, enabled, name, kind}]; kind is
+    skill_review, qc_oneshot or other."""
+    ids = set(str(v) for v in (known_ids or {}).values())
+    agents = set(agent_ids)
+    rows = cron_list_doc.get("jobs") if isinstance(cron_list_doc, dict) else cron_list_doc
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict) or _row_agent(r) not in agents:
+            continue
+        jid = str(r.get("id") or "")
+        if jid and jid in ids:
+            continue
+        key = r.get("declarationKey") or r.get("declaration_key") or ""
+        key = key if isinstance(key, str) else ""
+        kind = ("skill_review" if key.startswith(SKILL_REVIEW_PREFIX) else
+                "qc_oneshot" if key.startswith(QC_REVIEW_KEY + "-") else "other")
+        out.append({"id": jid, "key": key, "agent": _row_agent(r), "enabled": r.get("enabled") is not False,
+                    "name": r.get("name"), "kind": kind})
+    return sorted(out, key=lambda j: (j["agent"], j["key"], j["id"]))
 
 
 def extra_dirs_patch(current, repo: str, remove: bool = False) -> tuple[dict | None, list]:
@@ -863,9 +1349,10 @@ def _approvals_document(current) -> tuple[dict, list[str]]:
 
 
 def merge_approvals(current, agents: list[dict], *, repo: str, py: str, root: str | None = None,
-                    remove: bool = False) -> dict:
-    """The approvals document with one entry per jobhunter agent under `agents` (exec agents: python and the
-    jh.py argPattern; agents without exec: deny). Other agents and `defaults` are kept as they are."""
+                    remove: bool = False, carrier="argv+env") -> dict:
+    """The approvals document with one entry per jobhunter agent under `agents` (exec agents: python and that
+    agent's own jh.py argPattern, ask off, askFallback deny; agents without exec: deny). Other agents and
+    `defaults` are kept as they are; our entries are replaced whole."""
     doc, _ = _approvals_document(current)
     doc = json.loads(json.dumps(doc))
     doc.setdefault("version", 1)
@@ -878,7 +1365,8 @@ def merge_approvals(current, agents: list[dict], *, repo: str, py: str, root: st
         tmpl = _template("exec-approvals.json5.tmpl", root)
         for a in agents:
             if "exec" in a["tools_allow"]:
-                entry = _walk_subst(tmpl["exec_agent"], {}, {"__PY__": py, "__ARG_PATTERN__": arg_pattern(repo)})
+                entry = _walk_subst(tmpl["exec_agent"], {}, {"__PY__": py,
+                                                             "__ARG_PATTERN__": arg_pattern(repo, a["id"], carrier)})
             else:
                 entry = json.loads(json.dumps(tmpl["no_exec_agent"]))
             agents_map[a["id"]] = entry
@@ -886,9 +1374,64 @@ def merge_approvals(current, agents: list[dict], *, repo: str, py: str, root: st
     return doc
 
 
+def _rule(entry):
+    """(pattern, argPattern) of one approvals allowlist entry (a bare string is a pattern)."""
+    if isinstance(entry, str):
+        return (entry, None)
+    if isinstance(entry, dict):
+        return (entry.get("pattern"), entry.get("argPattern"))
+    return (repr(entry), None)
+
+
+def approvals_problems(current, agents: list[dict], *, repo: str, py: str, carrier="argv+env") -> dict:
+    """{agent id: [problems]} for the host approvals as OpenClaw resolves them for each jobhunter agent (empty when
+    it passes). The effective allowlist is agents["*"]'s entries followed by the agent's own, so it must be exactly
+    the rendered entry (python, the agent's own jh.py argPattern) for an exec agent and empty otherwise; a wildcard
+    entry would widen every jobhunter agent's allowlist. autoAllowSkills (the agent's, else agents["*"]'s, else
+    defaults') must be false. Fail closed: an unreadable document is a problem for every agent."""
+    try:
+        doc, _ = _approvals_document(current)
+    except Denied as exc:
+        return {a["id"]: [exc.message] for a in agents}
+    amap = doc.get("agents") if isinstance(doc.get("agents"), dict) else {}
+    wild = amap.get("*") if isinstance(amap.get("*"), dict) else {}
+    defaults = doc.get("defaults") if isinstance(doc.get("defaults"), dict) else {}
+    wild_rules = [_rule(e) for e in wild.get("allowlist") or []] if isinstance(wild.get("allowlist"), list) else []
+    out = {}
+    for a in agents:
+        own = amap.get(a["id"]) if isinstance(amap.get(a["id"]), dict) else {}
+        problems = []
+        if wild_rules:
+            problems.append('agents["*"] adds %d allowlist entries to every agent (%s); move them to the agents '
+                            'that need them' % (len(wild_rules), ", ".join(sorted(str(p) for p, _ in wild_rules))))
+        rules = [_rule(e) for e in own.get("allowlist") or []] if isinstance(own.get("allowlist"), list) else []
+        want = [(py, arg_pattern(repo, a["id"], carrier))] if "exec" in a["tools_allow"] else []
+        extra = [r for r in rules if r not in want]
+        if extra:
+            problems.append("allowlist entries the installer does not write: %s"
+                            % ", ".join(sorted(str(p) for p, _ in extra)))
+        if want and want[0] not in rules:
+            problems.append("the jh.py allowlist entry is missing or differs (run ./install.sh)")
+        auto = next((v.get("autoAllowSkills") for v in (own, wild, defaults) if v.get("autoAllowSkills") is not None),
+                    False)
+        if auto is not False:
+            problems.append("autoAllowSkills is %s (skill binaries would run without an allowlist entry)"
+                            % json.dumps(auto))
+        out[a["id"]] = problems
+    return out
+
+
 # ---------------------------------------------------------------- guard heartbeat
-def guard_status(max_age_s: int = 600) -> dict:
-    """{fresh, age_s, install_id, reason} from state/guard/heartbeat.json and private/home.json (12.18)."""
+def guard_status(max_age_s: int = 600, proof_version: int | None = None) -> dict:
+    """{fresh, age_s, install_id, reason, proof_version, carriers} from state/guard/heartbeat.json and
+    private/home.json (12.18). With proof_version, a heartbeat of an older guard is not fresh (old_guard)."""
+    st = _guard_status(max_age_s)
+    if proof_version is not None and st["fresh"] and st.get("proof_version") != proof_version:
+        st.update(fresh=False, reason="old_guard")
+    return st
+
+
+def _guard_status(max_age_s: int) -> dict:
     h = home_or_empty()
     want = h.get("install_id")
     hb_path = os.path.join(paths.guard_dir(), "heartbeat.json")
@@ -905,16 +1448,338 @@ def guard_status(max_age_s: int = 600) -> dict:
         return {"fresh": False, "age_s": None, "install_id": want, "reason": "bad_beat_at"}
     age = int((_dt.datetime.now(_dt.timezone.utc) - beat).total_seconds())
     fresh = -120 <= age <= max_age_s
-    return {"fresh": fresh, "age_s": age, "install_id": want, "reason": "" if fresh else "stale"}
+    pv = hb.get("proof_version")
+    seen = hb.get("pin_hook_seen_at")
+    return {"fresh": fresh, "age_s": age, "install_id": want, "reason": "" if fresh else "stale",
+            "proof_version": pv if isinstance(pv, int) and not isinstance(pv, bool) else None,
+            "carriers": hb.get("carriers") if isinstance(hb.get("carriers"), list) else None,
+            "pin_tool_surface": hb.get("pin_tool_surface") if isinstance(hb.get("pin_tool_surface"), bool) else None,
+            "pin_hook_reported": "pin_hook_seen_at" in hb,
+            "pin_hook_seen_at": seen if isinstance(seen, str) else None}
 
 
-def wait_guard(timeout_s: int, poll_s: float = 2.0) -> dict:
+PIN_HOOK_NEVER_SEEN = (
+    "WARN  the guard's tool pin hook has never run (heartbeat pin_hook_seen_at is null). OpenClaw 2026.9.8 runs a\n"
+    "      plugin's before_prompt_build hook only when plugins.entries.jobhunter-guard.hooks.allowConversationAccess\n"
+    "      is true, and the installer does not grant that. Restricted cron runs do not need the pin; it only adds a\n"
+    "      notice to a run started by hand, which is not supported (docs/ENFORCEMENT.md, Runs started by hand).")
+
+
+def pin_hook_line(st: dict) -> str:
+    """One doctor line about the guard's tool pin hook (before_prompt_build) from guard_status(): informational
+    only, never a failure. The installer never sets hooks.allowConversationAccess itself."""
+    if st.get("reason") in ("no_heartbeat", "install_id_mismatch", "bad_beat_at"):
+        return "info  guard tool pin hook: unknown (no guard heartbeat of this install)"
+    if st.get("pin_tool_surface") is False:
+        return "info  guard tool pin: off (agent mode native)"
+    if not st.get("pin_hook_reported"):
+        return "info  guard tool pin hook: this guard does not report it"
+    if st.get("pin_hook_seen_at") is None:
+        return PIN_HOOK_NEVER_SEEN
+    return "ok    guard tool pin hook ran (last at %s)" % st["pin_hook_seen_at"]
+
+
+def wait_guard(timeout_s: int, poll_s: float = 2.0, proof_version: int | None = None) -> dict:
     deadline = time.monotonic() + max(0, timeout_s)
     while True:
-        st = guard_status()
+        st = guard_status(proof_version=proof_version)
         if st["fresh"] or time.monotonic() >= deadline:
             return st
         time.sleep(poll_s)
+
+
+# ---------------------------------------------------------------- CLI route switches (6.6)
+def read_cli_route(h: dict | None = None) -> dict:
+    """private/home.json `cli_route` with the defaults filled in: {carriers, qc_reply, cli_tools,
+    accepted_reduced_protection}. A malformed value is refused (E_CONFIG_INVALID), never guessed."""
+    h = home_or_empty() if h is None else h
+    raw = h.get("cli_route") if isinstance(h, dict) else None
+    raw = raw if isinstance(raw, dict) else {}
+    out = dict(CLI_ROUTE_DEFAULT, accepted_reduced_protection=False)
+    if "carriers" in raw:
+        try:
+            out["carriers"] = carriers_of(raw["carriers"])
+        except Denied:
+            raise Denied("E_CONFIG_INVALID", "private/home.json cli_route.carriers must be a non-empty subset of "
+                         "argv and env; run ./install.sh")
+    for key, allowed in (("qc_reply", QC_REPLY_MODES), ("cli_tools", CLI_TOOL_MODES)):
+        if key in raw:
+            if raw[key] not in allowed:
+                raise Denied("E_CONFIG_INVALID", "private/home.json cli_route.%s must be one of %s"
+                             % (key, ", ".join(allowed)))
+            out[key] = raw[key]
+    out["accepted_reduced_protection"] = raw.get("accepted_reduced_protection") is True
+    check_cli_tools(out["cli_tools"], out["accepted_reduced_protection"], out["carriers"], code="E_CONFIG_INVALID",
+                    hint=" (private/home.json cli_route); run ./install.sh")
+    return out
+
+
+def set_cli_route(carriers=None, qc_reply: str | None = None, cli_tools: str | None = None,
+                  accept_reduced: bool = False) -> dict:
+    """Write `cli_route` into private/home.json (the U3 F-QC switch uses qc_reply="file"). cli_tools native is
+    stored only with the reduced-protection acceptance and the argv carrier alone (check_cli_tools): setting
+    native without carriers selects argv (data.carriers shows it), naming env with it is refused. Any other
+    cli_tools value clears the acceptance, so a re-run without both flags returns to restricted (m8)."""
+    hf = paths.home_file()
+    h = paths.home()
+    cur = read_cli_route(h)
+    if carriers is not None:
+        cur["carriers"] = carriers_of(carriers)
+    if qc_reply is not None:
+        if qc_reply not in QC_REPLY_MODES:
+            raise Denied("E_USAGE", "qc reply must be run or file")
+        cur["qc_reply"] = qc_reply
+    if cli_tools is not None:
+        check_cli_tools(cli_tools, accept_reduced)
+        if cli_tools == "native" and carriers is None:
+            cur["carriers"] = ["argv"]
+        cur["cli_tools"] = cli_tools
+        cur["accepted_reduced_protection"] = cli_tools == "native"
+    check_cli_tools(cur["cli_tools"], cur["accepted_reduced_protection"], cur["carriers"])
+    h["cli_route"] = {"carriers": cur["carriers"], "qc_reply": cur["qc_reply"], "cli_tools": cur["cli_tools"],
+                      "accepted_reduced_protection": cur["accepted_reduced_protection"]}
+    write_json(hf, h)
+    return read_cli_route(h)
+
+
+# ---------------------------------------------------------------- model route (Claude login or API key)
+MODEL_ROUTES = ("cli", "api_key")
+
+
+def recorded_model_route(h: dict | None = None) -> str:
+    """The model route this clone was installed with: private/home.json `model_route`, else the route of the last
+    passed identity checks (installs from before the record), else "" (unknown). A re-run of ./install.sh (and
+    ./jobhunter update) keeps it, so an API key install is not switched to the Claude login by accident."""
+    h = home_or_empty() if h is None else h
+    r = h.get("model_route") if isinstance(h, dict) else None
+    if r in MODEL_ROUTES:
+        return r
+    if not h:
+        return ""
+    try:
+        r = (probe_stamp().get("versions") or {}).get("route")
+    except (Denied, OSError, ValueError, AttributeError):
+        return ""
+    return r if r in MODEL_ROUTES else ""
+
+
+def set_model_route(route: str) -> str:
+    if route not in MODEL_ROUTES:
+        raise Denied("E_USAGE", "the model route must be cli or api_key")
+    hf = paths.home_file()
+    h = paths.home()
+    h["model_route"] = route
+    write_json(hf, h)
+    return route
+
+
+# ---------------------------------------------------------------- effective exec policy (6.1, 4.4)
+def exec_rendered_keys(agent: dict, cli_tools: str = "restricted", accept_reduced: bool = False) -> set:
+    return set(exec_policy(agent, cli_tools, accept_reduced))
+
+
+def stale_exec_keys(current, agent: dict, cli_tools: str = "restricted", accept_reduced: bool = False) -> list[str]:
+    """Keys under agents.entries.<id>.tools.exec that the renderer does not write (an old reviewer, pathPrepend
+    or an older template's key): install removes them with `config unset`."""
+    if not isinstance(current, dict):
+        return []
+    want = exec_rendered_keys(agent, cli_tools, accept_reduced)
+    return sorted(k for k in current if k not in want)
+
+
+def _elevated_on(v):
+    if isinstance(v, dict):
+        v = v.get("enabled")
+    return v if isinstance(v, bool) else None
+
+
+def exec_policy_problems(agent: dict, eff, cli_tools: str = "restricted") -> list[str]:
+    """What is wrong with one agent's effective exec policy (ocrun.effective_exec: {security, ask, mode, elevated,
+    approvals_ask, approvals_fallback}). Fail closed: an unknown value is a problem. Pass for a tool agent:
+    security allowlist (full in mode N), ask off, elevated off, approvals ask off and askFallback deny; jobhunter-qc:
+    security deny."""
+    eff = eff if isinstance(eff, dict) else {}
+    want_sec = "deny" if agent.get("exec_policy") == "deny" else ("full" if cli_tools == "native" else "allowlist")
+    out = []
+    if eff.get("security") != want_sec:
+        out.append("security is %s, expected %s" % (eff.get("security") or "unknown", want_sec))
+    if eff.get("mode") not in (None, want_sec):
+        out.append("mode is %s, expected %s" % (eff.get("mode"), want_sec))
+    if eff.get("ask") != "off":
+        out.append("ask is %s, expected off" % (eff.get("ask") or "unknown"))
+    el = _elevated_on(eff.get("elevated"))
+    if el is not False:
+        out.append("elevated is %s, expected off" % ("on" if el else "unknown"))
+    if eff.get("approvals_ask") != "off":
+        out.append("approvals ask is %s, expected off" % (eff.get("approvals_ask") or "unknown"))
+    if eff.get("approvals_fallback") != "deny":
+        out.append("approvals askFallback is %s, expected deny" % (eff.get("approvals_fallback") or "unknown"))
+    return out
+
+
+def unconfined(eff) -> str | None:
+    """Why an agent's shell is unconfined (4.4), or None when it is confined (ocrun.unconfined_reason: the
+    per-agent mode first, then security and ask; unknown values count as unconfined)."""
+    return ocrun.unconfined_reason(eff)
+
+
+def boundary_line(agent_id: str, why: str) -> str:
+    return ("agent %s has an unconfined shell (%s) and can impersonate jobhunter agents; set its exec policy to "
+            "allowlist with ask off" % (agent_id, why))
+
+
+# ---------------------------------------------------------------- claude CLI and probe stamp
+def claude_flags_missing(help_text: str) -> list[str]:
+    """claude flags that restricted runs need and `claude --help` does not list (m6)."""
+    text = help_text or ""
+    return [f for f in CLAUDE_FLAGS if not re.search(r"(^|[\s,])%s([\s=,]|$)" % re.escape(f), text, re.M)]
+
+
+def parse_claude_version(text: str) -> tuple | None:
+    """(major, minor, patch) from `claude --version` output such as "2.1.280 (Claude Code)"."""
+    m = re.search(r"(?<![\d.])(\d{1,3})\.(\d{1,4})\.(\d{1,6})(?![\d])", text or "")
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def model_base(model: str) -> str:
+    """The model name without its provider prefix and context suffix: anthropic/claude-opus-5-5[1m] ->
+    claude-opus-5-5."""
+    name = str(model or "").strip().lower().rsplit("/", 1)[-1]
+    return re.sub(r"\[[^\]]*\]$", "", name)
+
+
+def jobhunter_models(agents: list[dict], crons: dict) -> dict:
+    """{model: sorted agent ids} for every model (primary or fallback) a jobhunter agent or job runs with."""
+    used = {}
+
+    def add(model, who):
+        if isinstance(model, str) and model.strip():
+            used.setdefault(model.strip(), set()).add(str(who))
+    for a in agents:
+        add(a.get("model"), a["id"])
+        for f in a.get("fallbacks") or []:
+            add(f, a["id"])
+    for j in crons.get("jobs") or []:
+        if j.get("kind") == "command":
+            continue
+        add(j.get("model"), j.get("agent") or j.get("key"))
+        for f in _fallbacks_list(j):
+            add(f, j.get("agent") or j.get("key"))
+    return {m: sorted(w) for m, w in used.items()}
+
+
+def claude_model_check(version_text: str, agents: list[dict], crons: dict, minimum: dict | None = None) -> dict:
+    """Compare `claude --version` with the oldest Claude Code each jobhunter model needs (CLAUDE_MODEL_MINIMUM).
+    Returns {version, too_old: [{model, needs, agents}], unknown: [{model, needs, agents}]} (unknown: the version
+    could not be read, so the models with a minimum are not checked)."""
+    table = CLAUDE_MODEL_MINIMUM if minimum is None else minimum
+    v = parse_claude_version(version_text)
+    too_old, unknown = [], []
+    for model, who in sorted(jobhunter_models(agents, crons).items()):
+        need = table.get(model_base(model))
+        if need is None:
+            continue
+        row = {"model": model, "needs": ".".join(str(x) for x in need), "agents": who}
+        if v is None:
+            unknown.append(row)
+        elif v < tuple(need):
+            too_old.append(row)
+    return {"version": ".".join(str(x) for x in v) if v else None, "too_old": too_old, "unknown": unknown}
+
+
+# ---------------------------------------------------------------- openclaw doctor (./jobhunter doctor)
+_AGENT_PATH_RE = re.compile(r"^agents\.entries\.([A-Za-z0-9_-]+)(?:\.|$)")
+
+
+def _finding_agent(f: dict) -> str | None:
+    target = f.get("target")
+    if isinstance(target, str) and target:
+        return target
+    m = _AGENT_PATH_RE.match(str(f.get("path") or ""))
+    return m.group(1) if m else None
+
+
+def _finding_line(f: dict) -> str:
+    text = " ".join(str(f.get("message") or "").split())
+    if len(text) > 200:
+        text = text[:197] + "..."
+    return "%s %s: %s" % (str(f.get("severity") or "unknown"), str(f.get("checkId") or "?"), text)
+
+
+def doctor_verdict(doc, rc: int, agent_ids, output_lines=()) -> dict:
+    """Judge `openclaw doctor --lint --json` by the severity of its findings. OpenClaw 2026.9.8 reports ok false
+    with warnings only, so the exit status and its ok field are not the verdict: a finding of severity error (or of a
+    severity DOCTOR_WARN_SEVERITIES and DOCTOR_QUIET_SEVERITIES do not name) fails; warnings are listed; info is
+    counted. The skill-workshop-tool-policy finding of a jobhunter agent is expected (DOCTOR_EXPECTED_AGENT_CHECKS)
+    and listed apart. Output without a findings list falls back to its ok field, then to the exit status (the
+    first output lines are shown when that fails)."""
+    ids = set(agent_ids or [])
+    findings = doc.get("findings") if isinstance(doc, dict) else None
+    out = {"ok": False, "parsed": isinstance(findings, list), "errors": [], "warnings": [], "expected": {},
+           "info": 0, "lines": []}
+    if not isinstance(findings, list):
+        if isinstance(doc, dict) and isinstance(doc.get("ok"), bool):
+            out["ok"] = doc["ok"]
+        else:
+            out["ok"] = rc == 0
+        if not out["ok"]:
+            out["lines"] = [l for l in (str(x).rstrip() for x in output_lines) if l.strip()][:6] or \
+                ["openclaw doctor --lint --json exited with status %d" % rc]
+        return out
+    for f in findings:
+        f = f if isinstance(f, dict) else {"message": str(f)}
+        sev = str(f.get("severity") or "").strip().lower()
+        agent = _finding_agent(f)
+        if f.get("checkId") in DOCTOR_EXPECTED_AGENT_CHECKS and agent in ids and sev in DOCTOR_WARN_SEVERITIES:
+            out["expected"].setdefault(str(f["checkId"]), []).append(agent)
+        elif sev in DOCTOR_QUIET_SEVERITIES:
+            out["info"] += 1
+        elif sev in DOCTOR_WARN_SEVERITIES:
+            out["warnings"].append(_finding_line(f))
+        else:
+            out["errors"].append(_finding_line(f))
+    out["ok"] = not out["errors"]
+    lines = list(out["errors"]) + list(out["warnings"])
+    for check, who in sorted(out["expected"].items()):
+        lines.append("expected %s for %s (%s)" % (check, ", ".join(sorted(set(who))),
+                                                  DOCTOR_EXPECTED_AGENT_CHECKS[check]))
+    out["lines"] = lines
+    return out
+
+
+def guard_version(root: str | None = None) -> str:
+    try:
+        with open(os.path.join(root or source_root(), "openclaw", "plugins", GUARD_PLUGIN_ID, "package.json"),
+                  "r", encoding="utf-8") as fh:
+            return str(json.load(fh).get("version") or "unknown")
+    except (OSError, ValueError, AttributeError):
+        return "unknown"
+
+
+def stamp_versions(*, openclaw: str, claude: str = "", route: str = "cli", h: dict | None = None) -> dict:
+    """What the identity probes were checked against (M9): OpenClaw, claude, guard and jh.py versions, the model
+    route and the CLI route switches. Probes are skipped on a re-run only when all of these are unchanged."""
+    from . import __version__
+    v = parse_version(openclaw)
+    cr = read_cli_route(h)
+    return {"openclaw": ".".join(str(x) for x in v) if v else (openclaw or "").strip()[:80],
+            "claude": (claude or "").strip().split("\n")[0][:80], "guard": guard_version(), "jh": __version__,
+            "route": route, "carriers": cr["carriers"], "cli_tools": cr["cli_tools"], "qc_reply": cr["qc_reply"]}
+
+
+def probe_stamp() -> dict:
+    st = read_manifest().get("probe_stamp")
+    return st if isinstance(st, dict) else {}
+
+
+def probe_stamp_matches(versions: dict) -> bool:
+    return probe_stamp().get("versions") == versions
+
+
+def write_probe_stamp(versions: dict) -> dict:
+    stamp = {"versions": versions, "at": now()}
+    merge_manifest({"probe_stamp": stamp})
+    return stamp
 
 
 # ---------------------------------------------------------------- misc renderers
@@ -1117,14 +1982,15 @@ def shell_env(h: dict) -> str:
     """KEY=value lines (shell-quoted) for the wrapper and install.sh."""
     pairs = [("JH_HOME_EXISTS", "1" if h else "0"), ("JH_OC_BIN", h.get("oc_bin", "")),
              ("JH_OC_PROFILE", h.get("oc_profile", "")), ("JH_PY", h.get("python", "")),
-             ("JH_WS_ROOT", h.get("ws_root", "")), ("JH_INSTALL_ID", h.get("install_id", ""))]
+             ("JH_WS_ROOT", h.get("ws_root", "")), ("JH_INSTALL_ID", h.get("install_id", "")),
+             ("JH_MODEL_ROUTE", recorded_model_route(h) if h else "")]
     return "\n".join("%s=%s" % (k, shlex.quote(str(v or ""))) for k, v in pairs)
 
 
 def cron_summary(crons: dict, cron_list_doc) -> str:
     found = cron_jobs_from_list(cron_list_doc)
     lines = []
-    for j in crons["jobs"]:
+    for j in declared_jobs(crons):
         f = found.get(j["key"])
         state = "missing" if f is None else ("enabled" if f["enabled"] else "disabled")
         lines.append("%-26s %-9s %s" % (j["key"], state, j["display"]))
@@ -1199,7 +2065,10 @@ def load_consent(strict: bool = True) -> dict:
     for site, row in doc["sites"].items():
         if site in CONSENT_SITES and isinstance(row, dict) and row.get("status") in CONSENT_STATUSES:
             sites[site] = row
-    return {"version": CONSENT_VERSION, "sites": sites, "updated_at": doc.get("updated_at")}
+    out = {"version": CONSENT_VERSION, "sites": sites, "updated_at": doc.get("updated_at")}
+    if isinstance(doc.get("capabilities"), dict):
+        out["capabilities"] = doc["capabilities"]      # email codes and site accounts (identity.py), kept as is
+    return out
 
 
 def _row_active(site: str, row) -> bool:
@@ -1273,7 +2142,10 @@ def _site_list(value) -> list[str]:
 
 
 def _save_consent(doc: dict) -> str:
-    doc = {"version": CONSENT_VERSION, "updated_at": now(), "sites": doc.get("sites", {})}
+    out = {"version": CONSENT_VERSION, "updated_at": now(), "sites": doc.get("sites", {})}
+    if doc.get("capabilities"):
+        out["capabilities"] = doc["capabilities"]
+    doc = out
     return _write_private(consent_path(), json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True) + "\n")
 
 
@@ -1497,3 +2369,49 @@ def login_verdict(site: str, probe, expect_email: str | None = None) -> tuple[st
     if on_site:
         return "ok", "%s looks logged in (%s; best effort)" % (label, where)
     return "unknown", "%s opened another site (%s)" % (label, where)
+
+
+# ---------------------------------------------------------------- email codes and site accounts (capabilities)
+def capability_sites(cfg: dict, only=None) -> list[dict]:
+    """The ATS sites the consent step asks about (FEATURES-OTP-ACCOUNTS-CAPTCHA 4.3): every ATS platform enabled
+    in the config (sources.api.<ats> true, or a boards.sites apply mode browser), any site that already has a
+    capability row, and the host: sites named in `only`. One row per site and capability with its state."""
+    from . import accounts, identity
+    api = _get(cfg, "sources.api", {}) or {}
+    boards = _get(cfg, "boards.sites", {}) or {}
+    doc = identity.load_consent()
+    names = [p for p in accounts.ATS_PLATFORMS if api.get(p) is True or
+             (isinstance(boards.get(p), dict) and boards[p].get("apply") == "browser")]
+    for cap in identity.CAPABILITIES:
+        for site in (doc.get("capabilities") or {}).get(cap) or {}:
+            if site not in names:
+                names.append(site)
+    if only:
+        names = [identity.valid_capability_site(x) for x in only]
+    out = []
+    for site in names:
+        for cap in identity.CAPABILITIES:
+            row = ((doc.get("capabilities") or {}).get(cap) or {}).get(site) or {}
+            state = "granted" if identity.capability_active(cap, site, doc, cfg) else (row.get("status") or "none")
+            out.append({"site": site, "capability": cap, "status": state, "label": identity.site_label(site)})
+    return out
+
+
+def cdp_port_from(profile_json: str) -> int | None:
+    """The jobhunter profile's cdpPort from `openclaw config get browser.profiles.jobhunter --json` output."""
+    try:
+        doc = json.loads(profile_json)
+    except ValueError:
+        return None
+    if isinstance(doc, dict) and isinstance(doc.get("value"), dict):
+        doc = doc["value"]
+    p = doc.get("cdpPort") if isinstance(doc, dict) else None
+    return p if isinstance(p, int) and not isinstance(p, bool) and 1024 <= p <= 65535 else None
+
+
+def record_browser_cdp(port: int) -> dict:
+    """private/home.json browser_cdp: {"port": <port>} (loopback only; cdp.py never contacts another host)."""
+    h = paths.home()
+    h["browser_cdp"] = {"port": int(port)}
+    _write_private(paths.home_file(), json.dumps(h, indent=1, sort_keys=True) + "\n")
+    return h["browser_cdp"]

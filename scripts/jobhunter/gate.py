@@ -808,17 +808,65 @@ def guard_log(token: str) -> list[dict]:
 
 
 def commit_count(token: str) -> int:
+    """Commit lines in the token log, written by the guard or by code ("by": "code"); both use the budget."""
     return sum(1 for r in guard_log(token) if r.get("class") == "commit")
 
 
+def append_code_line(token: str, *, cls: str, action: str, host: str | None, name: str | None,
+                     agent: str = "jobhunter-applier") -> None:
+    """One line in state/guard/<token>.jsonl for a browser step code made (FEATURES-OTP-ACCOUNTS-CAPTCHA 2.3h):
+    {"ts","token","agent","by":"code","class","action","host","ref":null,"role":"button","name"}. A class commit
+    line counts toward the token's commit budget exactly like a guard line."""
+    if not re.match(r"^T[A-Z2-7]{11}$", token or "") or cls not in ("fill", "commit"):
+        raise Denied("E_INTERNAL", "bad token log line")
+    rec = {"ts": now(), "token": token, "agent": agent, "by": "code", "class": cls, "action": action,
+           "host": host, "ref": None, "role": "button", "name": (name or "")[:120]}
+    os.makedirs(paths.guard_dir(), exist_ok=True)
+    path = os.path.join(paths.guard_dir(), "%s.jsonl" % token)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, sort_keys=True) + "\n")
+
+
+def release_for_captcha(conn, token: str) -> str:
+    """A CAPTCHA paused this token's action (3.2 rule 2): reserved, or armed with no commit line in the token log
+    -> failed (form_blocked_before_submit), 'released', staged resume unstaged; armed with a commit line -> unknown
+    (as gate unknown), 'unknown'; already settled -> 'none'. Inside the caller's tx."""
+    a = action_by_token(conn, token)
+    if a["status"] not in ("reserved", "armed"):
+        return "none"
+    if a["status"] == "armed" and commit_count(token):
+        mark_unknown(conn, token, note="captcha_after_click: a CAPTCHA showed with or after the submit click")
+        return "unknown"
+    ts = now()
+    conn.execute("UPDATE actions SET status = 'failed', fail_reason = 'form_blocked_before_submit', resolved_at = ?, "
+                 "evidence = ?, updated_at = ? WHERE id = ?", (ts, "captcha before any commit", ts, a["id"]))
+    settle_code_requests(conn, a["id"], "captcha")
+    try:
+        from . import resume
+        fn = getattr(resume, "unstage", None)
+        if fn is not None:
+            fn(conn, token)
+    except Exception:
+        pass
+    log_event(conn, "failed", token=token, reason="form_blocked_before_submit", by="captcha")
+    return "released"
+
+
 def guard_heartbeat() -> dict:
-    """{present, fresh, age_s, install_id_ok} from state/guard/heartbeat.json (12.18)."""
+    """{present, fresh, age_s, install_id_ok, proof_version, carriers, native_tools, pin_tool_surface,
+    guard_version} from state/guard/heartbeat.json (12.18; CLI route 7.12). `fresh` is about age and install
+    only; callers that start agent runs also require proof_version 2 (ocrun.preflight, dispatch.tick)."""
     path = os.path.join(paths.guard_dir(), "heartbeat.json")
+    empty = {"present": False, "fresh": False, "age_s": None, "install_id_ok": False, "proof_version": None,
+             "carriers": None, "native_tools": None, "pin_tool_surface": None, "guard_version": None}
     try:
         with open(path, "r", encoding="utf-8") as fh:
             hb = json.load(fh)
     except (OSError, ValueError):
-        return {"present": False, "fresh": False, "age_s": None, "install_id_ok": False}
+        return empty
+    if not isinstance(hb, dict):
+        return dict(empty, present=True)
     try:
         age = seconds_between(hb.get("beat_at") or "", now())
     except (ValueError, TypeError):
@@ -828,7 +876,15 @@ def guard_heartbeat() -> dict:
     except Denied:
         iid_ok = False
     fresh = age is not None and -60 <= age <= 600 and iid_ok
-    return {"present": True, "fresh": fresh, "age_s": age, "install_id_ok": iid_ok}
+    pv = hb.get("proof_version")
+    carriers = hb.get("carriers")
+    return {"present": True, "fresh": fresh, "age_s": age, "install_id_ok": iid_ok,
+            "proof_version": pv if isinstance(pv, int) and not isinstance(pv, bool) else None,
+            "carriers": sorted(c for c in carriers if isinstance(c, str)) if isinstance(carriers, list) else None,
+            "native_tools": hb.get("native_tools") if isinstance(hb.get("native_tools"), str) else None,
+            "pin_tool_surface": hb.get("pin_tool_surface") if isinstance(hb.get("pin_tool_surface"), bool) else None,
+            "guard_version": hb.get("version") if isinstance(hb.get("version"), str) else
+            (hb.get("guard_version") if isinstance(hb.get("guard_version"), str) else None)}
 
 
 # ---------------------------------------------------------------- reserve
@@ -1047,7 +1103,7 @@ def reserve(conn, *, kind: str, draft_id: int, precheck_id: int, platform: str, 
     # 4 agent callers: guard heartbeat
     if agent_id != "system:mailer":
         if not (agent_id or "").startswith("jobhunter-"):
-            raise Denied("E_GUARD_MISSING", "no agent identity (JH_AGENT_ID)")
+            raise Denied("E_GUARD_MISSING", "no verified agent identity (the jobhunter-guard proof is missing)")
         hb = guard_heartbeat()
         if not hb["fresh"]:
             raise Denied("E_GUARD_MISSING", "the jobhunter-guard heartbeat is missing or stale", data=hb)
@@ -1323,7 +1379,39 @@ def arm(conn, token: str, observed_text: str, agent_id: str | None = None) -> di
     conn.execute("UPDATE actions SET status = 'armed', armed_at = ?, observed_sha256 = ?, updated_at = ? WHERE id = ?",
                  (ts, obs_sha, ts, a["id"]))
     log_event(conn, "armed", token=token)
-    return {"armed": True, "token": token, "armed_at": ts}
+    out = {"armed": True, "token": token, "armed_at": ts}
+    req = _arm_code_request(conn, a, ts)
+    if req:
+        out["code_request"] = req
+    return out
+
+
+def _arm_code_request(conn, a, ts: str) -> str | None:
+    """2.4 step 1: arming an application token on a site with email_codes granted opens the implicit code request
+    (purpose application_submit, requested_at = armed_at) for the agent's tab of that job, so a security code sent
+    after the first submit (Greenhouse) can be read. Only when the agent's last code request for the job names the
+    tab; no request otherwise."""
+    if a["kind"] != "application" or not a["job_id"]:
+        return None
+    try:
+        from . import accounts, identity, otp
+        job = conn.execute("SELECT * FROM jobs WHERE id = ?", (a["job_id"],)).fetchone()
+        platform, site, host, _url = accounts.job_platform(job)
+        cfg = _config.load(conn)
+        if not identity.capability_active("email_codes", site, cfg=cfg) or \
+                identity.capability_prerequisite(conn, "email_codes", cfg):
+            return None
+        last = conn.execute("SELECT tab_id, host, tenant FROM code_requests WHERE job_id = ? AND agent_id = ? "
+                            "ORDER BY id DESC LIMIT 1", (a["job_id"], a["agent_id"])).fetchone()
+        tab = last["tab_id"] if last is not None else None
+        if not tab:
+            return None
+        req = otp.open_request(conn, platform=platform, site=site, host=last["host"] or host, tenant=last["tenant"],
+                               purpose="application_submit", want="either", job_id=a["job_id"], action_id=a["id"],
+                               tab_id=tab, agent_id=a["agent_id"], cycle_id=a["cycle_id"], cfg=cfg, requested_at=ts)
+        return req["request_uid"]
+    except Denied:
+        return None
 
 
 def mark_armed(conn, token: str, message_id: str | None = None) -> None:
@@ -1390,8 +1478,17 @@ def _sent_variant(conn, kind: str, draft_id) -> int | None:
     return dr["attachment_variant_id"] or None
 
 
+def settle_code_requests(conn, action_id: int, why: str) -> None:
+    """A settled action's open code requests (the implicit application_submit request of gate arm) are cancelled,
+    so they never expire into a counted failure."""
+    ts = now()
+    conn.execute("UPDATE code_requests SET status = 'cancelled', reason = ?, resolved_at = ?, updated_at = ? "
+                 "WHERE action_id = ? AND status IN ('waiting','found')", (why[:40], ts, ts, action_id))
+
+
 def _mark_sent(conn, a, evidence: str, *, detect_id=None, platform_ref=None, message_id=None, by="gate") -> dict:
     ts = now()
+    settle_code_requests(conn, a["id"], "action_sent")
     conn.execute("UPDATE actions SET status = 'sent', sent_at = COALESCE(sent_at, ?), resolved_at = ?, "
                  "evidence = ?, detect_id = COALESCE(?, detect_id), message_id = COALESCE(?, message_id), "
                  "updated_at = ? WHERE id = ?", (ts, ts, (evidence or "")[:4000], detect_id, message_id, ts, a["id"]))
@@ -1504,7 +1601,8 @@ def fail(conn, token: str, reason: str, evidence: str, caller) -> None:
             raise Denied("E_NOT_FOUND", "the token belongs to another agent")
         if reason not in AGENT_FAIL_REASONS:
             raise Denied("E_FAIL_NOT_ALLOWED", "agents may fail a token only with %s" % ", ".join(AGENT_FAIL_REASONS))
-        if a["status"] != "reserved":
+        armed_blocked = a["status"] == "armed" and reason == "form_blocked_before_submit"
+        if a["status"] != "reserved" and not armed_blocked:
             raise Denied("E_FAIL_NOT_ALLOWED", "only a reserved token can be failed (it is %s)" % a["status"])
         if commit_count(token):
             raise Denied("E_FAIL_NOT_ALLOWED", "the guard log shows a commit action for this token")
@@ -1514,7 +1612,7 @@ def fail(conn, token: str, reason: str, evidence: str, caller) -> None:
             allowed[r] = "reserved"
         if reason not in allowed:
             raise Denied("E_FAIL_NOT_ALLOWED", "reason %r cannot free a slot" % reason)
-        if a["status"] != allowed[reason]:
+        if a["status"] != allowed[reason] and not (reason == "form_blocked_before_submit" and a["status"] == "armed"):
             raise Denied("E_FAIL_NOT_ALLOWED", "%s needs status %s (it is %s)" % (reason, allowed[reason], a["status"]))
         if a["route"] == "browser" and commit_count(token):
             raise Denied("E_FAIL_NOT_ALLOWED", "the guard log shows a commit action for this token")
@@ -1523,6 +1621,7 @@ def fail(conn, token: str, reason: str, evidence: str, caller) -> None:
     ts = now()
     conn.execute("UPDATE actions SET status = 'failed', fail_reason = ?, resolved_at = ?, evidence = ?, updated_at = ? "
                  "WHERE id = ?", (reason, ts, evidence[:4000], ts, a["id"]))
+    settle_code_requests(conn, a["id"], "action_failed")
     if a["kind"] in APP_KINDS and a["job_id"]:
         _job_after_fail(conn, a["job_id"], reason)
     log_event(conn, "failed", token=token, reason=reason, by=cls)

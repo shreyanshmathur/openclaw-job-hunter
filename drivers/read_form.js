@@ -1,8 +1,11 @@
 () => {
   /* jobhunter driver read_form (read only). Reads back an application form before gate arm. `observed` is
      the observed file (12.7) to write verbatim: {"fields": [{label, value}], "resume_filename_visible"}.
-     Password fields are never read. Also reports empty required fields, a visible CAPTCHA and an account
-     wall (both mean: job set-status needs_human). Never types, clicks or changes the page. */
+     Password fields are never read, and neither is a verification-code field (its value is shown empty):
+     passwords and emailed codes are typed by code (jh.py account create, account signin, code submit), never
+     by the agent. Also reports empty required fields, a visible CAPTCHA, an account wall, the number of
+     password fields and whether a code field is on the page (counts and booleans only). Never types, clicks
+     or changes the page. */
   const els = [];
   const walk = (root, depth) => {
     if (!root || depth > 20) { return; }
@@ -40,6 +43,14 @@
   const best = forms.map((f) => ({ f: f, n: inputs.filter((el) => f.contains(el)).length }))
     .sort((a, b) => b.n - a.n)[0];
   const scoped = best && best.n >= 2 ? inputs.filter((el) => best.f.contains(el)) : inputs;
+  const codeRe = /code|otp|passcode|\bpin\b|verification|security code/i;
+  const isCode = (el) => (el.getAttribute('autocomplete') || '').toLowerCase() === 'one-time-code' ||
+    el.maxLength === 1 || codeRe.test(labelOf(el) + ' ' + (el.getAttribute('name') || '') + ' ' +
+      (el.getAttribute('placeholder') || ''));
+  const passwordFields = els.filter((el) => el.tagName === 'INPUT' && (el.getAttribute('type') || '').toLowerCase() ===
+    'password' && visible(el)).length;
+  const textInputs = inputs.filter((el) => el.tagName === 'INPUT' && /^(text|tel|number|)$/i.test(el.getAttribute('type') || ''));
+  const codeFieldPresent = textInputs.some(isCode);
   const fields = [];
   const seenGroups = new Set();
   const requiredEmpty = [];
@@ -64,6 +75,8 @@
     } else if (el.tagName === 'SELECT') {
       const opt = el.options[el.selectedIndex];
       value = opt ? clean(opt.text) : '';
+    } else if (el.tagName === 'INPUT' && /^(text|tel|number|)$/i.test(el.getAttribute('type') || '') && isCode(el)) {
+      value = '';
     } else {
       value = el.value || '';
     }
@@ -89,6 +102,8 @@
     validation_errors: els.filter((el) => (el.getAttribute('role') === 'alert' || /error/i.test(
       (el.className && el.className.toString()) || '')) && visible(el)).map((el) => clean(el.innerText)).filter(Boolean)
       .slice(0, 10),
+    password_fields: passwordFields,
+    code_field_present: codeFieldPresent,
     page_url: location.href
   };
 }

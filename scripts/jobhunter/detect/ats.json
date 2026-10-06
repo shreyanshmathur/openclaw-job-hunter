@@ -1,11 +1,15 @@
 {
   "version": 1,
   "platform": "ats",
-  "hosts": ["greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com", "smartrecruiters.com", "workable.com", "recruitee.com", "bamboohr.com"],
-  "notes": "Signatures for ATS application forms (design 4.5). A visible CAPTCHA or an account wall trips no breaker: the verdict is stop for this job only (trip false, job_needs_human names the job set-status reason). HTTP 429 trips the ats scope. Same regex rules as linkedin.json.",
+  "hosts": ["greenhouse.io", "lever.co", "ashbyhq.com", "myworkdayjobs.com", "smartrecruiters.com", "workable.com", "recruitee.com", "bamboohr.com", "icims.com", "successfactors.com", "successfactors.eu", "taleo.net", "oraclecloud.com", "jobvite.com"],
+  "notes": "Signatures for ATS application forms (design 4.5; FEATURES-OTP-ACCOUNTS-CAPTCHA 2.6). A social sign-in page, an SMS, phone, authenticator or identity check trips the ATS breaker (ats_security): these are never handled by code. A visible CAPTCHA, an account wall or an email-code page trips no breaker: the verdict is stop for this job only (trip false, job_needs_human names the job set-status reason). handoff captcha opens the owner's CAPTCHA task. capability names the per-site consent (private/consent.json capabilities) under which a job-level stop does not apply (detect answers clear with a flow); a capability key on a tripping signature is a load error, so no data edit can turn a tripping stop off. Tripping signatures rank before job-level ones, so a page that matches both always stops. HTTP 429 trips the ats scope. Same regex rules as linkedin.json.",
   "signatures": [
-    {"id": "ats_captcha", "verdict": "stop", "trip": false, "job_needs_human": "captcha_visible", "text": "captcha|verify (that )?you.re (a )?human|i.m not a robot"},
-    {"id": "ats_account_wall", "verdict": "stop", "trip": false, "job_needs_human": "account_required", "text": "create an account|create account to apply|sign up to apply|log ?in to apply"},
+    {"id": "ats_social_signin", "verdict": "stop", "trip": true, "reason_code": "ats_security", "url": "accounts\\.google\\.com|login\\.microsoftonline\\.com|login\\.live\\.com|appleid\\.apple\\.com|linkedin\\.com/(oauth|uas)"},
+    {"id": "ats_phone_code", "verdict": "stop", "trip": true, "reason_code": "ats_security", "text": "(text|sms|texted|phone|mobile).{0,40}(code|verification)|(code|verification).{0,40}(text message|sms|your phone|your mobile)|authenticator app|two.factor|2.step verification|multi.factor"},
+    {"id": "ats_identity_check", "verdict": "stop", "trip": true, "reason_code": "ats_security", "text": "verify your identity|government.issued|upload (a |your )?(photo of your )?id|selfie"},
+    {"id": "ats_captcha", "verdict": "stop", "trip": false, "job_needs_human": "captcha_visible", "handoff": "captcha", "text": "captcha|verify (that )?you.re (a )?human|i.m not a robot"},
+    {"id": "ats_account_wall", "verdict": "stop", "trip": false, "job_needs_human": "account_required", "capability": "ats_accounts", "text": "create an account|create account to apply|sign up to apply|log ?in to apply"},
+    {"id": "ats_email_code", "verdict": "stop", "trip": false, "job_needs_human": "account_required", "capability": "email_codes", "text": "(we|we.ve) (sent|emailed) (you )?(a |an )?(verification |security |one.time )?(code|link)|check your email|enter the (verification |security )?code (we sent|sent to your email)|security code field"},
     {"id": "ats_http_block", "verdict": "stop", "trip": true, "reason_code": "ats_blocked", "http_status": [429]}
   ],
   "error_after_click": [

@@ -93,9 +93,15 @@ def write_config(overrides: dict | None = None) -> dict:
     return cfg
 
 
-def write_heartbeat(age_s: int = 30, install_id: str | None = None) -> None:
-    hb = {"install_id": install_id or paths.home()["install_id"], "version": "2.0.0",
+def write_heartbeat(age_s: int = 30, install_id: str | None = None, proof_version: int | None = 2,
+                    carriers: list | None = None) -> None:
+    """state/guard/heartbeat.json as the guard writes it (CLI route 7.12: proof_version 2 and the carriers);
+    proof_version None writes the heartbeat of an old guard."""
+    hb = {"install_id": install_id or paths.home()["install_id"], "version": "2.1.0",
           "loaded_at": canon.ts_add(canon.now(), seconds=-age_s - 60), "beat_at": canon.ts_add(canon.now(), seconds=-age_s)}
+    if proof_version is not None:
+        hb.update({"proof_version": proof_version, "carriers": list(carriers or ["argv", "env"]),
+                   "native_tools": "deny", "pin_tool_surface": True})
     os.makedirs(paths.guard_dir(), exist_ok=True)
     with open(os.path.join(paths.guard_dir(), "heartbeat.json"), "w", encoding="utf-8") as fh:
         json.dump(hb, fh)

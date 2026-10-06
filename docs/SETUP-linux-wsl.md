@@ -56,6 +56,16 @@ The Claude Code installer (`curl -fsSL https://claude.ai/install.sh | bash`) and
 same way; the login opens a browser on the Windows side under WSL2. The API key route
 (`./install.sh --api-key`) avoids the browser login entirely.
 
+The exec policy step is the same as on macOS: every jobhunter agent gets an allowlist with one entry (the
+project's `jh.py`, run with `python -I` and a guard-made identity proof) and ask off, so anything else is refused
+at once and nothing waits for a click. Agents run as restricted OpenClaw automations, with Claude Code's own
+tools switched off. If another OpenClaw agent on this machine has an unconfined shell (exec security full, or a
+policy that asks you), the installer and `./jobhunter doctor` print a red line for it: it runs as you and is
+trusted like you. The Skill Workshop question (mode `propose`, `--skill-workshop-propose` for a `--yes` install),
+the rule against exec approvals for every agent (`agents["*"]`) and the removal of agents an interrupted install
+added work as described in the macOS guide. If you start the Gateway yourself (for example under your own systemd unit), install with
+`./install.sh --no-daemon`.
+
 ## No stay-awake helper
 
 The stay-awake LaunchAgent is macOS only. On Linux, use your desktop's power settings, or run the Gateway on a

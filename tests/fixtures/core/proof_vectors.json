@@ -1,0 +1,82 @@
+{
+ "version": 2,
+ "about": "Shared identity proof vectors (CLI route design 5.1, 5.2), read by tests/test_auth.py and by the jobhunter-guard test/grant.test.ts. hmac_sha256_key_hex is the test key as private/guard.key holds it (64 hex characters); the HMAC-SHA256 key is its 32 bytes. sk = first 16 hex of sha256(session_key); digest_sha256 = hex sha256 of the rest tokens joined by newlines; token_hmac_sha256 is the minted proof. All values are fictional.",
+ "hmac_sha256_key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+ "argv_message": "jh-agent-proof\\n2\\n<agent_id>\\n<ts>\\n<nonce>\\n<sk>\\n<digest>",
+ "env_message": "jh-agent-env\\n2\\n<agent_id>\\n<ts>\\n<nonce>\\n<sk>",
+ "argv_regex": "^jhp2\\.(jobhunter-[a-z]{2,20})\\.([0-9]{10})\\.([0-9a-f]{16})\\.([0-9a-f]{16})\\.([0-9a-f]{64})$",
+ "env_regex": "^jhe2\\.(jobhunter-[a-z]{2,20})\\.([0-9]{10})\\.([0-9a-f]{16})\\.([0-9a-f]{16})\\.([0-9a-f]{64})$",
+ "cases": [
+  {
+   "kind": "argv",
+   "agent_id": "jobhunter-evaluator",
+   "ts": 1790000000,
+   "nonce": "0123456789abcdef",
+   "session_key": "agent:jobhunter-evaluator:cron:5f0c2a",
+   "rest": [
+    "profile",
+    "infer-record",
+    "--file",
+    "/ws/evaluator/work/onboarding/inferred.json"
+   ],
+   "sk": "f36931b8c30ec6f8",
+   "digest_sha256": "a695863107178390c9d935e7eb9ce18e0afffab8832dff939a91738f4e14870a",
+   "token_hmac_sha256": "jhp2.jobhunter-evaluator.1790000000.0123456789abcdef.f36931b8c30ec6f8.52b89e3db1ec285dadd1aedb6fc8bd157c2cd8887702b909f1f496ba560c7e11"
+  },
+  {
+   "kind": "argv",
+   "agent_id": "jobhunter-scout",
+   "ts": 1790000042,
+   "nonce": "fedcba9876543210",
+   "session_key": "agent:jobhunter-scout:cron:a1b2c3",
+   "rest": [
+    "--cycle",
+    "C20260929T120000ZABCD",
+    "--quiet",
+    "searches",
+    "due"
+   ],
+   "sk": "7a9dd1f883fcb489",
+   "digest_sha256": "29acedf9b6fc4cb7b54a8d5422001c77d24b4d6186d716e1ec15141d2cb242ee",
+   "token_hmac_sha256": "jhp2.jobhunter-scout.1790000042.fedcba9876543210.7a9dd1f883fcb489.147b961d3f5815f0b1ebddc701a76b6d39f3e573d26deb7a61fe50d0b6d1c988"
+  },
+  {
+   "kind": "argv",
+   "agent_id": "jobhunter-outreach",
+   "ts": 1790000100,
+   "nonce": "00000000000000ff",
+   "session_key": "",
+   "rest": [],
+   "sk": "e3b0c44298fc1c14",
+   "digest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "token_hmac_sha256": "jhp2.jobhunter-outreach.1790000100.00000000000000ff.e3b0c44298fc1c14.9af092fddfba55dd51acce11c9993455023fee2a58b55b5473dca2e99963a9c8"
+  },
+  {
+   "kind": "env",
+   "agent_id": "jobhunter-evaluator",
+   "ts": 1790000000,
+   "nonce": "0123456789abcdef",
+   "session_key": "agent:jobhunter-evaluator:cron:5f0c2a",
+   "sk": "f36931b8c30ec6f8",
+   "token_hmac_sha256": "jhe2.jobhunter-evaluator.1790000000.0123456789abcdef.f36931b8c30ec6f8.baeef21c1e6b2d5a1717790c5b5d08338202bc5f5599e9f9d68efa9f5ad79460"
+  },
+  {
+   "kind": "env",
+   "agent_id": "jobhunter-applier",
+   "ts": 1790000077,
+   "nonce": "a5a5a5a5a5a5a5a5",
+   "session_key": "agent:jobhunter-applier:main",
+   "sk": "4e2e76c826a3bf36",
+   "token_hmac_sha256": "jhe2.jobhunter-applier.1790000077.a5a5a5a5a5a5a5a5.4e2e76c826a3bf36.eabf9a3756b92f566132dc064ad95d0cf83bc2534cbd9fedb847b78df00629c5"
+  },
+  {
+   "kind": "env",
+   "agent_id": "jobhunter-qc",
+   "ts": 1790000100,
+   "nonce": "1111111111111111",
+   "session_key": "",
+   "sk": "e3b0c44298fc1c14",
+   "token_hmac_sha256": "jhe2.jobhunter-qc.1790000100.1111111111111111.e3b0c44298fc1c14.08817db9126bee677eef311474eeaf859507d3b13dd66ad1431f759ef9430576"
+  }
+ ]
+}

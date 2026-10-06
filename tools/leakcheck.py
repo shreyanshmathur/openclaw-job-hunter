@@ -50,6 +50,11 @@ EMAIL_RE = re.compile(r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@((?:[A-Za-z0-9-
 ALLOWED_EMAIL_DOMAINS = ("example.com", "example.org", "example.net")
 ALLOWED_EMAIL_TLDS = (".example", ".invalid", ".test", ".localhost")
 ALLOWED_EMAILS = {"noreply@github.com", "noreply@anthropic.com", "actions@github.com"}
+# public no-reply senders of job sites and account providers (test fixtures for the email-code feature)
+ROLE_LOCALS = ("no-reply", "noreply", "donotreply", "do-not-reply")
+VENDOR_DOMAINS = ("myworkday.com", "workday.com", "oraclecloud.com", "icims.com", "successfactors.com", "taleo.net",
+                  "greenhouse.io", "lever.co", "ashbyhq.com", "smartrecruiters.com", "jobvite.com", "google.com",
+                  "linkedin.com", "microsoft.com")
 PHONE_RES = (re.compile(r"(?<![\w+])\+\d{10,14}(?!\d)"),
              re.compile(r"(?<![\w+])\+\d{1,3}[ .-]\(?\d{2,5}\)?[ .-]\d{3,5}[ .-]?\d{3,5}(?!\d)"),
              re.compile(r"(?<![\w.])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?![\w.])"))
@@ -102,6 +107,8 @@ def email_allowed(local: str, domain: str) -> bool:
     d = domain.lower()
     addr = "%s@%s" % (local.lower(), d)
     if addr in ALLOWED_EMAILS or d.endswith("users.noreply.github.com"):
+        return True
+    if local.lower() in ROLE_LOCALS and any(d == v or d.endswith("." + v) for v in VENDOR_DOMAINS):
         return True
     return any(d == a or d.endswith("." + a) for a in ALLOWED_EMAIL_DOMAINS) or d.endswith(ALLOWED_EMAIL_TLDS)
 

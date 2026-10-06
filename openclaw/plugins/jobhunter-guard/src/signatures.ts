@@ -15,6 +15,8 @@
 // is accepted (Python style); matching is case-insensitive unless "flags" says otherwise.
 // When a page matches several signatures the most severe one wins, as in `jh.py detect` (detect.match): a
 // tripping stop before a job-level stop, then the SEVERITY order of its reason_code, then load order.
+// "capability" (job-level only; on a tripping signature a load error) names the consent capability under
+// which a job-level stop does not apply to a site; "handoff": "captcha" marks the owner's CAPTCHA hand-off.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -29,6 +31,10 @@ export type Signature = {
   httpStatus: number[];
   trip: boolean;
   reasonCode: string | null; // the signature's reason_code (the breaker reason), used for SEVERITY
+  // job-level stops only: the private/consent.json capability under which this stop does not apply to a site
+  // (the guard does not soft-stop; jh.py detect answers clear with a flow). Never on a tripping signature.
+  capability: string | null;
+  handoff: "captcha" | null; // the owner's CAPTCHA hand-off: the stop file also names the agent, token and tab
 };
 
 export type SignatureSet = { signatures: Signature[]; hostsByPlatform: Map<string, string[]>; warnings: string[] };
@@ -79,7 +85,21 @@ function sigFrom(o: Record<string, unknown>, file: string, platform: string, idx
   const code = typeof o.code === "string" ? o.code : typeof o.id === "string" ? o.id : typeof o.name === "string" ? o.name : platform + "_" + idx;
   const sigPlatform = typeof o.platform === "string" ? o.platform : platform;
   const reasonCode = typeof o.reason_code === "string" && o.reason_code.length ? o.reason_code : null;
-  return { file, platform: sigPlatform, code, urlRes, titleRes, textRes, httpStatus, trip: o.trip !== false, reasonCode };
+  const trip = o.trip !== false;
+  // A capability can only lift a job-level stop. On a tripping signature it is a load error (the guard is then
+  // unhealthy and fails closed), so no data edit can turn a tripping stop off.
+  let capability: string | null = null;
+  if (o.capability !== undefined && o.capability !== null) {
+    if (trip) throw new Error(where + " (" + code + "): a capability key on a tripping signature");
+    if (typeof o.capability !== "string" || !/^[a-z][a-z0-9_]{0,39}$/.test(o.capability)) throw new Error(where + " (" + code + "): bad capability value");
+    capability = o.capability;
+  }
+  let handoff: "captcha" | null = null;
+  if (o.handoff !== undefined && o.handoff !== null) {
+    if (o.handoff === "captcha") handoff = "captcha";
+    else warnings.push(where + ": unknown handoff " + JSON.stringify(o.handoff) + " ignored");
+  }
+  return { file, platform: sigPlatform, code, urlRes, titleRes, textRes, httpStatus, trip, reasonCode, capability, handoff };
 }
 
 // Parse one detect file's JSON (exported for tests).
@@ -163,6 +183,8 @@ export type StopMatch = {
   platform: string; // the signature's platform ("linkedin", "gmail", "ats", "site:*", ...)
   trip: boolean;
   reasonCode: string | null;
+  capability: string | null;
+  handoff: "captcha" | null;
   matched: string;
   where: "url" | "title" | "text" | "http_status";
   index: number; // position of the match in the text (text matches only, else -1)
@@ -176,7 +198,7 @@ export const SEVERITY: readonly string[] = [
   "li_invite_limit", "li_easy_apply_limit", "li_messaging_blocked", "li_email_needed",
   "li_commercial_limit", "li_http_429", "li_unknown_modal",
   "gmail_security", "gmail_auth_failed", "gmail_identity_mismatch", "gmail_logged_out",
-  "gmail_sending_limit", "gmail_unexpected_state", "ats_blocked", "site_challenge", "site_logged_out",
+  "gmail_sending_limit", "gmail_unexpected_state", "ats_security", "ats_blocked", "site_challenge", "site_logged_out",
 ];
 
 // Sort key of a matching signature (smaller wins), as detect._rank: a tripping stop before a job-level stop,
@@ -239,7 +261,7 @@ export function matchStop(
     if (bestRank !== null && !rankLess(rank, bestRank)) continue;
     const hit = hitOf(sig, page, text);
     if (!hit) continue;
-    best = { code: sig.code, file: sig.file, platform: sig.platform, trip: sig.trip, reasonCode: sig.reasonCode, ...hit };
+    best = { code: sig.code, file: sig.file, platform: sig.platform, trip: sig.trip, reasonCode: sig.reasonCode, capability: sig.capability, handoff: sig.handoff, ...hit };
     bestRank = rank;
   }
   return best;

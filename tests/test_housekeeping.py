@@ -161,6 +161,24 @@ class TestHousekeeping(HomeTestCase):
         res = housekeeping.run(self.conn, only="suggest_auto")
         self.assertFalse(res["tasks"]["suggest_auto"]["suggested"])
 
+    def test_agent_proof_nonces_are_pruned_after_two_days(self):
+        """CLI route 5.3: two grants_used rows per agent call (`ap:` and `ep:`); rows older than two days go,
+        chat grant nonces stay, and the version 1 marker state/agent-proof-seen is removed."""
+        rows = [("ap:00000000000000a1", self.clock.ago(days=3)), ("ep:00000000000000e1", self.clock.ago(days=2, seconds=1)),
+                ("ap:00000000000000a2", self.clock.ago(hours=47)), ("ep:00000000000000e2", canon.now()),
+                ("0123456789abcdef", self.clock.ago(days=30))]
+        for nonce, at in rows:
+            self.conn.execute("INSERT INTO grants_used (nonce, command, used_at) VALUES (?, 'agent-proof x', ?)",
+                              (nonce, at))
+        marker = os.path.join(paths.state_dir(), "agent-proof-seen")
+        open(marker, "w").close()
+        res = housekeeping.run(self.conn, only="nonces")["tasks"]["nonces"]
+        self.assertEqual(res, {"pruned": 2, "v1_marker_removed": True})
+        left = sorted(r[0] for r in self.conn.execute("SELECT nonce FROM grants_used"))
+        self.assertEqual(left, ["0123456789abcdef", "ap:00000000000000a2", "ep:00000000000000e2"])
+        self.assertFalse(os.path.exists(marker))
+        self.assertIn("nonces", housekeeping.TASKS)
+
     def test_clock_backwards(self):
         with db.tx(self.conn):
             db.meta_set(self.conn, "max_seen_ts", canon.ts_add(canon.now(), hours=1), "system")

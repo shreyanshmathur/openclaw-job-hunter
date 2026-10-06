@@ -3,8 +3,8 @@
 Every code that any command may return lives here with its exit number. No unit adds codes: a new
 situation maps to the closest existing code. Codes are added only by U1 through a DESIGN change request
 (E_NOT_TARGET and E_ENRICH_UNAVAILABLE for the email finder, E_CONSENT_MISSING for per-site browser
-consent). `Denied` is the single exception type that carries a code through the stack to the CLI envelope
-(`jobhunter.cli`).
+consent, E_CRON_DRIFT for an OpenClaw cron job that no longer matches the install manifest). `Denied` is
+the single exception type that carries a code through the stack to the CLI envelope (`jobhunter.cli`).
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ _EXIT_TABLE = {
     11: ("E_PRECONDITION", "E_PRECHECK_MISSING", "E_PRECHECK_STALE", "E_DETECT_MISSING", "E_PROFILE_UNCONFIRMED",
          "E_CONFIG_INVALID", "E_HOME_MISMATCH", "E_HUMAN_ONLY", "E_AUTH_FAILED", "E_AUTH_LOCKED",
          "E_CALLER_NOT_ALLOWED", "E_GUARD_MISSING", "E_TOKEN_OPEN", "E_FAIL_NOT_ALLOWED", "E_ROUTE_UNAVAILABLE",
-         "E_REVIEWER_TAMPERED", "E_BAD_TRANSITION"),
+         "E_REVIEWER_TAMPERED", "E_BAD_TRANSITION", "E_CRON_DRIFT"),
     12: ("E_SHEET_ACCESS", "E_SHEET_ERROR", "E_MAIL_TRANSPORT", "E_OPENCLAW_CALL", "E_NETWORK"),
 }
 
@@ -42,6 +42,12 @@ SUCCESS_CODES = frozenset(_EXIT_TABLE[0])
 
 # Module-level names for every code, so callers can write errors.E_CEILING instead of a string literal.
 globals().update({code: code for code in CODES})
+
+# The plain word an agent run ends with (CLI route M6): CYCLE_DONE in a lane cycle, the word its message names in
+# an onboarding or probe run (ONBOARD_DONE, PROBE_DONE). Never NO_REPLY in a hint to an agent: on OpenClaw 9.8 it
+# risks a "keep working" loop (V16). Generic hints use FINAL_WORD_HINT because onboarding runs see them too.
+CYCLE_DONE = "CYCLE_DONE"
+FINAL_WORD_HINT = "reply with your final word (CYCLE_DONE in a cycle)"
 
 
 def exit_code(code: str) -> int:
@@ -91,6 +97,14 @@ _UNIQUE_BY_INDEX = {
     "u_enrich_verify_once": "E_ALREADY_DONE",
     "u_enrich_one_retry": "E_ALREADY_DONE",
     "u_enrich_running_contact": "E_LOCKED",
+    # email codes, ATS accounts, CAPTCHA hand-off (migrations/0003_otp_accounts.sql)
+    "u_code_use_message": "E_ALREADY_DONE",
+    "u_code_use_value": "E_ALREADY_DONE",
+    "u_code_use_request": "E_ALREADY_DONE",
+    "u_code_req_waiting_tab": "E_LOCKED",
+    "u_account_tenant": "E_ALREADY_DONE",
+    "u_captcha_open_code": "E_LOCKED",
+    "u_captcha_open_job": "E_ALREADY_DONE",
 }
 _UNIQUE_BY_COLUMNS = {
     "actions.contact_id": "E_DUP_PERSON",               # u_first_touch_person, u_li_message_person, u_referral_person
@@ -107,6 +121,13 @@ _UNIQUE_BY_COLUMNS = {
     "enrich_requests.retry_of": "E_ALREADY_DONE",       # u_enrich_one_retry
     "enrich_request_keys.key_hash": "E_ALREADY_DONE",   # primary key: a person is never looked up twice
     "enrich_requests.contact_id": "E_LOCKED",           # u_enrich_running_contact: a lookup is running
+    "code_uses.message_hmac": "E_ALREADY_DONE",         # u_code_use_message: a message is used once, ever
+    "code_uses.value_hmac": "E_ALREADY_DONE",           # u_code_use_value: a code or link is used once, ever
+    "code_uses.request_id": "E_ALREADY_DONE",           # u_code_use_request: a request consumes one message
+    "code_requests.tab_id": "E_LOCKED",                 # u_code_req_waiting_tab: one waiting request per tab
+    "ats_accounts.platform, ats_accounts.tenant": "E_ALREADY_DONE",   # u_account_tenant
+    "captcha_tasks.code": "E_LOCKED",                   # u_captcha_open_code
+    "captcha_tasks.job_id": "E_ALREADY_DONE",           # u_captcha_open_job
 }
 
 _RAISE_RE = re.compile(r"^(E_[A-Z_]+)$")

@@ -209,8 +209,39 @@ def _enrich(conn) -> dict:
     return enrich_housekeeping.run_housekeeping(conn)
 
 
-TASKS = ("expire", "codes", "staged", "config", "consent", "breakers", "clock", "reconcile", "locks", "ats_queue",
-         "acceptance", "email_health", "audit", "enrich",
+NONCE_DAYS = 2
+
+
+def _prune_nonces(conn) -> dict:
+    """Agent proof nonces (grants_used rows `ap:<nonce>` and `ep:<nonce>`, CLI route 5.3) older than two days:
+    a proof is valid for 120 s, so a pruned nonce can never be replayed. Chat grant nonces are kept. Also
+    removes the version 1 marker state/agent-proof-seen."""
+    from . import auth
+    cutoff = ts_add(now(), days=-NONCE_DAYS)
+    cur = conn.execute("DELETE FROM grants_used WHERE (nonce LIKE 'ap:%' OR nonce LIKE 'ep:%') AND used_at < ?",
+                       (cutoff,))
+    return {"pruned": cur.rowcount, "v1_marker_removed": auth.remove_v1_marker()}
+
+
+def _otp_accounts(conn) -> dict:
+    """FEATURES-OTP-ACCOUNTS-CAPTCHA 2.10: expire waiting code requests, delete CAPTCHA screenshots past their
+    retention, prune code_steps after 180 days and code_uses after 365 days (hash rows only), and mark account
+    rows left in 'creating' for a day as failed."""
+    from . import captcha, otp
+    from .canon import ts_add
+    out = {"requests_expired": otp.expire_waiting(conn), "screenshots_deleted": captcha.prune_screenshots(conn)}
+    out["code_steps_pruned"] = conn.execute("DELETE FROM code_steps WHERE at < ?",
+                                            (ts_add(now(), days=-180),)).rowcount
+    out["code_uses_pruned"] = conn.execute("DELETE FROM code_uses WHERE used_at < ?",
+                                           (ts_add(now(), days=-365),)).rowcount
+    out["stale_creating"] = conn.execute("UPDATE ats_accounts SET status = 'failed', reason = 'stale_creating', "
+                                         "updated_at = ? WHERE status = 'creating' AND created_at < ?",
+                                         (now(), ts_add(now(), days=-1))).rowcount
+    return out
+
+
+TASKS = ("expire", "captcha", "otp_accounts", "codes", "staged", "config", "consent", "breakers", "clock", "reconcile", "locks", "nonces",
+         "ats_queue", "acceptance", "email_health", "audit", "enrich",
          "suggest_auto", "summary", "optimize", "backup", "prune_work", "prune_logs", "sessions")
 
 
@@ -227,7 +258,8 @@ def run(conn, only: str | None = None) -> dict:
              "breakers": lambda c: {"closed": breakers.close_expired(c)},
              "clock": lambda c: {"problem": cycles.clock_check(c, cfg)},
              "reconcile": lambda c: {"tasks": reconcile.open_stale_tasks(c)},
-             "locks": lambda c: {"pruned": locks.prune(c)}, "ats_queue": lambda c: _ats_queue(c, cfg),
+             "locks": lambda c: {"pruned": locks.prune(c)}, "nonces": _prune_nonces,
+             "ats_queue": lambda c: _ats_queue(c, cfg),
              "acceptance": lambda c: _acceptance(c, cfg), "email_health": lambda c: breakers.email_health(c, cfg),
              "suggest_auto": lambda c: _suggest_auto(c, cfg), "summary": _summary}
     for name in TASKS:
@@ -237,6 +269,12 @@ def run(conn, only: str | None = None) -> dict:
             if name in in_tx:
                 with db.tx(conn):
                     results[name] = in_tx[name](conn)
+            elif name == "captcha":
+                from . import captcha
+                results[name] = captcha.expire_all(conn)
+            elif name == "otp_accounts":
+                with db.tx(conn):
+                    results[name] = _otp_accounts(conn)
             elif name == "audit":
                 results[name] = audit.run(conn, 2)     # IMAP outside the transaction, then a short write
             elif name == "enrich":

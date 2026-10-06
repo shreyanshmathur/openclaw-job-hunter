@@ -3,6 +3,9 @@
 # Every openclaw call uses the binary and profile recorded in private/home.json. Commands marked (PIN) read
 # your owner PIN with the echo off and pass it to jh.py on stdin (--pin-stdin). Agents cannot run this file.
 set -euo pipefail
+# A person may run this from a Claude Code terminal. Claude Code's markers would make jh.py treat every call
+# as an unproven agent (jobhunter.auth.harness_markers), so this entry point drops them for its children.
+unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 JH="$REPO/scripts/jh.py"
@@ -14,7 +17,7 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 is_tty() { [ -t 0 ]; }
 
 PY="$(command -v python3 2>/dev/null || echo /usr/bin/python3)"
-JH_HOME_EXISTS=0; JH_OC_BIN=""; JH_OC_PROFILE=""; JH_PY=""; JH_WS_ROOT=""; JH_INSTALL_ID=""
+JH_HOME_EXISTS=0; JH_OC_BIN=""; JH_OC_PROFILE=""; JH_PY=""; JH_WS_ROOT=""; JH_INSTALL_ID=""; JH_MODEL_ROUTE=""
 load_home_env() {
   local txt="" line=""
   txt="$("$PY" "$JH" --human install shell-env 2>&1)" || die "cannot read private/home.json: $txt"
@@ -40,7 +43,7 @@ tmpdir() {
 PIN=""
 read_pin() {
   [ -n "$PIN" ] && return 0
-  is_tty || die "this command needs your owner PIN at a terminal"
+  is_tty || die "this command needs your owner PIN at a terminal: run it yourself in the Terminal app"
   printf 'Owner PIN: ' >&2
   IFS= read -r -s PIN || PIN=""
   printf '\n' >&2
@@ -49,7 +52,7 @@ read_pin() {
 # jh_pin <jh.py args...>: human class call. Interactive questions of the command read the terminal.
 jh_pin() { read_pin; printf '%s\n' "$PIN" | "$PY" "$JH" --human --pin-stdin "$@"; }
 
-need_home() { [ "$JH_HOME_EXISTS" = "1" ] || die "not installed yet: run ./install.sh first"; }
+need_home() { [ "$JH_HOME_EXISTS" = "1" ] || die "not installed yet: run ./install.sh first (in $REPO)"; }
 
 # run_jh <jh.py command words and args...>: any jh.py command a person may run (the commands that product
 # messages and docs name, such as qc golden, answers add, eval requeue, companies split or profile answer).
@@ -77,6 +80,32 @@ sys.exit(0 if f.get(sys.argv[1]) else 1)' "$1"
 }
 
 job_ids() { "$PY" "$JH" --human install job-ids "$@"; }
+
+# cron_turn <declaration key> [wait]: the only way this wrapper runs an agent job. jh.py install run-preflight
+# checks the guard heartbeat (identity proof version 2) and that every field of the job still matches the install
+# manifest, then the job runs as a restricted OpenClaw run and we wait for it (default: its timeout plus 5
+# minutes). Agents are never started with `openclaw agent`.
+cron_turn() {
+  local line="" id="" wait="${2:-}" w=""
+  line="$("$PY" "$JH" --human install run-preflight "$1" --with-wait 2>&1)" \
+    || die "$line (the automation $1 must be installed and unchanged: run ./install.sh again)"
+  IFS="$TAB" read -r id w <<EOF
+$line
+EOF
+  [ -n "$wait" ] || wait="$w"
+  oc cron run "$id" --wait --wait-timeout "$wait" --json
+}
+
+lane_key() {  # lane_key <lane>: the lane's automation
+  case "${1:-}" in
+    scout) printf 'jobhunter:scout' ;;
+    evaluator) printf 'jobhunter:evaluate' ;;
+    applier) printf 'jobhunter:apply' ;;
+    outreach) printf 'jobhunter:outreach' ;;
+    replies) printf 'jobhunter:replies' ;;
+    *) return 1 ;;
+  esac
+}
 
 cron_each() {  # cron_each enable|disable <job-ids --which ...>
   local action="$1" ids="" id="" n=0
@@ -121,7 +150,7 @@ Setup
   browser login <site>          log in by hand inside the agent's browser (a site you allowed)
   browser import                macOS: copy the allowed sites' Chrome cookies again (after a logout)
   linkedin enable (PIN) | linkedin disable
-  doctor                        check everything
+  doctor [--probe]              check everything (--probe: run the agent identity checks, uses the model)
   update                        git pull, re-run the installer, migrate
   uninstall                     remove what this clone installed
 
@@ -229,10 +258,9 @@ except Exception:
 
 cmd_run() {
   need_home
-  local lane="${1:-}" id=""
-  [ -n "$lane" ] || die "usage: ./jobhunter run scout|evaluator|applier|outreach|replies"
-  id="$(job_ids --which lane --lane "$lane")" || die "$id"
-  oc cron run "$id" --wait --wait-timeout 30m
+  local key=""
+  key="$(lane_key "${1:-}")" || die "usage: ./jobhunter run scout|evaluator|applier|outreach|replies"
+  cron_turn "$key"
 }
 
 cmd_logs() {
@@ -684,17 +712,86 @@ cmd_approval() {
   esac
 }
 
+red_line() { if [ -t 1 ]; then printf '\033[31m%s\033[0m\n' "$*"; else printf '%s\n' "$*"; fi; }
+
 cmd_doctor() {
   need_home
-  local bad=0 out=""
+  local bad=0 out="" probe=0
+  case "${1:-}" in
+    "") ;;
+    --probe) probe=1 ;;
+    *) die "usage: ./jobhunter doctor [--probe]" ;;
+  esac
   check() {  # check <label> <command...>
     local label="$1"; shift
     if out="$("$@" 2>&1)"; then say "ok    $label"; else say "FAIL  $label"; printf '%s\n' "$out" | sed -n '1,6p' | sed 's/^/      /'; bad=1; fi
   }
   check "jh.py selftest" "$PY" "$JH" --human selftest
   check "config validate" "$PY" "$JH" --human config validate
-  check "guard heartbeat" "$PY" "$JH" --human install wait-guard --timeout 0
-  check "openclaw doctor (read only)" oc doctor --lint
+  check "guard heartbeat (identity proof version 2)" "$PY" "$JH" --human install wait-guard --timeout 0 --proof-version 2
+  # informational: OpenClaw 2026.9.8 blocks the guard's before_prompt_build hook without allowConversationAccess,
+  # which the installer never grants (docs/ENFORCEMENT.md); the line says so, it never fails the doctor
+  out="$("$PY" "$JH" --human install pin-hook 2>/dev/null || true)"
+  case "$out" in ok\ *|WARN*|info*) say "$out" ;; esac
+  check "exec policy of the jobhunter agents (allowlist, never ask)" "$PY" "$JH" --human install verify-exec-policy
+  check "no automation outside this install runs a jobhunter agent" "$PY" "$JH" --human install foreign-jobs --check
+  if [ "${JH_MODEL_ROUTE:-}" = "cli" ]; then
+    if command -v claude >/dev/null 2>&1 && claude auth status --text >/dev/null 2>&1; then
+      say "ok    Claude login (your Claude subscription)"
+    else
+      say "FAIL  Claude login: Claude Code is missing or its login expired. Run: claude auth login (opens your"
+      say "      browser), check with: claude auth status --text, then ./jobhunter doctor again"
+      bad=1
+    fi
+  fi
+  local mode="" line=""
+  mode="$("$PY" "$JH" --human install cli-route get cli_tools 2>/dev/null || true)"
+  if [ "$mode" = "native" ]; then
+    red_line "FAIL  agent mode: Claude Code's own tools (reduced protection). The exec allowlist and workspaceOnly do"
+    red_line "      not apply to them and AskUserQuestion can wait. Run ./install.sh without --cli-tools for full protection."
+  else
+    say "ok    agent mode: restricted runs (Claude Code's own tools are off for the jobhunter agents)"
+  fi
+  out="$("$PY" "$JH" --human install probe-stamp read 2>/dev/null || true)"
+  case "$out" in
+    "last passed "*) say "info  agent identity checks: $out (./jobhunter doctor --probe runs them now)" ;;
+    *) say "WARN  the agent identity checks have not passed yet: ./jobhunter doctor --probe runs them (if"
+       say "      ./install.sh stopped at step 14, see docs/TROUBLESHOOTING.md, Claude subscription route)" ;;
+  esac
+  out="$("$PY" "$JH" --human install identity-boundary 2>/dev/null || true)"
+  if [ -n "$out" ]; then
+    while IFS= read -r line; do [ -z "$line" ] || red_line "RED   $line"; done <<EOF
+$out
+EOF
+    say "      Agent identity cannot be forged by an agent whose shell is confined. An agent with an unconfined"
+    say "      shell runs as you and is trusted like you."
+  fi
+  if [ "$probe" = "1" ]; then
+    local t0="" role="" id=""
+    t0="$(date +%s)"
+    for role in scout evaluator applier outreach; do
+      if id="$("$PY" "$JH" --human install run-preflight "jobhunter:probe-$role" 2>&1)"; then
+        oc cron run "$id" --wait --wait-timeout 10m --json >/dev/null 2>&1 || true
+      else
+        say "FAIL  probe $role: $id"; bad=1
+      fi
+    done
+    check "agent identity (scout, evaluator, applier and outreach ran jh.py as themselves)" \
+      "$PY" "$JH" --human selftest --offline --probe-since "$t0"
+    check "jobhunter-qc test turn" "$PY" "$JH" --human qc smoke
+  fi
+  # OpenClaw 2026.9.8 reports ok false for warnings only: jh.py judges the findings by severity (errors fail,
+  # warnings are shown, the jobhunter agents' skill-workshop-tool-policy finding is expected)
+  local drc=0 dout=""
+  tmpdir
+  oc doctor --lint --json >"$TMPD/oc-doctor.json" 2>"$TMPD/oc-doctor.err" || drc=$?
+  if dout="$("$PY" "$JH" --human install oc-doctor --file "$TMPD/oc-doctor.json" \
+      --stderr-file "$TMPD/oc-doctor.err" --rc "$drc" 2>&1)"; then
+    say "ok    openclaw doctor (read only)"
+  else
+    say "FAIL  openclaw doctor (read only)"; bad=1
+  fi
+  [ -z "$dout" ] || printf '%s\n' "$dout" | sed -n '1,12p' | sed 's/^/      /'
   check "openclaw skills check" oc skills check --agent jobhunter-applier
   check "browser profile jobhunter" oc browser --browser-profile jobhunter doctor
   if [ "$(uname -s)" != "Darwin" ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
@@ -719,8 +816,9 @@ EOF
   say "info  sites the agent may use: ${allowed:-none} (./jobhunter browser sites; login check: ./jobhunter browser check)"
   check "chat channel" oc channels status --probe
   if out="$(oc config get skills.workshop.autonomous.mode 2>/dev/null)" && printf '%s' "$out" | grep -q auto; then
-    say "WARN  Skill Workshop autonomous mode is auto: it may edit skills of the jobhunter agents weekly."
-    say "      Consider: openclaw config set skills.workshop.autonomous.mode propose"
+    say "FAIL  Skill Workshop autonomous mode is auto: OpenClaw runs every agent weekly to rewrite its skills."
+    say "      Run: openclaw${JH_OC_PROFILE:+ --profile $JH_OC_PROFILE} config set skills.workshop.autonomous.mode propose"
+    bad=1
   fi
   if out="$(oc config get plugins.entries.memory-core --json 2>/dev/null)" && printf '%s' "$out" | grep -qi dreaming; then
     say "WARN  memory dreaming is configured; make sure it does not target jobhunter-* agents."
@@ -730,22 +828,33 @@ EOF
 }
 
 cmd_update() {
-  local before="" after=""
-  before="$(cat "$REPO/sheets/Code.gs" 2>/dev/null | cksum || true)"
-  git -C "$REPO" pull --ff-only
-  "$REPO/install.sh" --no-smoke "$@"
-  "$PY" "$JH" --human selftest --offline
-  after="$(cat "$REPO/sheets/Code.gs" 2>/dev/null | cksum || true)"
+  need_home
+  local before="" after="" head0="" head1=""
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 \
+    || die "this folder is not a git clone, so ./jobhunter update cannot download a new version (README, Updating)"
+  before="$(cksum <"$REPO/sheets/Code.gs" 2>/dev/null || true)"
+  head0="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)"
+  say "[1/3] Downloading the new version (git pull)"
+  git -C "$REPO" pull --ff-only \
+    || die "the download failed; nothing was changed. If git says local changes would be overwritten, see which files you changed with: git -C $REPO status (git -C $REPO stash puts your changes aside), then ./jobhunter update again. Without internet, try again later"
+  head1="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)"
+  if [ "$head0" = "$head1" ]; then say "already the newest version; the installer runs anyway to check your setup"; fi
+  # the identity checks run again only when a version changed (install.sh probe stamp); the model route of the
+  # first install is kept (recorded in private/home.json)
+  say "[2/3] Running the installer again (your data, PIN, site consents and settings stay as they are)"
+  "$REPO/install.sh" "$@" \
+    || die "the new version is downloaded, but the installer stopped (see the lines above). Fix that, then run ./install.sh again"
+  say "[3/3] Self test"
+  "$PY" "$JH" --human selftest --offline || die "the self test failed after the update; run ./jobhunter doctor"
+  after="$(cksum <"$REPO/sheets/Code.gs" 2>/dev/null || true)"
   if [ "$before" != "$after" ]; then
     say "sheets/Code.gs changed: paste it into Apps Script and redeploy (docs/GOOGLE-SHEETS.md, \"Updating the script later\")."
   fi
+  say "update complete"
 }
 
 # ------------------------------------------------------------------ init wizard (design 8)
 wizard_step() { printf '\n== %s\n' "$1"; }
-agent_turn() {  # agent_turn <agent> <session key> <message file>
-  oc agent --agent "$1" --session-key "$2" --message-file "$3" --json --timeout 900
-}
 ask_line() {  # ask_line <prompt> -> REPLY_LINE
   REPLY_LINE=""
   printf '%s' "$1"
@@ -816,7 +925,7 @@ wizard_owner() {  # name, Gmail address, signature and chat number in private/co
 }
 
 cmd_init() {
-  is_tty || die "the wizard needs a terminal"
+  is_tty || die "the wizard asks you questions, so it needs a terminal: run ./jobhunter init yourself in the Terminal app"
   need_home
   local onb="$REPO/state/onboarding"
   mkdir -p "$onb"
@@ -866,8 +975,9 @@ cmd_init() {
     else "${EDITOR:-vi}" "$REPO/private/extra_info.md"; fi ;;
   esac
 
-  # Steps 6 and 7 are done when their files exist (profile status input_files), not when the agent turn exits
-  # 0: a turn can end without recording anything, and a marker would then skip the step on every re-run.
+  # Steps 6 and 7 run the onboarding automations (restricted OpenClaw runs, through cron_turn). They are done when
+  # their files exist (profile status input_files), never because a run exited 0: a run can end without
+  # recording anything, and a marker would then skip the step on every re-run.
   wizard_step "6. Salary research (scout, public pages only)"
   if onboard_has salary_research; then say "SKIP salary research recorded"; else
     local titles="" city="" wd="$JH_WS_ROOT/scout/work/onboarding"
@@ -876,12 +986,8 @@ cmd_init() {
     mkdir -p "$wd"
     "$PY" -c 'import json,sys; json.dump({"role_titles": [t.strip() for t in sys.argv[1].split(",") if t.strip()], "city": sys.argv[2].strip()}, open(sys.argv[3], "w"), indent=1)' \
       "$titles" "$city" "$wd/salary_inputs.json"
-    { printf 'Run the onboarding salary research as described in your skill jobhunter-salary.\n\n'
-      cat "$JH_WS_ROOT/scout/ref/salary_research.md" 2>/dev/null || true
-    } >"$wd/prompt.md"
-    if ! agent_turn jobhunter-scout onboarding-salary "$wd/prompt.md" >/dev/null; then
-      say "NOTE: the salary research turn failed; the profile will say model estimate, not verified (./jobhunter init tries again)"
-    elif onboard_has salary_research; then say "DONE salary research"
+    cron_turn jobhunter:onboard-salary 20m >/dev/null || true
+    if onboard_has salary_research; then say "DONE salary research"
     else say "NOTE: the salary research turn recorded nothing; the profile will say model estimate, not verified (./jobhunter init tries again)"; fi
   fi
 
@@ -893,11 +999,7 @@ cmd_init() {
     # information may have been edited after the import
     if [ -f "$REPO/private/resume/resume.txt" ]; then cp "$REPO/private/resume/resume.txt" "$wd/resume.txt"; fi
     if [ -f "$REPO/private/extra_info.md" ]; then cp "$REPO/private/extra_info.md" "$wd/extra_info.md"; fi
-    { printf 'Run the onboarding profile inference as described in your skill jobhunter-profile.\n\n'
-      cat "$JH_WS_ROOT/evaluator/ref/profile_inference.md" 2>/dev/null || true
-    } >"$wd/prompt.md"
-    agent_turn jobhunter-evaluator onboarding-infer "$wd/prompt.md" >/dev/null \
-      || die "profile inference failed (the evaluator turn did not finish); run ./jobhunter init again"
+    cron_turn jobhunter:onboard-profile 20m >/dev/null || true
     if ! onboard_has inference || ! onboard_has base_resume; then
       die "profile inference recorded nothing (no private/profile_inference.json or private/resume/base.json); run ./jobhunter init again (docs/TROUBLESHOOTING.md, First run wizard)"
     fi
@@ -1072,7 +1174,7 @@ case "$cmd" in
   forget)
     [ $# -eq 2 ] || die "usage: ./jobhunter forget --email <address> | --linkedin <url> | --contact <id>"
     jh_pin forget "$1" "$2" ;;
-  doctor) cmd_doctor ;;
+  doctor) cmd_doctor "$@" ;;
   update) cmd_update "$@" ;;
   uninstall) exec "$REPO/uninstall.sh" "$@" ;;
   *)

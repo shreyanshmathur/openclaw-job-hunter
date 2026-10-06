@@ -72,8 +72,9 @@ research facts with their URLs and snippets, your profile facts and the lint war
 verdict that echoes a one-time nonce and the text's hash; anything else counts as a fail. Code recomputes the score
 and the pass rule and the stricter of model and code wins:
 
-- gates: truthful, hook_verified, swap_test (would it still work for someone else?), no_ai_voice, safe; all must be
-  true, and any claim marked unsupported fails truthful;
+- gates: truthful, hook_verified, swap_test (true when the text would not work for someone else), no_ai_voice, safe;
+  each is true when the draft passes that check, all must be true, and any claim marked unsupported fails truthful;
+  the packet carries the review date, and the hook's age is measured against it;
 - specificity, value and human voice at least 4, nothing below 3, weighted score at least 4.0;
 - resumes and packages: truthful and safe, clarity and channel fit at least 4.
 
@@ -117,7 +118,8 @@ fields, LinkedIn items while `approval.per_channel.linkedin` is `human`, and eve
 title, stacked hooks, flattery, wrong tone, mirrored sentences, vague value, personal details, a referral ask to a
 stranger). All 20 pass the linter, so only the reviewer can tell them apart. `./jobhunter qc golden` (PIN) runs them
 and stores the agreement in `meta.golden_last`; `approval auto` needs at least 18 of 20 on the current reviewer
-model and prompt.
+model and prompt. The set is reviewed as of its fixed `as_of` date (in `qc/golden/labels.json`), so its fictional
+hooks never age past the 180-day limit.
 
 ## Where to look
 

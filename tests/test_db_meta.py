@@ -23,7 +23,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ---------------------------------------------------------------- errors
 class TestErrors(unittest.TestCase):
     def test_codes_frozen(self):
-        self.assertEqual(len(errors.CODES), 76)
+        self.assertEqual(len(errors.CODES), 77)
         self.assertEqual(errors.CODES["OK"], 0)
         self.assertEqual(errors.CODES["PENDING"], 0)
         self.assertEqual(errors.CODES["E_INTERNAL"], 1)
@@ -43,6 +43,8 @@ class TestErrors(unittest.TestCase):
         self.assertEqual(errors.CODES["E_NOT_TARGET"], 7)
         self.assertEqual(errors.CODES["E_ENRICH_UNAVAILABLE"], 4)
         self.assertEqual(errors.CODES["E_CONSENT_MISSING"], 7)
+        # the claude-cli route: an OpenClaw cron job that drifted from the install manifest (exit 11)
+        self.assertEqual(errors.CODES["E_CRON_DRIFT"], 11)
 
     def test_denied(self):
         d = Denied("E_CEILING", "cap reached", retry_after=60, data={"used": 5})
@@ -478,6 +480,19 @@ class TestCli(HomeTestCase):
         rc = cli.main(["demo", "ok", "--human", "--value", "v"], env={}, stdout=io.StringIO(), modules=self.mods)
         self.assertEqual(rc, 0)
 
+    def test_default_hints_name_the_final_word(self):
+        """CLI route M6, V16: no hint tells an agent to reply NO_REPLY; the stop hints name the final word in a
+        neutral form, because onboarding runs (ending with ONBOARD_DONE) see them too."""
+        for code in errors.CODES:
+            self.assertNotIn("NO_REPLY", cli._default_next(code), code)
+        self.assertEqual(errors.FINAL_WORD_HINT, "reply with your final word (CYCLE_DONE in a cycle)")
+        for code in ("E_INTERNAL", "E_STOP_DETECTED", "E_PAUSED", "E_LOCKED", "E_CLAIMED"):
+            self.assertTrue(cli._default_next(code).endswith(errors.FINAL_WORD_HINT), code)
+        rc, env = self.env_json(["demo", "crash"])
+        self.assertEqual((rc, env["next"]), (1, "stop the cycle and " + errors.FINAL_WORD_HINT))
+        # the --quiet success line is for system command jobs only and stays as it was
+        self.assertEqual(self.run_cli(["demo", "ok", "--quiet"]), (0, "NO_REPLY"))
+
     def test_denied_and_codes(self):
         rc, env = self.env_json(["demo", "deny"])
         self.assertEqual((rc, env["ok"], env["code"], env["retry_after_s"]), (4, False, "E_CEILING", 30))
@@ -510,6 +525,14 @@ class TestCli(HomeTestCase):
         self.assertIn("qc review start", cmds)
         self.assertIn("demo ok", cmds)
 
+    def agent_json(self, argv, agent="jobhunter-scout", mods=None):
+        """One call as a proven jobhunter agent: both identity carriers, as python -I (CLI route 5)."""
+        from tests import helpers
+        full = helpers.agent_argv(paths.root(), agent, argv)
+        env = helpers.agent_env(paths.root(), agent)
+        with helpers.as_isolated():
+            return self.env_json(full, env=env, mods=mods)
+
     def test_caller_classes(self):
         rc, env = self.env_json(["demo", "human"])
         self.assertEqual((rc, env["code"]), (11, "E_HUMAN_ONLY"))
@@ -517,35 +540,36 @@ class TestCli(HomeTestCase):
         self.assertEqual((rc, env["code"]), (11, "E_AUTH_FAILED"))
         rc, env = self.env_json(["demo", "ok"], env={"OPENCLAW_SHELL": "1"})
         self.assertEqual((rc, env["code"]), (11, "E_GUARD_MISSING"))
-        agent = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-scout"}
-        rc, env = self.env_json(["demo", "ok"], env=agent)          # not in the scout's acl map
+        rc, env = self.agent_json(["demo", "ok"])                    # not in the scout's acl map
         self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"))
-        rc, env = self.env_json(["demo", "second"], env=agent)      # system-only command
+        rc, env = self.agent_json(["demo", "second"])                # system-only command
         self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"))
-        rc, env = self.env_json(["home", "show"], env=agent)
+        rc, env = self.agent_json(["home", "show"])
         self.assertEqual((rc, env["data"]), (0, {"who": "agent", "agent": "jobhunter-scout"}))
-        # other agents (for example main) and guard-less shells: public read-only commands only (R7)
+        # a jobhunter agent id without the guard's proofs is refused
+        rc, env = self.env_json(["home", "show"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-scout"})
+        self.assertEqual((rc, env["code"]), (11, "E_AUTH_FAILED"))
+        # other agents (for example main) and guard-less shells: unproven, public read-only commands only (R7)
         rc, env = self.env_json(["home", "show"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "main"})
-        self.assertEqual((rc, env["data"]), (0, {"who": "agent", "agent": "main"}))
+        self.assertEqual((rc, env["data"]), (0, {"who": "agent", "agent": None}))
         rc, env = self.env_json(["home", "show"], env={"OPENCLAW_SHELL": "1"})
         self.assertEqual(rc, 0)
         rc, env = self.env_json(["demo", "ok"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "main"})
-        self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"))
+        self.assertEqual((rc, env["code"]), (11, "E_GUARD_MISSING"))
 
     def test_agent_file_confinement(self):
-        agent = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-scout"}
         mods = [_fake_module("m4", lambda sub: add_command(sub, "job add", lambda a, c: {"doc": c.read_json(a.file)},
                                                              callers="SA").add_argument("--file", required=True))]
         good = self.home.write_agent_file("scout", "c1/job.json", json.dumps({"a": 1}))
-        rc, env = self.env_json(["job", "add", "--file", good], env=agent, mods=mods)
+        rc, env = self.agent_json(["job", "add", "--file", good], mods=mods)
         self.assertEqual((rc, env["data"]), (0, {"doc": {"a": 1}}))
         bad = os.path.join(self.home.dir, "private", "home.json")
-        rc, env = self.env_json(["job", "add", "--file", bad], env=agent, mods=mods)
+        rc, env = self.agent_json(["job", "add", "--file", bad], mods=mods)
         self.assertEqual((rc, env["code"]), (10, "E_PATH_NOT_ALLOWED"))
         rc, env = self.env_json(["job", "add", "--file", bad], mods=mods)        # system caller: any path
         self.assertEqual(rc, 0)
         broken = self.home.write_agent_file("scout", "c1/bad.json", "{not json")
-        rc, env = self.env_json(["job", "add", "--file", broken], env=agent, mods=mods)
+        rc, env = self.agent_json(["job", "add", "--file", broken], mods=mods)
         self.assertEqual((rc, env["code"]), (10, "E_SCHEMA"))
 
     def test_acl_args(self):
@@ -652,6 +676,105 @@ class TestInitBinaries(HomeTestCase):
         finally:
             with open(paths.home_file(), "w", encoding="utf-8") as fh:
                 fh.write(saved)
+
+
+class TestSelftestCliRoute(HomeTestCase):
+    """CLI route 8: agent identity (heartbeat proof version 2, probe files), claude settings key names, cli mode,
+    the openclaw checks skipped offline, --only and --probe-since."""
+    start_ts = "2026-09-29T12:00:00Z"
+
+    def setUp(self):
+        super().setUp()
+        from tests import helpers
+        from tests.fakes.u1 import write_config, write_heartbeat
+        write_config()
+        write_heartbeat()
+        helpers.ensure_agent_setup()
+        self.t0 = int(canon.utcnow().timestamp())
+
+    def run_cli(self, argv):
+        out = io.StringIO()
+        rc = cli.main(argv, env={}, stdin=io.StringIO(""), stdout=out)
+        return rc, json.loads(out.getvalue())
+
+    def probe_all(self):
+        from tests import helpers
+        for agent in ("jobhunter-scout", "jobhunter-evaluator", "jobhunter-applier", "jobhunter-outreach"):
+            rc, env = helpers.agent_cli(agent, ["whoami"])
+            self.assertEqual(rc, 0, env)
+            self.home.write_agent_file(agent.split("-")[1], "probe/ok.txt", "OK\n")
+
+    def test_agent_identity_with_probes(self):
+        from jobhunter import selftest
+        from tests.fakes.u1 import write_heartbeat
+        check = selftest.check_agent_identity()
+        self.assertTrue(check["ok"], check)
+        write_heartbeat(proof_version=None)
+        self.assertIn("old guard", selftest.check_agent_identity()["detail"]["problems"][0])
+        write_heartbeat(carriers=["env"])
+        self.assertFalse(selftest.check_agent_identity()["ok"])
+        write_heartbeat()
+        rc, env = self.run_cli(["selftest", "--offline", "--probe-since", str(self.t0)])
+        self.assertEqual((rc, env["code"]), (1, "E_INTERNAL"))            # no probe files yet
+        self.assertIn("agent identity", env["message"])
+        self.probe_all()
+        rc, env = self.run_cli(["selftest", "--offline", "--probe-since", str(self.t0), "--only", "agent identity"])
+        self.assertEqual(rc, 0, env)
+        self.assertEqual([c["name"] for c in env["data"]["checks"]], ["agent identity"])
+        # a probe from before the test, a missing ok.txt, or a native tool call in the guard log fails it
+        rc, env = self.run_cli(["selftest", "--offline", "--probe-since", str(self.t0 + 60), "--only",
+                                "agent identity"])
+        self.assertEqual(rc, 1)
+        os.unlink(os.path.join(paths.ws_dir("scout"), "work", "probe", "ok.txt"))
+        check = selftest.check_agent_identity(self.t0)
+        self.assertEqual(check["detail"]["agents"]["jobhunter-scout"], "work/probe/ok.txt was not written")
+        self.home.write_agent_file("scout", "probe/ok.txt", "OK")
+        os.makedirs(paths.logs_dir(), exist_ok=True)
+        with open(os.path.join(paths.logs_dir(), "guard-2026-09.jsonl"), "a") as fh:
+            fh.write(json.dumps({"ts": "2026-09-29T11:00:00Z", "kind": "native_tool"}) + "\n")
+        self.assertTrue(selftest.check_agent_identity(self.t0)["ok"])          # older than the test
+        with open(os.path.join(paths.logs_dir(), "guard-2026-09.jsonl"), "a") as fh:
+            fh.write(json.dumps({"ts": "2026-09-29T12:00:01Z", "kind": "native_tool"}) + "\n")
+        self.assertIn("not restricted", " ".join(selftest.check_agent_identity(self.t0)["detail"]["problems"]))
+
+    def test_heartbeat_fields(self):
+        from jobhunter import gate
+        from tests.fakes.u1 import write_heartbeat
+        hb = gate.guard_heartbeat()
+        self.assertEqual((hb["fresh"], hb["proof_version"], hb["carriers"], hb["native_tools"], hb["pin_tool_surface"],
+                          hb["guard_version"]), (True, 2, ["argv", "env"], "deny", True, "2.1.0"))
+        write_heartbeat(proof_version=None)
+        hb = gate.guard_heartbeat()
+        self.assertEqual((hb["fresh"], hb["proof_version"], hb["carriers"]), (True, None, None))
+        os.unlink(os.path.join(paths.guard_dir(), "heartbeat.json"))
+        self.assertEqual((gate.guard_heartbeat()["present"], gate.guard_heartbeat()["proof_version"]), (False, None))
+
+    def test_settings_mode_and_offline(self):
+        from jobhunter import selftest
+        path = os.path.join(self.home.dir, "settings.json")
+        with open(path, "w") as fh:
+            json.dump({"permissions": {"allow": ["Bash(*)"], "defaultMode": "acceptEdits"}, "hooks": {"x": 1},
+                       "theme": "dark", "mcpServers": {}}, fh)
+        check = selftest.check_claude_settings(path)
+        self.assertEqual((check["ok"], check["warnings"]), (True, ["permissions.allow", "permissions.defaultMode",
+                                                                   "hooks"]))
+        self.assertNotIn("Bash(*)", json.dumps(check))
+        self.assertTrue(selftest.check_claude_settings(path + ".missing")["ok"])
+        self.assertTrue(selftest.check_cli_mode()["ok"])
+        h = paths.home()
+        h["cli_route"] = dict(h["cli_route"], cli_tools="native")
+        with open(paths.home_file(), "w") as fh:
+            json.dump(h, fh)
+        self.assertEqual((selftest.check_cli_mode()["ok"], selftest.check_cli_mode()["red"]), (False, True))
+        names = {c["name"]: c for c in selftest.route_checks(offline=True)}
+        for n in ("exec policy", "identity boundary", "other plugins"):
+            self.assertTrue(names[n]["skipped"])
+        # online, against an openclaw that is not there: exec policy fails red, the boundary never fails
+        names = {c["name"]: c for c in selftest.route_checks(offline=False)}
+        self.assertEqual((names["exec policy"]["ok"], names["exec policy"]["red"]), (False, True))
+        self.assertTrue(names["identity boundary"]["ok"])
+        rc, env = self.run_cli(["selftest", "--offline", "--only", "no such check"])
+        self.assertEqual((rc, env["code"]), (2, "E_USAGE"))
 
 
 class TestSelftestMailCheck(HomeTestCase):

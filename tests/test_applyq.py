@@ -1,14 +1,13 @@
 """U6 apply queue: work list order, claims with a lease, release, human sweep, site modes, CLI."""
 from __future__ import annotations
 
-import io
-import json
 import unittest
 
 import tests  # noqa: F401
-from jobhunter import applyq, canon, cli, db
+from jobhunter import applyq, canon, db
 from jobhunter.events import open_human_task
 from tests.fakes.u6 import U6TestCase, deps, set_config
+from tests.fakes.u6.agentcall import agent_cli, agent_cli_isolated
 from tests.helpers import insert_action, insert_company, insert_draft, insert_job
 
 CYCLE = "C20260927T050000ZAAAA"
@@ -231,11 +230,10 @@ class TestReturnFromHuman(ApplyBase):
 
 
 class TestApplyCli(ApplyBase):
-    def run_cli(self, argv):
-        out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-applier"}
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
-        return rc, json.loads(out.getvalue())
+    """The applier's calls as the guard runs them: python -I, argv and env proof of one session."""
+
+    def run_cli(self, argv, agent="jobhunter-applier"):
+        return agent_cli_isolated(agent, argv)
 
     def test_next_and_release(self):
         jid = self.job()
@@ -244,15 +242,14 @@ class TestApplyCli(ApplyBase):
         self.assertEqual(out["data"]["items"][0]["job_uid"], self.uid("jobs", jid))
         rc, out = self.run_cli(["apply", "next"])
         self.assertEqual((rc, out["code"]), (0, "NOTHING_TO_DO"))
+        self.assertEqual(out["next"], "run cycle end and reply CYCLE_DONE")
         rc, out = self.run_cli(["apply", "release", "--job", self.uid("jobs", jid)])
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.status(jid)[0], "eligible")
 
     def test_outreach_agent_may_not_claim(self):
-        out = io.StringIO()
-        rc = cli.main(["apply", "next"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"},
-                      stdin=io.StringIO(""), stdout=out)
-        self.assertEqual((rc, json.loads(out.getvalue())["code"]), (11, "E_CALLER_NOT_ALLOWED"))
+        rc, out = agent_cli("jobhunter-outreach", ["apply", "next"])
+        self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "notes": "One entry per OpenClaw agent (design 1.1 and 10.2). install.sh creates missing agents, `jh.py install render-workspaces` renders template_dir, skills and ref into WS_ROOT/<role>/, and `jh.py install render-agents-patch` writes agents.entries[id] from openclaw/agents.patch.json5.tmpl. Skills are looked up in template_dir/skills/<name>/ first, then skills-src/<name>/. Keep tools_allow equal to the tools list of the agent in scripts/jobhunter/acl.json.",
+  "version": 3,
+  "notes": "One entry per OpenClaw agent (design 1.1 and 10.2). install.sh creates missing agents, `jh.py install render-workspaces` renders template_dir, skills and ref into WS_ROOT/<role>/, and `jh.py install render-agents-patch` writes agents.entries[id] from openclaw/agents.patch.json5.tmpl. Skills are looked up in template_dir/skills/<name>/ first, then skills-src/<name>/. Keep tools_allow equal to the tools list of the agent in scripts/jobhunter/acl.json. exec_policy is the agent's OpenClaw exec policy: allowlist (one jh.py argPattern, never ask) or deny; tools_deny always holds edit and apply_patch (agents write whole files).",
   "agents": [
     {
       "id": "jobhunter-scout",
@@ -8,8 +8,9 @@
       "template_dir": "agent-templates/scout",
       "model": "anthropic/claude-sonnet-5",
       "fallbacks": [],
+      "exec_policy": "allowlist",
       "tools_allow": ["exec", "read", "write", "browser"],
-      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "tools_deny": ["edit", "apply_patch", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
       "skills": ["jobhunter-stop-detect", "jobhunter-browser-search", "jobhunter-linkedin-posts", "jobhunter-salary"],
       "ref": [
         {"from": "prompts/salary_research.md", "to": "salary_research.md"},
@@ -22,8 +23,9 @@
       "template_dir": "agent-templates/evaluator",
       "model": "anthropic/claude-sonnet-5",
       "fallbacks": [],
+      "exec_policy": "allowlist",
       "tools_allow": ["exec", "read", "write"],
-      "tools_deny": ["browser", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "tools_deny": ["browser", "edit", "apply_patch", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
       "skills": ["jobhunter-evaluate", "jobhunter-profile"],
       "ref": [
         {"from": "prompts/evaluator_scorecard.md", "to": "evaluator_scorecard.md"},
@@ -36,8 +38,9 @@
       "template_dir": "agent-templates/applier",
       "model": "anthropic/claude-opus-5-5",
       "fallbacks": ["anthropic/claude-sonnet-5"],
+      "exec_policy": "allowlist",
       "tools_allow": ["exec", "read", "write", "browser"],
-      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "tools_deny": ["edit", "apply_patch", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
       "skills": ["jobhunter-gate", "jobhunter-stop-detect", "jobhunter-qc-loop", "jobhunter-apply-ats", "jobhunter-apply-boards", "jobhunter-apply-email", "jobhunter-resume-tailor", "jobhunter-form-answers", "jobhunter-upload", "jobhunter-gmail-web"],
       "ref": [
         {"from": "prompts/resume_tailor.md", "to": "resume_tailor.md"},
@@ -54,8 +57,9 @@
       "template_dir": "agent-templates/outreach",
       "model": "anthropic/claude-opus-5-5",
       "fallbacks": ["anthropic/claude-sonnet-5"],
+      "exec_policy": "allowlist",
       "tools_allow": ["exec", "read", "write", "browser"],
-      "tools_deny": ["message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
+      "tools_deny": ["edit", "apply_patch", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
       "skills": ["jobhunter-gate", "jobhunter-stop-detect", "jobhunter-qc-loop", "jobhunter-gmail-web", "jobhunter-research", "jobhunter-write", "jobhunter-linkedin", "jobhunter-replies"],
       "ref": [
         {"from": "prompts/writer_brief.md", "to": "writer_brief.md"},
@@ -71,6 +75,7 @@
       "template_dir": "agent-templates/qc",
       "model": "anthropic/claude-sonnet-5",
       "fallbacks": [],
+      "exec_policy": "deny",
       "tools_allow": [],
       "tools_deny": ["exec", "read", "write", "edit", "apply_patch", "browser", "message", "cron", "process", "gateway", "sessions_*", "subagents", "web_fetch", "web_search", "nodes", "canvas"],
       "skills": [],

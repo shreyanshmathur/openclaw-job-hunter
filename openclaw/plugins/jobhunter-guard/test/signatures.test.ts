@@ -18,7 +18,7 @@ function scan(url: string | null, text: string, httpStatus: number | null = null
 
 test("loads the accepted shapes and skips non-stop entries", () => {
   const codes = set.signatures.map((s) => s.code).sort();
-  assert.deepEqual(codes, ["ats_captcha", "ats_rate_limited", "boards_stop", "li_checkpoint", "li_http_999", "li_invite_limit", "li_login_title", "li_security_check"]);
+  assert.deepEqual(codes, ["ats_account_wall", "ats_captcha", "ats_email_code", "ats_rate_limited", "boards_stop", "li_checkpoint", "li_http_999", "li_invite_limit", "li_login_title", "li_security_check"]);
   assert.equal(set.warnings.length, 0);
 });
 
@@ -255,4 +255,61 @@ test("SEVERITY is the same list as detect.SEVERITY in the Python core", { skip: 
   assert.ok(m, "detect/__init__.py defines SEVERITY = (...)");
   const py = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
   assert.deepEqual([...SEVERITY], py);
+});
+
+// ------------------------------------------------------------------ FEATURES-OTP-ACCOUNTS-CAPTCHA 2.6
+
+test("capability and handoff keys: read on job-level stops, a capability on a tripping signature is a load error", () => {
+  const byCode = new Map(set.signatures.map((s) => [s.code, s]));
+  assert.equal(byCode.get("ats_captcha")?.handoff, "captcha");
+  assert.equal(byCode.get("ats_captcha")?.capability, null);
+  assert.equal(byCode.get("ats_account_wall")?.capability, "ats_accounts");
+  assert.equal(byCode.get("ats_email_code")?.capability, "email_codes");
+  assert.equal(byCode.get("li_checkpoint")?.capability, null);
+  const m = scan("https://kestrel.wd5.myworkdayjobs.com/en-US/careers/login", "Create an account to apply");
+  assert.equal(m?.code, "ats_account_wall");
+  assert.equal(m?.capability, "ats_accounts");
+  assert.equal(scan("https://job-boards.greenhouse.io/kestrel/jobs/1", "Please tick I'm not a robot")?.handoff, "captcha");
+
+  const w: string[] = [];
+  assert.throws(() => parseDetectJson({ platform: "ats", signatures: [{ id: "x", verdict: "stop", trip: true, capability: "email_codes", text: "a" }] }, "ats.json", w), /tripping signature/);
+  assert.throws(() => parseDetectJson({ platform: "ats", signatures: [{ id: "x", verdict: "stop", capability: "email_codes", text: "a" }] }, "ats.json", w), /tripping signature/); // trip missing = true
+  assert.throws(() => parseDetectJson({ platform: "ats", signatures: [{ id: "x", verdict: "stop", trip: false, capability: 7, text: "a" }] }, "ats.json", w));
+  const ok = parseDetectJson({ platform: "ats", signatures: [{ id: "x", verdict: "stop", trip: false, capability: "email_codes", handoff: "other", text: "a" }] }, "ats.json", w);
+  assert.equal(ok.signatures[0].capability, "email_codes");
+  assert.equal(ok.signatures[0].handoff, null);
+  assert.equal(w.length, 1); // the unknown handoff is a warning
+
+  // loadSignatures (the guard's health check) fails on such a file: the guard is then unhealthy
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jhg-cap-"));
+  try {
+    fs.writeFileSync(path.join(dir, "ats.json"), JSON.stringify({ platform: "ats", signatures: [{ id: "ats_phone_code", verdict: "stop", trip: true, reason_code: "ats_security", capability: "email_codes", text: "sms" }] }));
+    assert.throws(() => loadSignatures(dir), /tripping signature/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("SEVERITY: ats_security right after gmail_unexpected_state, before ats_blocked", () => {
+  const i = SEVERITY.indexOf("ats_security");
+  assert.ok(i > 0);
+  assert.equal(SEVERITY[i - 1], "gmail_unexpected_state");
+  assert.equal(SEVERITY[i + 1], "ats_blocked");
+});
+
+test("the repo's ATS signatures: a tripping security page always wins over a job-level code page", { skip: !fs.existsSync(path.join(REPO, "scripts", "jobhunter", "detect", "ats.json")) }, () => {
+  const real = loadSignatures(path.join(REPO, "scripts", "jobhunter", "detect"));
+  const raw = JSON.parse(fs.readFileSync(path.join(REPO, "scripts", "jobhunter", "detect", "ats.json"), "utf8"));
+  if (!JSON.stringify(raw).includes("ats_phone_code")) return; // older detect file
+  const wd = "https://kestrel.wd5.myworkdayjobs.com/en-US/careers/job/1";
+  const sms = scan(wd, "We sent a code to your mobile phone. Enter the verification code.", null, null, real);
+  assert.equal(sms?.code, "ats_phone_code");
+  assert.equal(sms?.trip, true);
+  assert.equal(sms?.reasonCode, "ats_security");
+  const mail = scan(wd, "We sent a verification code to your email. Check your email.", null, null, real);
+  assert.equal(mail?.code, "ats_email_code");
+  assert.equal(mail?.capability, "email_codes");
+  const cap = scan(wd, "Please complete the captcha", null, null, real);
+  assert.equal(cap?.handoff, "captcha");
+  for (const s of real.signatures) if (s.capability !== null) assert.equal(s.trip, false, s.code);
 });

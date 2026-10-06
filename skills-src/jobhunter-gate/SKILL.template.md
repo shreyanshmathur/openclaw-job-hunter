@@ -12,7 +12,10 @@ steps in this order. The jobhunter-guard plugin refuses fill actions without a r
 before the token is armed and the dwell has passed, and it allows at most 2 commit actions per token. Every
 command starts with `__PY__ __REPO__/scripts/jh.py`; `<k>` is the kind (`application`, `li_invite`,
 `li_message`, `li_followup`, and the email kinds on the web route) and `<p>` the platform (`linkedin`,
-`gmail`, or the ATS or board name such as `greenhouse` or `naukri`).
+`gmail`, or the ATS or board name such as `greenhouse` or `naukri`). Every file this skill names (detect,
+precheck, observed, evidence, note and ref files) is a whole file you write with the write tool under
+`__WS__/work/<cycle_id>/`; there is no edit tool, so to change a file, write it again. Drivers and other inputs
+are read with the read tool, by absolute path.
 
 `<p>` must name the host the page is on: the guard lets a token fill and click only on its own platform's
 hosts. On an ATS it is the name `detect_page.js` reports (`greenhouse`, `lever`, `ashby`, ...); on a board it
@@ -25,7 +28,8 @@ reserve for the platform it reports. When there is no ATS address, hand the job 
 
 ## Browser calls the guard accepts
 
-Every browser call carries `"profile": "jobhunter"`. Use exactly these shapes:
+Every browser call carries `"profile": "jobhunter"`. A call without it, or with any other profile, is refused
+at once (`G_BROWSER_PROFILE`); nothing fills it in for you. Use exactly these shapes:
 
 ```json
 {"action": "navigate", "profile": "jobhunter", "targetUrl": "https://job-boards.greenhouse.io/example/jobs/1"}
@@ -49,19 +53,27 @@ Every browser call carries `"profile": "jobhunter"`. Use exactly these shapes:
   fill action. Do not click the label text instead: a ref with another role can count as a submit.
 * Upload: `paths` holds exactly one path, the `upload_path` that `resume stage` returned, and `ref` is the
   chooser button (or `inputRef` the file input) from the latest snapshot. Any other path is refused.
-* A driver runs as act kind `evaluate` whose `fn` is the driver file's exact text: read the file and pass all
-  of it unchanged. Any other script is refused (`G_SCRIPT_NOT_ALLOWED`).
+* A driver runs as act kind `evaluate` whose `fn` is the driver file's exact text: read the file with the read
+  tool and pass all of it unchanged. Any other script is refused (`G_SCRIPT_NOT_ALLOWED`).
 * Never `"submit": true` on `type`, never press Enter, never click by coordinates, never `drag`: all of these
   are submit actions.
+* A refused call is refused at once and nobody approves it later. `G_NO_TOKEN` or `G_NOT_ARMED` means a gate
+  step is missing: go back to it. Any other `G_*` code, or an OpenClaw refusal (a command that is not allowed,
+  a path outside the workspace, a tool that is not available), ends the cycle as skill `jobhunter-stop-detect`
+  says ("Guard blocks"). Never retry it in another form.
 
 ## 1. Detect, then precheck (read only)
 
 1. On the target page run `__WS__/ref/drivers/detect_page.js` (act kind `evaluate`). Write its `detect_file`
-   object to `__WS__/work/<cycle_id>/detect-<n>.json` and run `detect --file <that file>`. A `stop` hint (its
+   object with the write tool to `__WS__/work/<cycle_id>/detect-<n>.json` and run `detect --file <that file>`. A `stop` hint (its
    `top` names the most severe signature) or exit 5 ends the cycle (skill `jobhunter-stop-detect`). Reserve
-   needs a clear detection from the last 10 minutes.
+   needs a clear detection from the last 10 minutes. On an ATS form `detect` may answer `clear` with a `flow`
+   (`account` or `email_code`): the owner allowed site accounts or emailed codes there, and the page is handled
+   by the code-owned steps of skill `jobhunter-apply-ats` under your token. A CAPTCHA answer carries `captcha`
+   (its code): the owner was asked to solve it; move to the next job.
 2. `gate precheck-plan --kind <k> [--job <job_uid>] [--contact <contact_uid>] [--thread <thread_key>]` lists
-   the checks. Run exactly those checks with the drivers and write the precheck file (12.7):
+   the checks. Run exactly those checks with the drivers and write the precheck file with the write tool
+   (12.7):
 
    ```json
    {"kind": "application", "platform": "greenhouse", "observed_at": "2026-09-27T05:10:00Z",
@@ -80,7 +92,9 @@ Every browser call carries `"profile": "jobhunter"`. Use exactly these shapes:
    | followup_email (web route) | `thread_has_reply` (true or false), `company_inbound_since_first` | `read_gmail_message.js`, `read_gmail_list.js` |
 
    Web route email: for each check with a `query`, open
-   `https://mail.google.com/mail/u/0/#search/<the query, URL-encoded>`, run `read_gmail_list.js` and use its
+   `https://mail.google.com/mail/u/0/#search/<the query, URL-encoded>` (for example
+   `{"action": "navigate", "profile": "jobhunter", "targetUrl": "https://mail.google.com/mail/u/0/#search/in%3Asent"}`),
+   run `read_gmail_list.js` and use its
    `count` (a check without a query is 0). `loaded` false or `count` null means the list could not be read:
    write no precheck file and leave the item for the next cycle. `thread_has_reply` is true when
    `read_gmail_message.js` on the thread shows any message whose `from_owner` is false.
@@ -104,7 +118,7 @@ Exit 6: the text is not cleared. Exit 11 `E_TOKEN_OPEN`: finish or resolve your 
   `click` on a checkbox or radio ref, and `upload` of the staged file (shapes above).
 * Type exactly the approved text or value. Never paste, never use a value setter, never type anything else.
 * Read back what the page holds with the driver (act kind `evaluate`, `fn` = the driver file's exact text) and
-  write it to `__WS__/work/<cycle_id>/observed-<token>.<ext>`:
+  write it with the write tool to `__WS__/work/<cycle_id>/observed-<token>.<ext>`:
   a form: `read_form.js` `observed` object (JSON); a LinkedIn note: `read_li_invite_dialog.js` `note_text`
   (text); a LinkedIn message, an InMail or a web-route email: `read_compose.js` `observed_text` (text; for an
   InMail and an email it is `Subject: <subject>`, a blank line, then the body; a web-route follow-up is an

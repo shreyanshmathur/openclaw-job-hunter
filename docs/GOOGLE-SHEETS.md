@@ -155,12 +155,12 @@ From now on the Sheet updates by itself about every 20 minutes. To update it rig
 | Follow-ups | Each conversation: when the one follow-up is due, what they said, and the next step |
 | QC log | How each draft did in the quality check |
 | Daily summary | One line per day with the counts |
-| Alerts | Everything that made the agent stop, and what you need to do |
+| Alerts | Everything that made the agent stop, and what you need to do; also site accounts created, email codes used and CAPTCHAs waiting for you (see below) |
 | Limits and settings | How the agent works, the limits it works under and how much is used today, which sites it may use with your Chrome logins, and the optional email finder's free credits (see below) |
 
 ### The Limits and settings tab
 
-This tab is rewritten at every update. It has four blocks, each under a blue heading row:
+This tab is rewritten at every update. It has five blocks, each under a blue heading row:
 
 - **How the agent works**: approval mode, email route and whether it is connected, LinkedIn on or off, the
   limit tiers, the warm-up week, whether the safety plugin is running, and your time zone.
@@ -177,6 +177,21 @@ This tab is rewritten at every update. It has four blocks, each under a blue hea
   it shows the addresses found, and for each service you connected the free credits left in the last 31
   days, the credits used today against its daily cap, and whether it stopped itself (red) or the service
   said its free credits are used up (amber). See [EMAIL-FINDER.md](EMAIL-FINDER.md).
+- **Email codes and site accounts**: one row per job site and permission (email codes, site accounts) with
+  **Granted**, **Declined**, **Taken back**, **Not asked** or **Unavailable: Gmail not allowed**, then
+  "Email codes used (24 h)", "New site accounts (24 h)", "CAPTCHA hand-offs (24 h)" and "Open CAPTCHA tasks",
+  each as used of the limit (for example "New site accounts (24 h): 0 of 3").
+
+### Email code, site account and CAPTCHA rows in the Alerts tab
+
+Next to the stops, the Alerts tab lists the steps the agent took on company career sites. Rows starting with
+`S` are code steps: "Created an account on kestrel.wd5.myworkdayjobs.com for Kestrel Commerce, Senior
+Analyst (with your address)", "Signed in", "Used an email code from myworkday.com ..." (Info), or a failed
+sign-in or rejected code (Warning). Rows starting with `K` are CAPTCHA tasks: **Needs you** with "Solve it in
+the agent's browser window, then /jh continue K7QA" and the deadline, then **Resolved** or **Skipped**. The
+area reads like "Job forms: Workday". The Sheet never shows a code, a link or a password. Jobs skipped because
+a CAPTCHA was not solved in time appear in the Skipped tab as "CAPTCHA not solved in time". The digest in your
+chat adds a "Job sites:" line with these counts.
 
 `./jobhunter status` and the digest in your chat carry the same two lines in short form, for example
 `Browser sites allowed: Gmail, LinkedIn (Chrome profile "Personal"); every other site is off` and

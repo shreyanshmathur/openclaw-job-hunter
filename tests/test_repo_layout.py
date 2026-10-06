@@ -136,6 +136,19 @@ class TestLayout(unittest.TestCase):
         with open(os.path.join(paths.REPO, ".github", "workflows", "ci.yml"), "r", encoding="utf-8") as fh:
             self.assertIn("tools/sync_skills.py --check", fh.read())
 
+    def test_live_check_pin_steps(self):
+        """The live check sets the first PIN at a terminal and runs every later PIN step with --pin-stdin; a PIN
+        piped into `script -q /dev/null` is discarded by the echo-off flush and the prompt hangs (live run O6)."""
+        with open(DEVELOPING, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        start = text.index("## Live check on a test profile")
+        section = text[start:text.index("\n## ", start + 1)]
+        flat = " ".join(section.split())
+        self.assertIn("jh.py --human --pin-stdin <command>", flat)
+        self.assertIn("Do not pipe the PIN into `script -q /dev/null`", flat)
+        steps = re.findall(r"(?m)^(\d+)\. ", section)
+        self.assertEqual(steps, [str(i) for i in range(1, len(steps) + 1)], "live check steps are numbered in order")
+
     def test_executables(self):
         for rel in ("install.sh", "uninstall.sh", "jobhunter", "macos/stay-awake.sh", "tools/install_hooks.sh",
                     "tests/fixtures/install/fake-openclaw"):

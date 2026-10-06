@@ -1,17 +1,31 @@
-"""Caller classes, owner PIN, chat grants and the ACL check (design 3.1, 3.3, 1.4 R6/R7, 12.19).
+"""Caller classes, owner PIN, chat grants and the ACL check (design 3.1, 3.3, 1.4 R6/R7, 12.19; CLI route 5).
 
 Classes, decided before any command runs:
-- agent: OPENCLAW_SHELL is set. JH_AGENT_ID (injected only by the guard) names the agent; without it only
-  public read-only commands run, anything else is E_GUARD_MISSING. Agents can never present a PIN or a grant.
-  The guard also sets JH_AGENT_PROOF = "<unix ts>.<hex HMAC-SHA256(guard.key, 'agent\n' + id + '\n' + ts)>"
-  (13.1 #4). A proof that is present must verify (else E_AUTH_FAILED); once a valid proof has been seen on
-  this install (state/agent-proof-seen), a jobhunter-* agent id without one is refused too, so JH_AGENT_ID
-  cannot be spoofed by an exec that sets the variable itself.
+- agent (proven): the jobhunter-guard minted the call's identity proofs (CLI route design 5):
+  * argv proof, the first two tokens of the jh.py arguments: `--agent-proof <T>`,
+    T = "jhp2." + agent + "." + ts + "." + nonce + "." + sk + "." + hex HMAC-SHA256(key, "jh-agent-proof\\n2\\n" +
+    agent + "\\n" + ts + "\\n" + nonce + "\\n" + sk + "\\n" + hex sha256("\\n".join(rest))), rest = the arguments
+    after the proof pair;
+  * env proof JH_AGENT_PROOF = "jhe2." + agent + "." + ts + "." + nonce + "." + sk + "." + hex HMAC-SHA256(key,
+    "jh-agent-env\\n2\\n" + agent + "\\n" + ts + "\\n" + nonce + "\\n" + sk), set by the guard's resolve_exec_env;
+  sk = first 16 hex of sha256(session key), nonce = 16 hex, ts = unix seconds, valid from 10 s in the future to
+  120 s old. Every carrier listed in private/home.json cli_route.carriers (default argv and env) is required,
+  all carriers must name the same agent and session, the interpreter must run with python -I, and every nonce
+  is single use (grants_used, one BEGIN IMMEDIATE transaction). Agents can never present a PIN or a grant.
+- agent (unproven): no proof, but a harness marker (OPENCLAW_SHELL, OPENCLAW_MCP_TOKEN, or Claude Code's
+  CLAUDECODE or CLAUDE_CODE_ENTRYPOINT, wherever the working directory is): public read-only commands only,
+  anything else is E_GUARD_MISSING. A JH_AGENT_ID naming a jobhunter agent without a proof is E_AUTH_FAILED.
 - chat: --grant <ts>.<nonce>.<hex hmac> verifies (HMAC-SHA256 with private/guard.key over
   command + "\\n" + json(args) + "\\n" + ts + "\\n" + nonce, at most 120 s old, nonce single use).
 - human: --pin-stdin reads a PIN that verifies (scrypt n=2^15 r=8 p=1 when hashlib.scrypt exists, else
   PBKDF2-HMAC-SHA256 600,000 rounds). 5 failures in an hour lock human commands for an hour.
-- system: everything else (command cron jobs, the wrapper's plain calls, the guard's execFile).
+- system: no proof, no marker, no grant, no PIN (command cron jobs, the wrapper's plain calls, install.sh, the
+  guard's execFile). Each of these entry points drops the markers itself: scrub_agent_env() for jh.py's own
+  children (ocrun.run, the QC worker) and the guard's childEnv; ./jobhunter and install.sh unset CLAUDECODE and
+  CLAUDE_CODE_ENTRYPOINT at their start, so a person can run them from a Claude Code terminal; the command cron
+  jobs start jh.py through `/usr/bin/env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT` (openclaw/crons.json), in case
+  the Gateway itself was started from Claude Code. The markers are a negative signal only: dropping one never
+  proves an identity, it only avoids treating a person's own call as an unproven agent.
 
 Grant arguments: `command` is the command words ("approve", "profile answer"); `args` is the list of argv
 tokens after the command words with --grant <g>, --quiet and --human removed. json(args) may be Python's
@@ -34,8 +48,19 @@ from .canon import now, ts_add
 from .errors import Denied
 
 GRANT_TTL_S = 120
-AGENT_PROOF_MAX_AGE_S = 6 * 3600      # one agent exec (a whole cycle at most) runs under one proof
-AGENT_PROOF_FUTURE_S = 60
+PROOF_TTL_S = 120                     # an agent proof is minted right before the exec and used at once
+PROOF_FUTURE_S = 10
+PROOF_FLAG = "--agent-proof"
+CARRIERS = ("argv", "env")
+DEFAULT_CARRIERS = ["argv", "env"]
+AGENT_ID_RE = r"jobhunter-[a-z]{2,20}"
+ARGV_PROOF_RE = re.compile(r"^jhp2\.(%s)\.([0-9]{10})\.([0-9a-f]{16})\.([0-9a-f]{16})\.([0-9a-f]{64})$" % AGENT_ID_RE)
+ENV_PROOF_RE = re.compile(r"^jhe2\.(%s)\.([0-9]{10})\.([0-9a-f]{16})\.([0-9a-f]{16})\.([0-9a-f]{64})$" % AGENT_ID_RE)
+V1_PROOF_RE = re.compile(r"^[0-9]{9,11}\.[0-9a-f]{64}$")
+# Environment names that make a child process look like an agent call (CLI route 5.5): scrub_agent_env drops
+# them for children that must stay `system` (ocrun.run, the QC worker); the guard's childEnv uses the same list.
+SCRUB_EXACT = frozenset(("OPENCLAW_SHELL", "OPENCLAW_CHANNEL_CONTEXT", "CLAUDECODE", "JOBHUNTER_HOME", "JOBHUNTER_DB"))
+SCRUB_PREFIXES = ("OPENCLAW_MCP_", "CLAUDE_CODE_", "JH_")
 LOCK_FAILURES = 5
 PIN_RE = re.compile(r"^[0-9]{6,12}$")
 PBKDF2_ROUNDS = 600000
@@ -104,7 +129,8 @@ def require(caller: Caller, command: str, args: dict) -> None:
         if not agent:
             if command in public:
                 return
-            raise Denied("E_GUARD_MISSING", "agent call without JH_AGENT_ID; the jobhunter-guard plugin is not active")
+            raise Denied("E_GUARD_MISSING", "no verified agent identity: this agent call carries no valid "
+                         "jobhunter-guard proof (public read-only commands only)")
         if not agent.startswith("jobhunter-"):
             if command in public:
                 return
@@ -188,20 +214,53 @@ def _chat_command(argv: list[str]) -> str:
     return best
 
 
-def classify(argv: list[str], env: dict, stdin, command: str | None = None, args: list | None = None) -> Caller:
-    """Decide the caller class (see module doc). Verifies a grant or a PIN when one is presented."""
+def classify(argv: list[str], env: dict, stdin, proof_arg: str | None = None, proof_rest: list | None = None,
+             conn=None, command: str | None = None, args: list | None = None) -> Caller:
+    """Decide the caller class (see module doc). Verifies agent proofs, a grant or a PIN when one is presented.
+
+    proof_arg is the value of `--agent-proof` (only ever the first jh.py argument, cli._split_globals) and
+    proof_rest the arguments after the proof pair. conn is a write connection for the nonce record (one is
+    opened when None). The guard key is read once, only when a proof is presented."""
     pin_flag, grant = _flags(list(argv))
-    if env.get("OPENCLAW_SHELL"):
+    env = env or {}
+    ids: dict = {}
+    if proof_arg is not None or env.get("JH_AGENT_PROOF"):
+        key_hex = read_guard_key()
+        if proof_arg is not None:
+            ids["argv"] = verify_argv_proof(proof_arg, list(proof_rest or []), key_hex=key_hex)
+        if env.get("JH_AGENT_PROOF"):
+            # the env carrier alone binds no command and no argv proof names the session: JH_SESSION_KEY must be
+            # there and match the proof (with argv+env the sessions of both proofs are compared below)
+            ids["env"] = verify_env_proof(env["JH_AGENT_PROOF"], env.get("JH_SESSION_KEY"), key_hex=key_hex,
+                                          require_session=proof_arg is None)
+    if ids:
+        required = required_carriers()
+        missing = [c for c in required if c not in ids]
+        if missing:
+            raise Denied("E_AUTH_FAILED", "missing %s proof" % missing[0])
+        if not is_isolated():
+            raise Denied("E_AUTH_FAILED", "agent calls must run with python -I")
+        agents = {v[0] for v in ids.values()}
+        sks = {v[2] for v in ids.values()}
+        if len(agents) != 1:
+            raise Denied("E_AUTH_FAILED", "proofs name different agents")
+        if len(sks) != 1:
+            raise Denied("E_AUTH_FAILED", "proofs name different sessions")
+        agent = agents.pop()
+        if env.get("JH_AGENT_ID") not in (None, "", agent):
+            raise Denied("E_AUTH_FAILED", "JH_AGENT_ID does not match the proof")
         if pin_flag or grant is not None:
             raise Denied("E_AUTH_FAILED", "agents cannot present the owner PIN or a chat grant")
-        agent = env.get("JH_AGENT_ID") or None
-        proof = env.get("JH_AGENT_PROOF") or None
-        if agent and proof is not None:
-            verify_agent_proof(agent, proof)
-            _note_proof_seen()
-        elif agent and agent.startswith("jobhunter-") and _proof_seen():
-            raise Denied("E_AUTH_FAILED", "JH_AGENT_ID without the guard's JH_AGENT_PROOF")
-        return Caller("agent", agent)
+        carriers = sorted(ids)
+        consume_nonces(conn, [("ap:" if c == "argv" else "ep:") + ids[c][1] for c in carriers], agent)   # last step
+        return Caller("agent", agent, {"carriers": carriers, "session": sks.pop(), "markers": harness_markers(env)})
+    if (env.get("JH_AGENT_ID") or "").startswith("jobhunter-"):
+        raise Denied("E_AUTH_FAILED", "a jobhunter agent id without the guard's proof")
+    markers = harness_markers(env)
+    if markers:
+        if pin_flag or grant is not None:
+            raise Denied("E_AUTH_FAILED", "agents cannot present the owner PIN or a chat grant")
+        return Caller("agent", None, {"markers": markers})       # public read-only only (cli.check_callers)
     if pin_flag and grant is not None:
         raise Denied("E_AUTH_FAILED", "use either --pin-stdin or --grant")
     if grant is not None:
@@ -215,6 +274,180 @@ def classify(argv: list[str], env: dict, stdin, command: str | None = None, args
         check_pin(pin, command or "")
         return Caller("human", None, {"pin_verified": True, "pin": pin})
     return Caller("system", None)
+
+
+# ---------------------------------------------------------------- agent proofs (CLI route design 5)
+def is_isolated() -> bool:
+    """True when this interpreter runs with python -I (sys.flags.isolated): no PYTHONPATH, no user site, no
+    script directory on sys.path. The guard always starts jh.py that way for agents."""
+    import sys
+    return bool(getattr(sys.flags, "isolated", 0))
+
+
+def session_hash(session_key: str | None) -> str:
+    """sk: the first 16 hex of sha256(utf8(session key or ""))."""
+    return hashlib.sha256((session_key or "").encode("utf-8")).hexdigest()[:16]
+
+
+def argv_digest(rest: list) -> str:
+    """hex sha256 of the jh.py arguments after the proof pair, joined by newlines."""
+    return hashlib.sha256("\n".join(str(t) for t in rest).encode("utf-8")).hexdigest()
+
+
+def _argv_mac(key: bytes, agent_id: str, ts: str, nonce: str, sk: str, digest: str) -> str:
+    msg = "jh-agent-proof\n2\n%s\n%s\n%s\n%s\n%s" % (agent_id, ts, nonce, sk, digest)
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _env_mac(key: bytes, agent_id: str, ts: str, nonce: str, sk: str) -> str:
+    msg = "jh-agent-env\n2\n%s\n%s\n%s\n%s" % (agent_id, ts, nonce, sk)
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _key_bytes(key_hex: str | None) -> bytes:
+    return bytes.fromhex(key_hex or read_guard_key())
+
+
+def argv_proof(agent_id: str, rest: list, session_key: str | None = None, ts: int | None = None,
+               nonce: str | None = None, key_hex: str | None = None) -> str:
+    """The `--agent-proof` value the guard mints for `<PY> -I jh.py --agent-proof <T> <rest...>` (tests and the
+    shared vectors; the guard's src/grant.ts argvProof computes the same)."""
+    ts_s = "%010d" % (_epoch() if ts is None else int(ts))
+    nonce = nonce or secrets.token_hex(8)
+    sk = session_hash(session_key)
+    return "jhp2.%s.%s.%s.%s.%s" % (agent_id, ts_s, nonce, sk,
+                                     _argv_mac(_key_bytes(key_hex), agent_id, ts_s, nonce, sk, argv_digest(rest)))
+
+
+def env_proof(agent_id: str, session_key: str | None = None, ts: int | None = None, nonce: str | None = None,
+              key_hex: str | None = None) -> str:
+    """The JH_AGENT_PROOF the guard's resolve_exec_env sets (src/grant.ts envProof)."""
+    ts_s = "%010d" % (_epoch() if ts is None else int(ts))
+    nonce = nonce or secrets.token_hex(8)
+    sk = session_hash(session_key)
+    return "jhe2.%s.%s.%s.%s.%s" % (agent_id, ts_s, nonce, sk, _env_mac(_key_bytes(key_hex), agent_id, ts_s, nonce, sk))
+
+
+def _check_age(ts_s: str, what: str) -> None:
+    age = _epoch() - int(ts_s)
+    if age > PROOF_TTL_S or age < -PROOF_FUTURE_S:
+        raise Denied("E_AUTH_FAILED", "%s proof expired" % what)
+
+
+def verify_argv_proof(token: str, rest: list, key_hex: str | None = None) -> tuple[str, str, str]:
+    """Check an `--agent-proof` value against the arguments after it: format, age, HMAC over their digest.
+    Returns (agent_id, nonce, sk). Denied(E_AUTH_FAILED) otherwise. The nonce is not consumed here. key_hex is
+    the guard key when the caller already read it (classify reads it once for both carriers)."""
+    token = token if isinstance(token, str) else ""
+    m = ARGV_PROOF_RE.match(token)
+    if not m:
+        raise Denied("E_AUTH_FAILED", "malformed agent proof")
+    agent, ts_s, nonce, sk, mac = m.groups()
+    _check_age(ts_s, "agent")
+    want = _argv_mac(_key_bytes(key_hex), agent, ts_s, nonce, sk, argv_digest(list(rest)))
+    if not hmac.compare_digest(want, mac):
+        raise Denied("E_AUTH_FAILED", "agent proof does not match this command")
+    return agent, nonce, sk
+
+
+def verify_env_proof(token: str, session_key: str | None = None, key_hex: str | None = None,
+                     require_session: bool = False) -> tuple[str, str, str]:
+    """Check JH_AGENT_PROOF: format (a version 1 proof means an old guard), age, HMAC, and the hash of
+    JH_SESSION_KEY when that is set. With require_session (the env proof is the only carrier of the call)
+    JH_SESSION_KEY must be set as well. Returns (agent_id, nonce, sk). Denied(E_AUTH_FAILED) otherwise."""
+    token = token if isinstance(token, str) else ""
+    if V1_PROOF_RE.match(token):
+        raise Denied("E_AUTH_FAILED", "old guard; run ./install.sh")
+    m = ENV_PROOF_RE.match(token)
+    if not m:
+        raise Denied("E_AUTH_FAILED", "malformed agent environment proof")
+    agent, ts_s, nonce, sk, mac = m.groups()
+    _check_age(ts_s, "agent environment")
+    want = _env_mac(_key_bytes(key_hex), agent, ts_s, nonce, sk)
+    if not hmac.compare_digest(want, mac):
+        raise Denied("E_AUTH_FAILED", "agent environment proof does not match")
+    if require_session and session_key in (None, ""):
+        raise Denied("E_AUTH_FAILED", "JH_SESSION_KEY is missing: with the env carrier alone the session must be named")
+    if session_key not in (None, "") and session_hash(session_key) != sk:
+        raise Denied("E_AUTH_FAILED", "JH_SESSION_KEY does not match the proof")
+    return agent, nonce, sk
+
+
+def required_carriers() -> list[str]:
+    """private/home.json cli_route.carriers: the proof carriers jh.py requires (default argv and env).
+    An empty value or one outside {argv, env} is E_CONFIG_INVALID."""
+    try:
+        route = paths.home().get("cli_route")
+    except Denied:
+        route = None
+    if route is None:
+        return list(DEFAULT_CARRIERS)
+    if not isinstance(route, dict):
+        raise Denied("E_CONFIG_INVALID", "private/home.json cli_route must be an object")
+    carriers = route.get("carriers", DEFAULT_CARRIERS)
+    if isinstance(carriers, str):
+        carriers = [c for c in re.split(r"[+,\s]+", carriers) if c]
+    if not isinstance(carriers, list) or not carriers or not all(isinstance(c, str) for c in carriers) \
+            or not set(carriers) <= set(CARRIERS):
+        raise Denied("E_CONFIG_INVALID", "private/home.json cli_route.carriers must name argv, env or both")
+    return sorted(set(carriers))
+
+
+def consume_nonces(conn, nonces: list[str], agent_id: str) -> None:
+    """Record every proof nonce in grants_used in one BEGIN IMMEDIATE transaction; a nonce seen before rolls
+    all of them back and is E_AUTH_FAILED "proof already used"."""
+    import sqlite3
+    from . import db
+    own = conn is None
+    if own:
+        try:
+            conn = db.connect(write=True)
+        except Denied as d:
+            raise Denied("E_AUTH_FAILED", "cannot record the agent proof: %s" % d.message)
+    try:
+        with db.tx(conn):
+            for n in nonces:
+                try:
+                    conn.execute("INSERT INTO grants_used (nonce, command, used_at) VALUES (?, ?, ?)",
+                                 (n, "agent-proof " + agent_id, now()))
+                except sqlite3.IntegrityError:
+                    raise Denied("E_AUTH_FAILED", "proof already used")
+    finally:
+        if own:
+            conn.close()
+
+
+def harness_markers(env: dict) -> list[str]:
+    """Names (never values) of the environment signs that this process was started by an agent harness:
+    OPENCLAW_SHELL (OpenClaw's exec tool), OPENCLAW_MCP_TOKEN (a claude child of an OpenClaw CLI run), and
+    CLAUDECODE or CLAUDE_CODE_ENTRYPOINT (Claude Code's Bash, from any working directory). A negative signal
+    only: it turns `system` into an unproven agent, it never proves an identity. The human and system entry
+    points drop them before they start jh.py (see the module doc)."""
+    env = env or {}
+    out = []
+    if env.get("OPENCLAW_SHELL"):
+        out.append("OPENCLAW_SHELL")
+    if "OPENCLAW_MCP_TOKEN" in env:
+        out.append("OPENCLAW_MCP_TOKEN")
+    if "CLAUDECODE" in env or "CLAUDE_CODE_ENTRYPOINT" in env:
+        out.append("CLAUDECODE")
+    return out
+
+
+def scrub_agent_env(env) -> dict:
+    """A copy of env without the agent markers and identity variables (5.5), for children that must be
+    classified as `system`."""
+    return {k: v for k, v in dict(env or {}).items()
+            if k not in SCRUB_EXACT and not any(k.startswith(p) for p in SCRUB_PREFIXES)}
+
+
+def remove_v1_marker() -> bool:
+    """Delete state/agent-proof-seen left by version 1 of the agent proof. True when a file was removed."""
+    try:
+        os.unlink(os.path.join(paths.state_dir(), "agent-proof-seen"))
+        return True
+    except OSError:
+        return False
 
 
 # ---------------------------------------------------------------- grants
@@ -252,57 +485,6 @@ def sign_grant(command: str, args: list, ts: int | None = None, nonce: str | Non
     nonce = nonce or secrets.token_hex(8)
     msg = "%s\n%s\n%d\n%s" % (command, json.dumps(list(args)), ts, nonce)
     return "%d.%s.%s" % (ts, nonce, hmac.new(key, msg.encode("utf-8"), hashlib.sha256).hexdigest())
-
-
-def agent_proof(agent_id: str, ts: int | None = None, key_hex: str | None = None) -> str:
-    """The JH_AGENT_PROOF the guard sets for an agent exec (src/grant.ts agentProof; used by tests)."""
-    key = bytes.fromhex(key_hex or read_guard_key())
-    ts = _epoch() if ts is None else int(ts)
-    mac = hmac.new(key, ("agent\n%s\n%d" % (agent_id, ts)).encode("utf-8"), hashlib.sha256).hexdigest()
-    return "%d.%s" % (ts, mac)
-
-
-def verify_agent_proof(agent_id: str, proof: str) -> None:
-    """Check JH_AGENT_PROOF for JH_AGENT_ID: format, age and HMAC. Denied(E_AUTH_FAILED) otherwise."""
-    m = re.match(r"^([0-9]{9,11})\.([0-9a-f]{64})$", proof or "")
-    if not m:
-        raise Denied("E_AUTH_FAILED", "malformed agent proof")
-    ts = int(m.group(1))
-    age = _epoch() - ts
-    if age > AGENT_PROOF_MAX_AGE_S or age < -AGENT_PROOF_FUTURE_S:
-        raise Denied("E_AUTH_FAILED", "agent proof expired")
-    key_hex = read_guard_key()
-    msg = ("agent\n%s\n%s" % (agent_id, m.group(1))).encode("utf-8")
-    ok = False
-    for key in (bytes.fromhex(key_hex), key_hex.encode("ascii")):
-        ok = hmac.compare_digest(hmac.new(key, msg, hashlib.sha256).hexdigest(), m.group(2)) or ok
-    if not ok:
-        raise Denied("E_AUTH_FAILED", "agent proof does not match %s" % agent_id)
-
-
-def _proof_marker() -> str | None:
-    try:
-        return os.path.join(paths.state_dir(), "agent-proof-seen")
-    except Exception:
-        return None
-
-
-def _proof_seen() -> bool:
-    p = _proof_marker()
-    return bool(p) and os.path.exists(p)
-
-
-def _note_proof_seen() -> None:
-    """From the first verified proof on, this install's guard is known to send proofs."""
-    p = _proof_marker()
-    if not p or os.path.exists(p):
-        return
-    try:
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        os.close(fd)
-    except OSError:
-        pass
 
 
 def _epoch() -> int:

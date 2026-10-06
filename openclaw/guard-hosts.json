@@ -8,11 +8,14 @@
       "accounts.google.com", "myaccount.google.com", "admin.google.com", "passwords.google.com",
       "myactivity.google.com", "takeout.google.com", "payments.google.com", "pay.google.com",
       "console.cloud.google.com", "cloud.google.com", "chromewebstore.google.com", "chrome.google.com",
-      "googleapis.com", "news.ycombinator.com"
+      "googleapis.com", "news.ycombinator.com",
+      "login.microsoftonline.com", "login.live.com", "account.live.com", "account.microsoft.com",
+      "appleid.apple.com", "idmsa.apple.com", "account.apple.com"
     ],
     "url_patterns": [
       "^https?://([a-z0-9-]+\\.)*linkedin\\.com/(mypreferences|psettings|settings|premium/cancel|help/linkedin/solve)(/|\\?|#|$)",
       "^https?://mail\\.google\\.com/mail/(u/[0-9]+/)?#settings",
+      "^https?://([a-z0-9-]+\\.)*linkedin\\.com/(oauth|uas/oauth2)",
       "^https?://(?!mail\\.google\\.com\\.?(:[0-9]*)?([/?#]|$))([a-z0-9-]+\\.)*google\\.com\\.?(:[0-9]*)?([/?#]|$)"
     ],
     "allowed_schemes": ["http", "https"],
@@ -31,6 +34,11 @@
     "workable": {"scope": "ats", "hosts": ["workable.com"], "aliases": [], "consent": false},
     "recruitee": {"scope": "ats", "hosts": ["recruitee.com"], "aliases": [], "consent": false},
     "bamboohr": {"scope": "ats", "hosts": ["bamboohr.com"], "aliases": [], "consent": false},
+    "icims": {"scope": "ats", "hosts": ["icims.com"], "aliases": [], "consent": false},
+    "successfactors": {"scope": "ats", "hosts": ["successfactors.com", "successfactors.eu", "sapsf.com", "sapsf.eu"], "aliases": [], "consent": false},
+    "taleo": {"scope": "ats", "hosts": ["taleo.net"], "aliases": [], "consent": false},
+    "oracle_hcm": {"scope": "ats", "hosts": [], "host_patterns": ["^[a-z0-9-]+\\.fa\\.[a-z0-9-]+\\.oraclecloud\\.com$"], "aliases": [], "consent": false},
+    "jobvite": {"scope": "ats", "hosts": ["jobs.jobvite.com", "app.jobvite.com"], "aliases": [], "consent": false},
     "naukri": {"scope": "site:naukri", "hosts": ["naukri.com"], "aliases": ["site:naukri"], "consent": "naukri"},
     "instahyre": {"scope": "site:instahyre", "hosts": ["instahyre.com"], "aliases": ["site:instahyre"], "consent": "instahyre"},
     "foundit": {"scope": "site:foundit", "hosts": ["foundit.in"], "aliases": ["site:foundit"], "consent": "foundit"},
@@ -64,6 +72,14 @@
     "cold_email": "^(compose|reply)$",
     "followup_email": "^(compose|reply)$"
   },
+  "forbidden_names_notes": "A click on a ref whose snapshot name matches one of these is G_TOOL_DENIED for every jobhunter agent, with or without a token: social sign-in (the owner's Google, LinkedIn, Microsoft or Apple account is never used to sign in to a site) and CAPTCHA widgets (a CAPTCHA is always solved by the owner).",
+  "forbidden_names": [
+    "^(sign in|log in|continue|apply|sign up) with (google|linkedin|microsoft|apple|facebook|indeed|github)",
+    "^(use|connect) (your )?(google|linkedin|microsoft|apple) account",
+    "recaptcha|hcaptcha|i.m not a robot|verify you are human|turnstile"
+  ],
+  "secret_field_names_notes": "A type or fill into a textbox, searchbox or spinbutton whose snapshot name matches this is G_SECRET_FIELD: passwords and verification codes are filled by code (jh.py account create, account signin, code submit), never by a model.",
+  "secret_field_names": "password|passcode|pass code|verification code|security code|one.?time|\\botp\\b|\\bpin\\b|confirm password|verify password",
   "multiline_notes": "A line break typed with slowly: true is an Enter press and counts as a submit, except in a textbox whose snapshot name matches multiline_names[<token kind>]. LinkedIn message boxes are not listed: LinkedIn can send on Enter.",
   "multiline_names": {
     "application": "^(cover letter|cover note|add a cover letter|additional information|note to (the )?hiring (team|manager))( \\(optional\\))?$",

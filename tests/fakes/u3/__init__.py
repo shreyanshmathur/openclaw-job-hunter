@@ -1,5 +1,6 @@
-"""U3 test fakes: profile facts (U4 profile.facts), the reviewer turn (U1 ocrun.agent_turn), no worker spawn,
-reviewer hashes as `install render-workspaces` (U7) would write them, and a fictional outreach scenario.
+"""U3 test fakes: profile facts (U4 profile.facts), the reviewer turn (qc.agent_turn) and the one-shot cron run
+under it (U1 ocrun.qc_turn), no worker spawn, reviewer hashes as `install render-workspaces` (U7) would write
+them, agent calls with the guard's identity proofs (agent_call), and a fictional outreach scenario.
 
     from tests.fakes.u3 import QCTestCase
 
@@ -7,13 +8,17 @@ Everything is fictional (Kestrel Commerce, Alex Rivera, example.com) and lives i
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import re
+import sys
 
 import tests  # noqa: F401
 from jobhunter import canon, db, paths
 from jobhunter import qc as qcpkg
+from tests import helpers
 from tests.helpers import HomeTestCase, insert_company, insert_contact, insert_job
 
 PROFILE = {
@@ -89,6 +94,145 @@ class FakeReviewer:
             return {"ok": True, "text": json.dumps(self.verdict("0" * 16, sha, "pass")), "raw": ""}
         body = json.dumps(self.verdict(nonce, sha, mode), indent=1)
         return {"ok": True, "text": "Here is my review.\n```json\n%s\n```\n" % body, "raw": ""}
+
+
+# The verdict-file line of an F-QC turn (jobhunter.qc.verdict_file_line).
+VERDICT_LINE_RE = re.compile(r"write your complete answer .*? to the file (\S+) with the write tool")
+
+
+class FakeQcTurn:
+    """ocrun.qc_turn stand-in (CLI-ROUTE-DESIGN 6.3.2): (session_key, message_file, timeout_s) -> {ok, text, raw}.
+
+    answer(session_key, message_file, timeout_s) -> str is what the reviewer answers. run_text False plays V13
+    failing (the run finishes but its record carries no text). When the message ends with the verdict-file line
+    and write_file is True, the answer goes to that file and the reply is DONE, as the reviewer does in F-QC mode.
+    ok False is a failed run (gateway not reachable). run_cap N plays OpenClaw 2026.9.8 (D13): a run-record text
+    longer than N characters keeps its first N and gets cut_mark (U+2026 by default; "" for a cut without one)."""
+
+    def __init__(self, answer, run_text: bool = True, write_file: bool = True, ok: bool = True,
+                 run_cap: int | None = None, cut_mark: str = "\u2026"):
+        self.answer = answer
+        self.run_text = run_text
+        self.write_file = write_file
+        self.ok = ok
+        self.run_cap = run_cap
+        self.cut_mark = cut_mark
+        self.calls = []
+
+    def __call__(self, session_key, message_file, timeout_s):
+        with open(message_file, "r", encoding="utf-8") as fh:
+            message = fh.read()
+        m = VERDICT_LINE_RE.search(message)
+        self.calls.append({"session_key": session_key, "file": message_file, "message": message,
+                           "verdict_file": m.group(1) if m else None, "timeout_s": timeout_s})
+        if not self.ok:
+            return {"ok": False, "text": None, "raw": "", "error": "gateway not reachable"}
+        text = self.answer(session_key, message_file, timeout_s)
+        if m and self.write_file:
+            with open(m.group(1), "w", encoding="utf-8") as fh:
+                fh.write(text)
+            text = "DONE"
+        if self.run_cap is not None and len(text) > self.run_cap:
+            text = text[:self.run_cap] + self.cut_mark
+        return {"ok": True, "text": text if self.run_text else "", "raw": json.dumps({"status": "ok"})}
+
+
+def reviewer_answer(mode: str = "pass"):
+    """An `answer` for FakeQcTurn: the FakeReviewer reply text for the packet."""
+    rev = FakeReviewer(mode)
+    return lambda session_key, message_file, timeout_s: rev("jobhunter-qc", session_key, message_file,
+                                                            timeout_s)["text"]
+
+
+def agent_call(home, agent: str, argv: list) -> tuple:
+    """(argv, env) of one call by a jobhunter agent as the guard makes it (CLI-ROUTE-DESIGN 5): a fresh argv
+    proof in front of the command and a fresh env proof, both for one session. tests.helpers.agent_argv and
+    agent_env (U1) when they are there; else the same proofs minted with jobhunter.auth (test key in the temp
+    home); before proof version 2, the older guard environment."""
+    from jobhunter import auth
+    session = "agent:%s:test" % agent
+    if hasattr(helpers, "agent_env") and hasattr(helpers, "agent_argv"):
+        return (list(helpers.agent_argv(paths.root(), agent, list(argv), session=session)),
+                dict(helpers.agent_env(paths.root(), agent, session=session)))
+    if hasattr(auth, "argv_proof") and hasattr(auth, "env_proof"):
+        auth.create_guard_key()
+        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent, "JH_SESSION_KEY": session,
+               "JH_RUN_ID": "run-u3-test", "JH_AGENT_PROOF": auth.env_proof(agent, session_key=session)}
+        return ["--agent-proof", auth.argv_proof(agent, list(argv), session_key=session)] + list(argv), env
+    return list(argv), {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent}
+
+
+class _IsolatedFlags:
+    """sys.flags as `python -I` sets them (the guard always starts jh.py that way); other flags are real."""
+    isolated = 1
+    ignore_environment = 1
+    no_user_site = 1
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+@contextlib.contextmanager
+def isolated_flags():
+    real = sys.flags
+    sys.flags = _IsolatedFlags(real)
+    try:
+        yield
+    finally:
+        sys.flags = real
+
+
+def agent_cli(home, agent: str, argv: list, modules: list) -> tuple:
+    """(exit code, envelope) of one in-process jh.py call by `agent` (agent_call), under the flags of python -I."""
+    from jobhunter import cli
+    argv, env = agent_call(home, agent, argv)
+    out = io.StringIO()
+    with isolated_flags():
+        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out, modules=modules)
+    return rc, json.loads(out.getvalue())
+
+
+_CHILD = """
+import io, json, sys
+spec = json.loads(sys.stdin.read())
+sys.path[:0] = [spec["scripts"]]
+from jobhunter import canon, paths
+paths.use_test_home(spec["root"])
+canon.set_test_clock(spec["now"])
+from jobhunter import cli
+from jobhunter.commands import drafts, qc
+out = io.StringIO()
+rc = cli.main(spec["argv"], env=spec["env"], stdin=io.StringIO(""), stdout=out, modules=[drafts, qc])
+sys.stdout.write(json.dumps({"rc": rc, "out": out.getvalue(), "isolated": sys.flags.isolated}))
+"""
+
+
+def agent_cli_child(home, agent: str, argv: list, isolated: bool = True) -> tuple:
+    """(exit code, envelope, child's sys.flags.isolated) of one jh.py call by `agent` (agent_call) in a real child
+    interpreter, `python -I` as the guard starts it (isolated False: plain python), on this test home and clock."""
+    import subprocess
+    argv, env = agent_call(home, agent, argv)
+    spec = {"scripts": paths.SCRIPTS_DIR, "root": paths.root(), "now": canon.now(), "argv": argv, "env": env}
+    cmd = [sys.executable] + (["-I"] if isolated else []) + ["-c", _CHILD]
+    proc = subprocess.run(cmd, input=json.dumps(spec).encode("utf-8"), stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, cwd=paths.root(), env={"PATH": "/usr/bin:/bin"}, timeout=120)
+    if proc.returncode != 0:
+        raise AssertionError("child failed: %s" % proc.stderr.decode("utf-8", "replace")[-2000:])
+    res = json.loads(proc.stdout.decode("utf-8").strip().splitlines()[-1])
+    return res["rc"], json.loads(res["out"]), res["isolated"]
+
+
+def set_cli_route(**values) -> None:
+    """Merge values into private/home.json cli_route (what install writes)."""
+    h = paths.home()
+    route = dict(h.get("cli_route") or {})
+    route.update(values)
+    h["cli_route"] = route
+    with open(paths.home_file(), "w", encoding="utf-8") as fh:
+        json.dump(h, fh, indent=1, sort_keys=True)
 
 
 def install_reviewer_hashes(conn) -> None:

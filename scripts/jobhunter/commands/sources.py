@@ -74,6 +74,6 @@ def cmd_due(args, ctx):
             searches.mark_handed_out(conn, items, cycle_id)
     if not items:
         return Result(data={"searches": []}, code="NOTHING_TO_DO", message="no searches are due",
-                      next="run cycle end and reply NO_REPLY")
+                      next="run cycle end and reply CYCLE_DONE")
     return Result(data={"searches": items}, message="%d search(es) due" % len(items),
                   next="open each URL, stay within page_budget, write one ingest file per site, run job add")

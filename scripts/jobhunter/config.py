@@ -212,7 +212,14 @@ def _leaf(default, filev, path: str, ctx: _Ctx):
             ctx.clamped.append({"path": path, "asked": value, "used": used, "why": why})
         return used
     if cls == "bounded":
-        lo, hi = hardmax.lookup(hardmax.BOUNDS, path)
+        bounds = hardmax.lookup(hardmax.BOUNDS, path)
+        if bounds and all(isinstance(b, str) for b in bounds):     # a bounded string key: one of the listed values
+            used = value if value in bounds else default
+            if given and used != value:
+                ctx.clamped.append({"path": path, "asked": value, "used": used, "why": "not one of %s"
+                                    % ", ".join(bounds)})
+            return used
+        lo, hi = bounds
         if _is_num(value):
             used = min(max(value, lo), hi)
         elif _num_list(value):
@@ -536,6 +543,26 @@ def raise_(conn, path: str, value) -> dict:
         _set(raw, path, sorted(set(new)))
         _write_file(raw)
         return {"path": path, "old": None if old is _MISSING else old, "new": sorted(set(new)), "clamped": False}
+    if path == "boards.sites.workday.apply":
+        # Workday applications by the agent need a site account (FEATURES-OTP-ACCOUNTS-CAPTCHA 2.10): the owner turns
+        # them on with the PIN; the apply queue still sends Workday jobs to the owner without ats_accounts consent
+        if new not in ("browser", "human_queue"):
+            raise Denied("E_VALIDATION", "boards.sites.workday.apply is browser or human_queue")
+        old = _get(load(conn), path)
+        db.meta_set(conn, "raise:" + path, json.dumps(new), "human")
+        raw = read_file() or hardmax.defaults()
+        _set(raw, path, new)
+        _write_file(raw)
+        return {"path": path, "old": old, "new": new, "clamped": False}
+    if path == "captcha.handoff":
+        if new is not True:
+            raise Denied("E_VALIDATION", "captcha.handoff can only be raised to true (lower it with config lower)")
+        old = _get(load(conn), path)
+        db.meta_set(conn, "raise:" + path, "true", "human")
+        raw = read_file() or hardmax.defaults()
+        _set(raw, path, True)
+        _write_file(raw)
+        return {"path": path, "old": old, "new": True, "clamped": False}
     if cls not in ("L", "F"):
         raise Denied("E_VALIDATION", "%s cannot be raised (authority keys use approval set, tier set, linkedin "
                      "enable; other keys are edited in private/config.json)" % path)

@@ -140,13 +140,51 @@ def cmd_init(args, ctx):
 
 
 def cmd_selftest(args, ctx):
+    """Exit status: the critical checks, plus `agent identity` when --probe-since is given (install step 14)
+    and the check named by --only. The identity boundary never changes the exit status."""
     from jobhunter import selftest
-    checks = selftest.run_checks(offline=args.offline)
-    critical = ("db", "meta", "migrations", "trigger fixtures", "keys fixtures", "config clamp")
+    checks = selftest.run_checks(offline=args.offline, probe_since=args.probe_since, only=args.only)
+    critical = ["db", "meta", "migrations", "trigger fixtures", "keys fixtures", "config clamp"]
+    if args.probe_since is not None:
+        critical.append("agent identity")
+    if args.only and args.only != "identity boundary":
+        critical.append(args.only)
     bad = [c["name"] for c in checks if not c["ok"] and c["name"] in critical]
-    return Result(data={"checks": checks, "failed": [c["name"] for c in checks if not c["ok"]]},
-                  code="E_INTERNAL" if bad else "OK",
+    red = [line for c in checks for line in (c.get("red_lines") or [])]
+    data = {"checks": checks, "failed": [c["name"] for c in checks if not c["ok"]]}
+    if red:
+        data["red"] = red
+    return Result(data=data, code="E_INTERNAL" if bad else "OK",
                   message="self test failed: %s" % ", ".join(bad) if bad else "self test passed")
+
+
+def probe_dir() -> str:
+    """state/probe: one file per jobhunter agent, written by `whoami` when that agent's identity verified."""
+    return os.path.join(paths.state_dir(), "probe")
+
+
+def cmd_whoami(args, ctx):
+    """Who jh.py thinks is calling (names only, never values). A proven jobhunter agent also leaves
+    state/probe/<agent_id>.json (mode 600), which `selftest --probe-since` reads."""
+    c = ctx.caller
+    detail = getattr(c, "detail", None) or {}
+    from jobhunter import auth
+    out = {"class": c.cls, "agent_id": c.agent_id if c.cls == "agent" else None,
+           "carriers": list(detail.get("carriers") or []), "markers": list(detail.get("markers") or []),
+           "isolated": auth.is_isolated()}
+    if c.cls == "agent" and (c.agent_id or "").startswith("jobhunter-") and out["carriers"]:
+        rec = {"at": now(), "agent_id": c.agent_id, "carriers": out["carriers"], "session": detail.get("session"),
+               "markers": out["markers"]}
+        d = probe_dir()
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        path = os.path.join(d, "%s.json" % c.agent_id)
+        tmp = "%s.%d.tmp" % (path, os.getpid())
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, sort_keys=True)
+        os.replace(tmp, path)
+        out["probe_file"] = path
+    return out
 
 
 def cmd_home_show(args, ctx):
@@ -452,6 +490,15 @@ def cmd_consent_list(args, ctx):
 def cmd_consent_grant(args, ctx):
     from jobhunter import identity
     conn = ctx.connect()
+    if args.capability:
+        if args.method or args.chrome_profile or args.chrome_profile_name:
+            raise Denied("E_USAGE", "--capability takes --site only (no --method or Chrome profile)")
+        with db.tx(conn):
+            res = identity.grant_capability(conn, args.capability, args.site, by=by_of(ctx))
+        return Result(data=res, message="allowed: %s" % ", ".join("%s on %s" % (g["capability"], g["site"])
+                                                                for g in res["granted"]))
+    if not args.method:
+        raise Denied("E_USAGE", "give --method chrome_import|manual_login (or --capability for codes and accounts)")
     with db.tx(conn):
         res = identity.grant_consent(conn, args.site, method=args.method, chrome_profile=args.chrome_profile,
                                      chrome_profile_name=args.chrome_profile_name, by=by_of(ctx))
@@ -464,6 +511,14 @@ def cmd_consent_revoke(args, ctx):
     if bool(args.site) == bool(args.all_sites):
         raise Denied("E_USAGE", "give --site <name> (repeatable) or --all")
     conn = ctx.connect()
+    cap_sites = [x for x in (args.site or []) for x in str(x).split(",") if x.strip() and
+                 (x.strip().lower().startswith("host:") or x.strip().lower() in _ats_keys())]
+    if args.capability or cap_sites:
+        with db.tx(conn):
+            res = identity.revoke_capability(conn, args.capability, cap_sites if not args.all_sites else None,
+                                             everything=args.all_sites, by=by_of(ctx))
+        return Result(data=res, message="took back %d consent(s); the site's form area stays stopped until you allow "
+                      "it again" % len(res["revoked"]) if res["revoked"] else "no active consent to take back")
     with db.tx(conn):
         res = identity.revoke_consent(conn, args.site, everything=args.all_sites, by=by_of(ctx))
     msg = ("revoked %s; those areas stay stopped until you allow them again" % ", ".join(res["revoked"])
@@ -471,13 +526,23 @@ def cmd_consent_revoke(args, ctx):
     return Result(data=res, message=msg, next="./jobhunter browser forget also clears the agent profile's cookies")
 
 
+def _ats_keys() -> tuple:
+    from jobhunter import accounts
+    return accounts.ATS_PLATFORMS
+
+
 # ---------------------------------------------------------------- register
 def register(sub):
     p = add_command(sub, "init", cmd_init, callers="SH", help="create folders, keys, home.json, database, meta")
     p.add_argument("--force-examples", action="store_true", help="copy the example files again (to private/examples)")
     p = add_command(sub, "selftest", cmd_selftest, callers="SH", help="check the install")
-    p.add_argument("--offline", action="store_true")
+    p.add_argument("--offline", action="store_true", help="skip the mail, sheet and openclaw checks")
+    p.add_argument("--probe-since", type=int, metavar="<epoch>",
+                   help="require a probe file of every tool agent written at or after this time")
+    p.add_argument("--only", metavar="<check>", help="run one check by name")
     add_command(sub, "home show", cmd_home_show, callers="SHRA", help="where this install lives")
+    add_command(sub, "whoami", cmd_whoami, callers="SHRA",
+                help="the caller class and identity carriers jh.py sees (names only)")
     add_command(sub, "config validate", cmd_config_validate, callers="SH", help="list clamps and errors")
     p = add_command(sub, "config show", cmd_config_show, callers="SH", help="the config file or effective values")
     p.add_argument("--effective", action="store_true")
@@ -527,14 +592,19 @@ def register(sub):
                 help="which sites' logins the agent may use (read only)")
     p = add_command(sub, "browser consent grant", cmd_consent_grant, callers="H",
                     help="allow the agent to use a site's login in its own browser profile (PIN)")
-    p.add_argument("--site", action="append", required=True, help="gmail, linkedin or a job board; repeatable")
-    p.add_argument("--method", required=True, choices=("chrome_import", "manual_login"))
+    p.add_argument("--site", action="append", required=True, help="gmail, linkedin or a job board; with --capability "
+                   "an ATS name (workday, icims, ...) or host:<careers host>; repeatable")
+    p.add_argument("--method", choices=("chrome_import", "manual_login"))
+    p.add_argument("--capability", action="append", choices=("email_codes", "ats_accounts"),
+                   help="email_codes or ats_accounts (repeatable): read emailed codes or create site accounts")
     p.add_argument("--chrome-profile", help="Chrome profile folder for chrome_import (Default or Profile <n>)")
     p.add_argument("--chrome-profile-name", help="the profile's display name, for the record")
     p = add_command(sub, "browser consent revoke", cmd_consent_revoke, callers="H",
                     help="take back consent for sites and stop them (PIN)")
     p.add_argument("--site", action="append")
     p.add_argument("--all", dest="all_sites", action="store_true")
+    p.add_argument("--capability", action="append", choices=("email_codes", "ats_accounts"),
+                   help="take back only this capability (default for an ATS site: both)")
     p = add_command(sub, "contacts split", cmd_contacts_split, callers="H", help="undo a person merge (PIN)")
     p.add_argument("contact_uid")
     p.add_argument("--keys", required=True)

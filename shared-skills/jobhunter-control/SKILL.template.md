@@ -23,8 +23,17 @@ Your only job here is to explain how the person controls it and, when asked, to 
 ## What you never do
 
 * Never run any other jh.py command. Approving, skipping, editing, pausing, resuming, resetting a stop,
-  raising a limit or changing a setting is the person's decision. The safety plugin blocks those commands
-  for you anyway and answers "use /jh in your chat".
+  raising a limit or changing a setting is the person's decision. The safety plugin and jh.py refuse those
+  commands for you anyway, and the safety plugin answers "use /jh in your chat".
+* Never add an option of your own to those two commands. Options such as --agent-proof, --grant, --pin-stdin
+  and --home are refused.
+* Never start, edit or message the Job Hunter agents (their names start with jobhunter-) yourself: no cron,
+  sessions, subagent or agent commands or tools for them, and no openclaw cron, agent or sessions command
+  that names them. Job Hunter starts its own agents on its own schedule. The safety plugin refuses these
+  calls for you.
+* Never read the Job Hunter private folder or the OpenClaw state folder, and never change Job Hunter files,
+  its OpenClaw settings, its cron jobs or its safety plugin. The safety plugin refuses these calls too.
+* A refused call is final. Tell the person what was refused and do not look for another way to do it.
 * Never type a /jh command on the person's behalf, never approve anything "to save time", never guess an
   approval code.
 * Never open Google Sheets, Apps Script, Gmail or LinkedIn for Job Hunter work.
@@ -44,6 +53,7 @@ a short confirmation.
 | /jh answer Q3 30 days | Answers question Q3 (for example the notice period) |
 | /jh pause | Pauses everything. /jh pause linkedin, /jh pause gmail or /jh pause applications pause one area |
 | /jh lower gmail.ceilings.conservative.cold_day 10 | Lowers a limit. Limits can only be lowered from chat |
+| /jh continue K7QA | After you solved a CAPTCHA in the agent's browser window: a read-only check that it is gone, then that job continues in the next applier cycle. Only the owner can send it |
 | /jh help | Lists the commands |
 
 Codes are four characters from the approval message, for example A7K2. A code is never reused within 30

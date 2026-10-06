@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "value_classes": {"id": "^[JKPRDQH][A-Z2-7]{7}$", "token": "^T[A-Z2-7]{11}$", "code": "^[ACDEFGHJKMNPQRTUVWXY34679]{4}$", "cycle": "^C[0-9]{8}T[0-9]{6}Z[A-Z2-7]{4}$", "int": "^[0-9]{1,6}$", "email": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$", "thread": "^(em:T[A-Z2-7]{11}|li:P[A-Z2-7]{7})$", "path_work": "WORKDIR", "platform": "^[a-z0-9_.:-]{2,40}$", "scope": "^[a-z0-9_.:-]{2,40}$", "metric": "^[a-z0-9_]{2,40}$", "target": "^(contact|job|company):[JKP][A-Z2-7]{7}$", "variant": "^V[A-Z2-7]{7}$", "flag": "FLAG"},
-  "notes": "Argument schema per command: a flag or _N (N-th positional) maps to a value class; a trailing ? marks it optional; enum:a|b lists the allowed literal values; path_work (WORKDIR) is a path whose realpath is under the agent's own WS_ROOT/<role>/work/ or inbox/; flag (FLAG) is a switch without a value. Global options allowed before the group: --cycle <cycle>, --quiet. Never allowed for agents: --home, --pin-stdin, --grant.",
+  "value_classes": {"id": "^[JKPRDQH][A-Z2-7]{7}$", "token": "^T[A-Z2-7]{11}$", "code": "^[ACDEFGHJKMNPQRTUVWXY34679]{4}$", "cycle": "^C[0-9]{8}T[0-9]{6}Z[A-Z2-7]{4}$", "int": "^[0-9]{1,6}$", "email": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$", "thread": "^(em:T[A-Z2-7]{11}|li:P[A-Z2-7]{7})$", "path_work": "WORKDIR", "platform": "^[a-z0-9_.:-]{2,40}$", "scope": "^[a-z0-9_.:-]{2,40}$", "metric": "^[a-z0-9_]{2,40}$", "target": "^(contact|job|company):[JKP][A-Z2-7]{7}$", "variant": "^V[A-Z2-7]{7}$", "flag": "FLAG", "otp_req": "^O[A-Z2-7]{7}$", "account": "^N[A-Z2-7]{7}$", "tab": "^[A-Za-z0-9_-]{1,64}$", "host": "^[a-z0-9.-]{3,100}$"},
+  "notes": "Argument schema per command: a flag or _N (N-th positional) maps to a value class; a trailing ? marks it optional; enum:a|b lists the allowed literal values; path_work (WORKDIR) is a path whose realpath is under the agent's own WS_ROOT/<role>/work/ or inbox/; flag (FLAG) is a switch without a value. Global options allowed before the group: --cycle <cycle>, --quiet. Never allowed for agents: --home, --pin-stdin, --grant. --agent-proof is reserved for the jobhunter-guard: it inserts it as the first argument of every jobhunter agent call, and an agent never types it. qc smoke is a system and owner command (S/H), never an agent or chat command.",
   "agents": {
     "jobhunter-scout": {"tools": ["exec", "read", "write", "browser"], "commands": {
       "preflight": {"--lane": "enum:scout"},
@@ -12,6 +12,7 @@
       "detect": {"--file": "path_work"},
       "breaker trip": {"--scope": "scope", "--reason-code": "metric", "--detail-file": "path_work?"},
       "home show": {},
+      "whoami": {},
       "budget": {"--platform": "platform?", "--kind": "metric?"},
       "breaker status": {},
       "searches due": {},
@@ -23,6 +24,7 @@
       "preflight": {"--lane": "enum:evaluator"},
       "cycle end": {"--cycle": "cycle", "--summary-file": "path_work?"},
       "home show": {},
+      "whoami": {},
       "budget": {"--platform": "platform?", "--kind": "metric?"},
       "breaker status": {},
       "eval next": {"--limit": "int?"},
@@ -41,6 +43,7 @@
       "detect": {"--file": "path_work"},
       "breaker trip": {"--scope": "scope", "--reason-code": "metric", "--detail-file": "path_work?"},
       "home show": {},
+      "whoami": {},
       "budget": {"--platform": "platform?", "--kind": "metric?"},
       "breaker status": {},
       "apply next": {"--limit": "int?"},
@@ -73,7 +76,16 @@
       "pace wait": {"--platform": "platform", "--kind": "enum:write|dwell|profile_view|search_page|easy_apply"},
       "job show": {"_1": "id"},
       "job alias add": {"_1": "id", "--file": "path_work"},
-      "job set-status": {"_1": "id", "--status": "enum:needs_human", "--reason": "enum:captcha_visible|account_required|sensitive_field|unsupported_form|answer_missing"},
+      "job set-status": {"_1": "id", "--status": "enum:needs_human", "--reason": "enum:captcha_visible|account_required|sensitive_field|unsupported_form|answer_missing|account_terms"},
+      "account status": {"--job": "id"},
+      "account create": {"--job": "id", "--tab": "tab", "--token": "token?"},
+      "account signin": {"--job": "id", "--tab": "tab", "--token": "token?"},
+      "code expect": {"--job": "id", "--tab": "tab", "--purpose": "enum:account_verify|signin|application_submit", "--token": "token?"},
+      "code submit": {"_1": "otp_req", "--tab": "tab"},
+      "code open-link": {"_1": "otp_req", "--tab": "tab"},
+      "code cancel": {"_1": "otp_req"},
+      "captcha open": {"--job": "id", "--tab": "tab"},
+      "captcha status": {"--job": "id?"},
       "contact add": {"--file": "path_work"},
       "contact show": {"_1": "id"},
       "email verify": {"--address": "email", "--grade": "enum:A|B|C", "--evidence-file": "path_work?"}
@@ -87,6 +99,7 @@
       "detect": {"--file": "path_work"},
       "breaker trip": {"--scope": "scope", "--reason-code": "metric", "--detail-file": "path_work?"},
       "home show": {},
+      "whoami": {},
       "budget": {"--platform": "platform?", "--kind": "metric?"},
       "breaker status": {},
       "outreach next": {"--limit": "int?"},
@@ -130,7 +143,7 @@
     "jobhunter-qc": {"tools": [], "commands": {
     }}
   },
-  "public_readonly": ["status", "inbox", "approvals list", "budget", "breaker status", "home show", "enrich budget", "browser consent list"],
-  "chat": ["approve", "skip", "edit", "profile answer", "pause", "status", "inbox", "config lower"],
-  "human_only": ["config raise", "approval set", "tier set", "linkedin enable", "unpause", "breaker reset", "exclusions import --deactivate", "exclusions remove", "forget", "reconcile confirm-not-sent", "companies merge", "companies split", "companies set-agency", "companies clear", "contacts split", "auth set-pin", "mail connect", "mail import-history", "sheet connect", "qc golden", "answers add --sensitive", "enrich connect", "enrich disconnect", "enrich retry", "enrich test", "enrich find --include-reserve", "browser consent grant", "browser consent revoke"]
+  "public_readonly": ["status", "inbox", "approvals list", "budget", "breaker status", "home show", "enrich budget", "browser consent list", "captcha status", "captcha list"],
+  "chat": ["approve", "skip", "edit", "profile answer", "pause", "status", "inbox", "config lower", "continue"],
+  "human_only": ["config raise", "approval set", "tier set", "linkedin enable", "unpause", "breaker reset", "exclusions import --deactivate", "exclusions remove", "forget", "reconcile confirm-not-sent", "companies merge", "companies split", "companies set-agency", "companies clear", "contacts split", "auth set-pin", "mail connect", "mail import-history", "sheet connect", "qc golden", "answers add --sensitive", "enrich connect", "enrich disconnect", "enrich retry", "enrich test", "enrich find --include-reserve", "browser consent grant", "browser consent revoke", "browser consent grant --capability", "browser consent revoke --capability", "accounts forget"]
 }

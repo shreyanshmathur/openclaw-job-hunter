@@ -10,11 +10,28 @@
 Everything runs in a temp dir (paths.use_test_home); no network, nothing outside the temp dir. Row
 factories insert plain rows with fictional placeholder data and return the new row id; they do not
 run gate logic, so tests can build any ledger state the triggers allow.
+
+Agent calls (CLI route design 5, 8): the guard runs every jobhunter agent call as
+`<PY> -I jh.py --agent-proof <T> <args>` with a JH_AGENT_PROOF env proof, both single use, for one session.
+
+    env = agent_env(paths.root(), "jobhunter-scout")                 # env carrier (fresh nonce)
+    argv = agent_argv(paths.root(), "jobhunter-scout", ["searches", "due"])   # argv carrier in front
+    rc, envelope = agent_cli("jobhunter-scout", ["searches", "due"])  # both, in process, as python -I
+    rc, envelope = run_jh(argv, env)                                  # a real `python -I` child
+
+agent_env/agent_argv write a test private/guard.key and cli_route (both carriers) when absent. In-process
+calls must run under as_isolated() (sys.flags as `python -I` sets them; agent_cli does it); run_jh runs a
+child `python -I` against the current test home and test clock with only the given environment.
 """
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -193,6 +210,158 @@ class HomeTestCase(unittest.TestCase):
         self.fail("expected Denied(%s)" % code)
 
 
+# ---------------------------------------------------------------- agent identity (CLI route 5)
+SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+CHILD_PATH = "/usr/bin:/bin"
+
+
+def default_session(agent_id: str) -> str:
+    return "agent:%s:test" % agent_id
+
+
+def _check_root(root) -> None:
+    if root is not None and os.path.realpath(str(root)) != os.path.realpath(paths.root()):
+        raise AssertionError("agent helpers work on the current test home only (%s)" % paths.root())
+    if not paths.is_test_home():
+        raise AssertionError("agent helpers need a test home (paths.use_test_home)")
+
+
+def ensure_agent_setup(carriers=None) -> None:
+    """A test private/guard.key and private/home.json cli_route.carriers (default argv and env) when absent;
+    carriers given: always written."""
+    from jobhunter import auth
+    auth.create_guard_key()
+    h = paths.home()
+    route = h.get("cli_route") if isinstance(h.get("cli_route"), dict) else None
+    if route is None or "carriers" not in route or carriers is not None:
+        route = dict(route or {})
+        route["carriers"] = list(carriers) if carriers is not None else ["argv", "env"]
+        h["cli_route"] = route
+        with open(paths.home_file(), "w", encoding="utf-8") as fh:
+            json.dump(h, fh, indent=1, sort_keys=True)
+
+
+def agent_env(root, agent_id: str, session: str | None = None) -> dict:
+    """The environment the guard gives one exec of agent_id: OPENCLAW_SHELL, JH_AGENT_ID, JH_SESSION_KEY and a
+    fresh version 2 JH_AGENT_PROOF (single use)."""
+    from jobhunter import auth
+    _check_root(root)
+    ensure_agent_setup()
+    session = session or default_session(agent_id)
+    return {"OPENCLAW_SHELL": "exec", "JH_AGENT_ID": agent_id, "JH_SESSION_KEY": session,
+            "JH_AGENT_PROOF": auth.env_proof(agent_id, session)}
+
+
+def agent_argv(root, agent_id: str, argv: list, session: str | None = None) -> list:
+    """`--agent-proof <T>` (fresh, single use, bound to argv and the session) followed by argv."""
+    from jobhunter import auth
+    _check_root(root)
+    ensure_agent_setup()
+    session = session or default_session(agent_id)
+    rest = [str(t) for t in argv]
+    return ["--agent-proof", auth.argv_proof(agent_id, rest, session)] + rest
+
+
+class _IsolatedFlags:
+    """sys.flags as `python -I` sets them; every other flag is the real one."""
+    isolated = 1
+    ignore_environment = 1
+    no_user_site = 1
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+@contextlib.contextmanager
+def as_isolated():
+    """While active, sys.flags reports the flags of `python -I` (in-process agent calls only)."""
+    real = sys.flags
+    sys.flags = _IsolatedFlags(real)
+    try:
+        yield
+    finally:
+        sys.flags = real
+
+
+def _envelope(rc: int, text: str):
+    text = (text or "").strip()
+    last = text.splitlines()[-1] if text else ""
+    try:
+        return rc, json.loads(last)
+    except ValueError:
+        return rc, text
+
+
+def agent_cli(agent_id: str, argv: list, stdin: str = "", session: str | None = None, env_extra: dict | None = None,
+              modules=None, isolated: bool = True):
+    """One jh.py call as agent_id in this process with both carriers (as_isolated when isolated)."""
+    from jobhunter import cli
+    env = agent_env(paths.root(), agent_id, session)
+    env.update(env_extra or {})
+    full = agent_argv(paths.root(), agent_id, argv, session)
+    out = io.StringIO()
+    kwargs = {"env": env, "stdin": io.StringIO(stdin), "stdout": out}
+    if modules is not None:
+        kwargs["modules"] = modules
+    with (as_isolated() if isolated else contextlib.nullcontext()):
+        rc = cli.main(full, **kwargs)
+    return _envelope(rc, out.getvalue())
+
+
+_CHILD = """
+import io, json, sys
+spec = json.loads(sys.stdin.read())
+sys.path.insert(0, spec["scripts"])
+from jobhunter import canon, paths
+paths.use_test_home(spec["root"])
+if spec.get("now"):
+    canon.set_test_clock(spec["now"])
+from jobhunter import cli
+out = io.StringIO()
+rc = cli.main(spec["argv"], env=spec["env"], stdin=io.StringIO(spec.get("stdin") or ""), stdout=out)
+sys.stdout.write(json.dumps({"rc": rc, "out": out.getvalue(), "isolated": sys.flags.isolated}))
+"""
+
+
+def start_jh(argv: list, env: dict | None = None, stdin: str = "", isolated: bool = True, cwd: str | None = None):
+    """Start jh.py's cli.main in a child interpreter (`python -I` when isolated) against the current test home
+    and test clock; the child gets only `env` (plus PATH) as its environment and as cli.main's env. Returns the
+    Popen; finish_jh() reads the result."""
+    _check_root(None)
+    env = {str(k): str(v) for k, v in (env or {}).items()}
+    spec = {"scripts": SCRIPTS_DIR, "root": paths.root(), "now": canon.now() if getattr(canon, "_clock_override", None) is not None else None,
+            "argv": [str(t) for t in argv], "env": env, "stdin": stdin}
+    child_env = dict(env)
+    child_env.setdefault("PATH", CHILD_PATH)
+    cmd = [sys.executable] + (["-I"] if isolated else []) + ["-c", _CHILD]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=child_env, cwd=cwd or paths.root(), universal_newlines=True)
+    proc._jh_spec = json.dumps(spec)
+    return proc
+
+
+def finish_jh(proc, timeout: int = 120):
+    """(rc, envelope or text, isolated flag of the child) of a start_jh() child."""
+    out, err = proc.communicate(proc._jh_spec, timeout=timeout)
+    try:
+        res = json.loads(out)
+    except ValueError:
+        raise AssertionError("jh child failed (exit %s): %s %s" % (proc.returncode, out[-2000:], err[-2000:]))
+    rc, envelope = _envelope(res["rc"], res["out"])
+    return rc, envelope, res["isolated"]
+
+
+def run_jh(argv: list, env: dict | None = None, stdin: str = "", isolated: bool = True, timeout: int = 120,
+           cwd: str | None = None):
+    """Run one jh.py call in a child (`python -I` by default) against the current test home and clock.
+    Returns (exit code, the JSON envelope or the raw text)."""
+    rc, envelope, _iso = finish_jh(start_jh(argv, env, stdin, isolated, cwd), timeout)
+    return rc, envelope
+
+
 # ---------------------------------------------------------------- row factories
 def _ins(conn, table: str, row: dict) -> int:
     cols = list(row)
@@ -329,3 +498,49 @@ def insert_cycle(conn, lane: str = "outreach", agent_id: str | None = None, stat
     _ins(conn, "cycles", {"cycle_id": cycle_id, "lane": lane, "agent_id": agent_id or LANE_AGENTS.get(lane),
                           "started_at": started_at, "ended_at": ended_at, "status": status})
     return cycle_id
+
+
+# ---------------------------------------------------------------- secrets that must never be stored or shown
+def _secret_forms(secrets) -> list:
+    from urllib.parse import quote
+    out = []
+    for s in secrets:
+        for f in (s, quote(s, safe=""), quote(s), json.dumps(s)[1:-1]):
+            if f and f not in out:
+                out.append(f)
+    return out
+
+
+def secret_hits(secrets, paths_=(), texts=(), argv=(), conn=None) -> list:
+    """Where any of the secrets (or their URL-encoded or JSON-escaped forms) appears: every file under the given
+    paths (logs, events, guard and token logs, state), the given texts (stdout, stderr, Sheet rows,
+    notifications), every recorded argv, and the database dumped with iterdump(). [] when nowhere."""
+    forms = _secret_forms(secrets)
+    hits = []
+
+    def scan(where: str, text: str) -> None:
+        for f in forms:
+            if f in text:
+                hits.append("%s: %s" % (where, "secret %d" % forms.index(f)))
+    for p in paths_:
+        if os.path.isfile(p):
+            files = [p]
+        else:
+            files = [os.path.join(d, n) for d, _s, ns in os.walk(p) for n in ns]
+        for fp in files:
+            try:
+                with open(fp, "rb") as fh:
+                    scan(fp, fh.read().decode("utf-8", "replace"))
+            except OSError:
+                pass
+    for i, t in enumerate(texts):
+        scan("text %d" % i, t if isinstance(t, str) else json.dumps(t, default=str))
+    for i, a in enumerate(argv):
+        scan("argv %d" % i, " ".join(str(x) for x in a))
+    if conn is not None:
+        scan("database", "\n".join(conn.iterdump()))
+    return hits
+
+
+def assert_no_secret(test, secrets, paths_=(), texts=(), argv=(), conn=None) -> None:
+    test.assertEqual(secret_hits(secrets, paths_, texts, argv, conn), [])

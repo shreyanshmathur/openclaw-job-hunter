@@ -133,7 +133,8 @@ class _Handler(socketserver.StreamRequestHandler):
                 if name in [n for _f, n in srv.folders]:
                     srv.selected.append(name)
                     self._w("* FLAGS (\\Answered \\Flagged \\Draft \\Deleted \\Seen)\r\n* %d EXISTS\r\n* 0 RECENT\r\n"
-                            "%s OK [READ-ONLY] %s (Success)\r\n" % (len(srv.messages), tag, verb))
+                            "%s OK [%s] %s (Success)\r\n" % (len(srv.messages), tag,
+                                                              "READ-ONLY" if verb == "EXAMINE" else "READ-WRITE", verb))
                 else:
                     self._w("%s NO [NONEXISTENT] Unknown Mailbox: %s (Failure)\r\n" % (tag, name))
             elif verb == "UID" and len(toks) > 2 and toks[2][1].upper() == "SEARCH":
@@ -162,6 +163,9 @@ class _Handler(socketserver.StreamRequestHandler):
                 srv.fetches.append((toks[3][1], items))
                 for uid in uids:
                     self._fetch_one(srv, uid, have.index(uid) + 1, items)
+                self._w("%s OK Success\r\n" % tag)
+            elif verb == "UID" and len(toks) > 2 and toks[2][1].upper() == "STORE":
+                srv.stores.append((toks[3][1], toks[4][1], toks[5][1] if len(toks) > 5 else ""))
                 self._w("%s OK Success\r\n" % tag)
             elif verb == "LOGOUT":
                 self._w("* BYE LOGOUT Requested\r\n%s OK 73 good day (Success)\r\n" % tag)
@@ -221,6 +225,7 @@ class FakeImapServer:
         self.commands: list[str] = []
         self.fetches: list[tuple] = []
         self.selected: list[str] = []
+        self.stores: list[tuple] = []          # (uid set, item, value) of every UID STORE
         self.folders = [("\\HasNoChildren", "INBOX"), ("\\HasChildren \\Noselect", "[Gmail]"),
                         ("\\All \\HasNoChildren", "[Gmail]/All Mail"), ("\\HasNoChildren \\Sent", "[Gmail]/Sent Mail")]
         self.login_fail_text = None

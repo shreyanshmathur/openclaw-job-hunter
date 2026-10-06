@@ -116,6 +116,7 @@ def parse_headers(raw: bytes, meta: dict | None = None) -> dict:
         "to": _addrs(h, "To"), "cc": _addrs(h, "Cc"),
         "subject": _CTRL_RE.sub("", _hget(h, "Subject")),
         "date": header_ts(_hget(h, "Date")) or internaldate_ts(meta.get("internaldate")),
+        "internaldate": internaldate_ts(meta.get("internaldate")),
         "in_reply_to": _msg_ids(_hget(h, "In-Reply-To")),
         "references": _msg_ids(_hget(h, "References")),
         "auto_submitted": _hget(h, "Auto-Submitted").lower(),
@@ -307,6 +308,26 @@ class ImapClient:
         if typ != "OK":
             raise MailError("cannot open the folder %s" % folder, stage="select", reply=_err_text(dat))
         self._selected = folder
+
+    def select_rw(self, folder: str | None = None) -> None:
+        """SELECT (read-write) for the one write this package makes: the flag or label change of a used email code
+        (FEATURES-OTP-ACCOUNTS-CAPTCHA 2.4 step 4, otp.after_use). Every other path stays on EXAMINE."""
+        folder = folder or self.all_mail
+        typ, dat = self._need().select(quote(folder), readonly=False)
+        if typ != "OK":
+            raise MailError("cannot open the folder %s" % folder, stage="select", reply=_err_text(dat))
+        self._selected = None            # the next read selects read-only again
+
+    def mark_used(self, uid: str, mode: str) -> None:
+        """mark_read: UID STORE +FLAGS (\\Seen); archive: also UID STORE -X-GM-LABELS (\\Inbox)."""
+        if not str(uid).isdigit() or mode not in ("mark_read", "archive"):
+            return
+        self.select_rw()
+        m = self._need()
+        self._call(m.uid, "STORE", str(uid), "+FLAGS", "(\\Seen)")
+        if mode == "archive" and self.gmail:
+            self._call(m.uid, "STORE", str(uid), "-X-GM-LABELS", "(\\Inbox)")
+        self._select(self.all_mail)
 
     def _call(self, fn, *args):
         try:

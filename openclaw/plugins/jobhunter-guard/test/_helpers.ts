@@ -6,6 +6,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { parseHostsConfig, sha256Hex } from "../src/browser.ts";
+import { argvProof, parseKey, verifyOwnProof } from "../src/grant.ts";
 import type { Acl, GuardConfig, HostsConfig, RefInfo, Snapshot } from "../src/types.ts";
 
 export const PLUGIN_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,6 +20,19 @@ export const JH = PY + " " + REPO_PATH + "/scripts/jh.py";
 export const T0 = Date.parse("2026-09-27T05:00:00Z");
 
 export const TOKEN = "TABCDEFGHJKM";
+export const HOME = "/opt/jobhunter-test/home";
+
+// The test guard key and the fixed nonce of the snapshot's proof minter (decide() stays deterministic).
+export const TEST_KEY_HEX = "5a".repeat(32);
+export const TEST_KEY = parseKey(TEST_KEY_HEX);
+export const TEST_NONCE = "0123456789abcdef";
+export const T0S = Math.floor(Date.parse("2026-09-27T05:00:00Z") / 1000);
+
+// The command the R2 rewrite produces for `rest` (the jh.py arguments) of `agent` in `session`.
+export function rewritten(agent: string, rest: string, session = ""): string {
+  const words = rest.split(" ");
+  return PY + " -I " + REPO_PATH + "/scripts/jh.py --agent-proof " + argvProof(TEST_KEY, agent, session, words, T0S, TEST_NONCE) + " " + rest;
+}
 export const CYCLE = "C20260927T050000ZABCD";
 
 export function loadAcl(): Acl {
@@ -68,6 +82,10 @@ export function snap(over: Partial<Snapshot> & { refs?: Record<string, RefInfo> 
     currentUrl: null,
     lookupRef: (r: string) => refs[r],
     realpath: (p: string) => p,
+    mintProof: (agentId: string, sessionKey: string, rest: string[]) => argvProof(TEST_KEY, agentId, sessionKey, rest, T0S, TEST_NONCE),
+    verifyOwnProof: (token: string, agentId: string, sessionKey: string, rest: string[]) => verifyOwnProof(TEST_KEY, token, agentId, sessionKey, rest, T0S),
+    homeDir: HOME,
+    glob: () => [],
   };
   const out = { ...base, ...over } as Snapshot & { refs?: unknown };
   delete out.refs;

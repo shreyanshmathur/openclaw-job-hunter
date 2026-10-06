@@ -5,10 +5,12 @@ import copy
 import io
 import json
 import os
+import unittest
 
 import tests  # noqa: F401
 from jobhunter import canon, cli, db, evaluate, jobs, jobstate, paths
-from tests.fakes.u2 import install
+from tests.fakes.u2 import install, templates
+from tests.fakes.u2.agentrun import agent_call
 from tests.helpers import HomeTestCase
 
 CYCLE = "C20260927T050000ZAAAA"
@@ -278,11 +280,11 @@ class TestRequeueStats(EvalCase):
 
 class TestEvalCommands(EvalCase):
     def run_cli(self, argv, agent="jobhunter-evaluator"):
-        out = io.StringIO()
-        env = {"PATH": "/usr/bin"}
         if agent:
-            env.update({"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent})
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
+            # a guarded agent call: python -I, argv and env proof for one session (helpers of U1)
+            return agent_call(agent, argv, deps=self.deps)
+        out = io.StringIO()
+        rc = cli.main(argv, env={"PATH": "/usr/bin"}, stdin=io.StringIO(""), stdout=out)
         return rc, json.loads(out.getvalue())
 
     def test_next_record_stats(self):
@@ -307,6 +309,41 @@ class TestEvalCommands(EvalCase):
         self.assertNotEqual(rc, 0)   # agents may not requeue
 
 
+class TestEvalNothingWaiting(EvalCase):
+    def add_jobs(self, n, title="Data Analyst", start=100):
+        return []                                                # no job is waiting for evaluation
+
+    def test_nothing_to_do_says_cycle_done(self):
+        rc, env = agent_call("jobhunter-evaluator", ["--cycle", CYCLE, "eval", "next", "--limit", "2"],
+                             deps=self.deps)
+        self.assertEqual((rc, env["code"]), (0, "NOTHING_TO_DO"), env)
+        self.assertEqual(env["next"], "run cycle end and reply CYCLE_DONE")
+        self.assertNotIn("NO_REPLY", json.dumps(env))
+
+
+class TestEvaluatorTemplate(unittest.TestCase):
+    def test_tools_paragraph_and_final_word(self):
+        text = templates.check_agents_template(self, "evaluator", browser=False)
+        flat = templates.flat(text)
+        self.assertIn("read the packet with the read tool, write the scorecard to the packet's `scorecard_path` "
+                      "with the write tool", flat)
+        self.assertIn("follow skill `jobhunter-profile` only", flat)
+        self.assertIn("`__WS__/work/probe/` during a tool check", flat)
+
+    def test_evaluate_skill_wording(self):
+        skill = templates.read("evaluator", "skills", "jobhunter-evaluate", "SKILL.template.md")
+        lines = skill.splitlines()
+        step7 = [ln for ln in lines if ln.startswith("7. ")]
+        self.assertEqual(step7, ["7. Write the scorecard JSON to `scorecard_path` with the write tool (whole file). "
+                                 "Only the keys shown in the brief."])
+        flat = templates.flat(skill)
+        self.assertIn("1. Read the packet with the read tool, at the absolute path `eval next` gave you.", flat)
+        self.assertIn("fix the file once (there is no edit tool: write the whole file again) and record again", flat)
+        self.assertNotIn("NO_REPLY", skill)
+        self.assertNotIn("~/", skill)
+        self.assertNotIn("--agent-proof", skill)
+        skill.encode("ascii")
+
+
 if __name__ == "__main__":
-    import unittest
     unittest.main()

@@ -5,11 +5,14 @@ import copy
 import io
 import json
 import os
+import unittest
 import urllib.parse
 
 import tests  # noqa: F401
 from jobhunter import cli, db, paths, searches
 from tests.fakes.u2 import config, install, profile_fixture
+from tests.fakes.u2 import templates
+from tests.fakes.u2.agentrun import agent_call, proofs, run_isolated
 from tests.helpers import HomeTestCase, raw_meta
 
 CYCLE = "C20260927T050000ZAAAA"
@@ -130,10 +133,8 @@ class TestDue(HomeTestCase):
         self.assertEqual({s["site"] for s in self.due()}, {"linkedin_jobs", "wellfound"})
 
     def test_cli_searches_due_and_generate(self):
-        out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-scout"}
-        rc = cli.main(["--cycle", CYCLE, "searches", "due"], env=env, stdin=io.StringIO(""), stdout=out)
-        res = json.loads(out.getvalue())
+        # the scout runs as a guarded agent: python -I, argv and env proof for one session (helpers of U1)
+        rc, res = agent_call("jobhunter-scout", ["--cycle", CYCLE, "searches", "due"], deps=self.deps)
         self.assertEqual(rc, 0, res)
         self.assertEqual(len(res["data"]["searches"]), 6)
         state = self.conn.execute("SELECT count(*) FROM sources_state WHERE source = 'search' AND etag = ?",
@@ -143,11 +144,47 @@ class TestDue(HomeTestCase):
         rc = cli.main(["searches", "generate", "--overwrite"], env={}, stdin=io.StringIO(""), stdout=out)
         res = json.loads(out.getvalue())
         self.assertEqual((rc, res["data"]["searches"]), (0, 8), res)
-        out = io.StringIO()
-        rc = cli.main(["searches", "generate"], env=env, stdin=io.StringIO(""), stdout=out)
+        rc, res = agent_call("jobhunter-scout", ["searches", "generate"], deps=self.deps)
         self.assertNotEqual(rc, 0)       # the scout cannot rewrite searches
+        self.assertEqual(res["code"], "E_CALLER_NOT_ALLOWED", res)
+
+    def test_nothing_due_says_cycle_done(self):
+        for other in ("C20260927T050500ZBBBB", "C20260927T050500ZCCCC", "C20260927T050500ZDDDD"):
+            due = self.due(other)                         # other cycles take every search that is due
+            with db.tx(self.conn):
+                searches.mark_handed_out(self.conn, due, other)
+        self.assertEqual(self.due(CYCLE), [])
+        rc, res = agent_call("jobhunter-scout", ["--cycle", CYCLE, "searches", "due"], deps=self.deps)
+        self.assertEqual((rc, res["code"]), (0, "NOTHING_TO_DO"), res)
+        self.assertEqual(res["next"], "run cycle end and reply CYCLE_DONE")
+        self.assertNotIn("NO_REPLY", json.dumps(res))
+
+    def test_scout_call_needs_both_carriers(self):
+        argv = ["--cycle", CYCLE, "searches", "due"]
+        env, full = proofs("jobhunter-scout", argv)
+        self.assertEqual(full[0], "--agent-proof")
+        self.assertTrue(full[1].startswith("jhp2.jobhunter-scout."))
+        self.assertEqual(full[2:], argv)
+        self.assertTrue(env["JH_AGENT_PROOF"].startswith("jhe2.jobhunter-scout."))
+        self.assertEqual(env["JH_SESSION_KEY"], "agent:jobhunter-scout:test")
+        rc, res = run_isolated(argv, env, deps=self.deps)                 # env proof alone
+        self.assertEqual((rc, res["code"]), (11, "E_AUTH_FAILED"), res)
+        legacy = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-scout"}
+        rc, res = run_isolated(argv, legacy, deps=self.deps)              # the old agent env, no proof at all
+        self.assertEqual(res["code"], "E_AUTH_FAILED", res)
+        rc, res = run_isolated(full, env, deps=self.deps)                 # both carriers: accepted once
+        self.assertEqual(rc, 0, res)
+        rc, res = run_isolated(full, env, deps=self.deps)                 # the same proofs again: refused
+        self.assertEqual(res["code"], "E_AUTH_FAILED", res)
+
+
+class TestScoutTemplate(unittest.TestCase):
+    def test_tools_paragraph_and_final_word(self):
+        text = templates.check_agents_template(self, "scout", browser=True)
+        flat = templates.flat(text)
+        self.assertIn('7. Every browser call uses `profile: "jobhunter"`.', flat)
+        self.assertIn("follow skill `jobhunter-salary` only", flat)
 
 
 if __name__ == "__main__":
-    import unittest
     unittest.main()

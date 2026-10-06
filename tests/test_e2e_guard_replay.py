@@ -5,9 +5,13 @@ through the real jobhunter-guard runtime (U8, decide() behind GuardRuntime.evalu
 tests/fixtures/e2e/guard_bridge.ts runs the plugin's GuardRuntime under `node` (Node 24 or later runs the
 TypeScript directly, as the plugin README documents) against the temp install: the real acl.json, guard-hosts.json,
 detect files and driver manifest of this repo, the temp home.json and guard.key, and the ledger the core writes.
-Each step goes to the guard first; an allowed exec runs through cli.main with the environment the guard gives
-the agent (JH_AGENT_ID and the HMAC proof), an allowed write writes the file, and a browser result goes back to
-the guard's observer. Steps that expect a G_* code are mutations and never run. Skipped without Node 24.
+Each step goes to the guard first, with the hook context of a restricted cron run (agentId, sessionKey, runId and
+the agent's workspaceDir). An allowed exec goes the way OpenClaw's exec tool runs it (CLI-ROUTE-DESIGN 5): the
+command the guard rewrote (`<PY> -I <REPO>/scripts/jh.py --agent-proof <T> <args>`) runs through cli.main under
+the flags of python -I, with OPENCLAW_SHELL plus exactly the environment the guard's resolve_exec_env hook returned
+for that exec (JH_AGENT_ID, JH_SESSION_KEY, JH_RUN_ID and the single-use JH_AGENT_PROOF), so every lane call
+proves its agent with both carriers. An allowed write writes the file, and a browser result goes back to the
+guard's observer. Steps that expect a G_* code are mutations and never run. Skipped without Node 24.
 """
 from __future__ import annotations
 
@@ -19,13 +23,13 @@ import shlex
 import shutil
 import subprocess
 import unittest
-from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import auth, canon, cli, ocrun, paths
+from jobhunter import auth, canon, cli, paths
 from jobhunter import qc as qcpkg
 from tests.fakes.u3 import FakeReviewer, install_reviewer_hashes
-from tests.fixtures.e2e.support import AP, E2E, ApplyWorld, e2e_fixture
+from tests.helpers import as_isolated
+from tests.fixtures.e2e.support import AP, ApplyWorld, E2E, e2e_fixture, install_reviewer
 
 NODE = shutil.which("node")
 FIELDS = ("First Name", "Last Name", "Email", "Notice period (days)")
@@ -84,10 +88,14 @@ class Replay:
         self.session = transcript["session"]
         role = self.agent[len("jobhunter-"):]
         h = paths.home()
-        self.jh_prefix = "%s %s/scripts/jh.py " % (h["python"], paths.REPO)
-        self.vars.update({"PY": h["python"], "REPO": paths.REPO, "WS": os.path.join(h["ws_root"], role)})
+        self.py = h["python"]
+        self.jh_path = os.path.join(paths.REPO, "scripts", "jh.py")
+        self.ws = os.path.join(h["ws_root"], role)
+        self.vars.update({"PY": h["python"], "REPO": paths.REPO, "WS": self.ws})
+        self.ctx = {"sessionId": "sess-e2e", "runId": "run-e2e", "workspaceDir": self.ws}
         self.outcomes = []
         self.jh = []
+        self.envs = []
 
     def sub(self, v):
         if isinstance(v, str):
@@ -109,12 +117,18 @@ class Replay:
         return v
 
     def run_jh(self, command: str, env: dict):
-        self.t.assertTrue(command.startswith(self.jh_prefix), command)
-        argv = shlex.split(command[len(self.jh_prefix):])
+        """The guard-rewritten command as OpenClaw's exec tool runs it: `<PY> -I <jh.py> --agent-proof <T> ...`
+        (python -I flags), with OPENCLAW_SHELL and the resolve_exec_env environment of this exec."""
+        toks = shlex.split(command)
+        self.t.assertEqual(toks[:4], [self.py, "-I", self.jh_path, "--agent-proof"], command)
+        self.t.assertTrue(env and env.get("JH_AGENT_PROOF", "").startswith("jhe2.%s." % self.agent), env)
+        argv = toks[3:]
         out = io.StringIO()
-        rc = cli.main(argv, env=dict(env, OPENCLAW_SHELL="1"), stdin=io.StringIO(""), stdout=out)
+        with as_isolated():
+            rc = cli.main(argv, env=dict(env, OPENCLAW_SHELL="exec"), stdin=io.StringIO(""), stdout=out)
         envelope = json.loads(out.getvalue().strip().splitlines()[-1])
-        self.jh.append((argv, rc, envelope.get("code")))
+        self.jh.append((argv[2:], rc, envelope.get("code")))
+        self.envs.append(env)
         return rc, envelope
 
     def run(self) -> None:
@@ -128,8 +142,9 @@ class Replay:
     def once(self, step: dict, where: str) -> bool:
         """One tool call. Returns True when the step asks to be repeated (repeat_while)."""
         self.g.ask({"op": "clock", "now": canon.now()})
-        dec = self.g.ask({"op": "call", "agent": self.agent, "session": self.session, "tool": step["tool"],
-                          "params": step["params"]})
+        op = "exec" if step["tool"] == "exec" else "call"
+        dec = self.g.ask({"op": op, "agent": self.agent, "session": self.session, "tool": step["tool"],
+                          "params": step["params"], "ctx": self.ctx})
         want = step.get("expect", "allow")
         self.outcomes.append((step["tool"], dec["outcome"]))
         self.t.assertEqual(dec["outcome"], want, "%s: %s" % (where, dec.get("reason")))
@@ -137,8 +152,8 @@ class Replay:
             return False
         params = dec.get("params") or step["params"]
         if step["tool"] == "exec":
-            env = self.g.ask({"op": "env", "agent": self.agent, "session": self.session, "runId": "run-e2e"})["env"]
-            rc, envelope = self.run_jh(params["command"], env)
+            self.t.assertEqual(params.get("workdir"), os.path.join(self.ws, "work"), where)
+            rc, envelope = self.run_jh(params["command"], dec["env"])
             code = step.get("jh_code")
             if code:
                 self.t.assertEqual(envelope.get("code"), code, "%s: %s" % (where, json.dumps(envelope)[:1200]))
@@ -157,7 +172,7 @@ class Replay:
             return False
         if "result" in step:
             obs = self.g.ask({"op": "result", "agent": self.agent, "session": self.session, "tool": step["tool"],
-                              "params": params, "result": step["result"], "error": None})
+                              "params": params, "result": step["result"], "error": None, "ctx": self.ctx})
             self.t.assertEqual(obs["stopped"], bool(step.get("expect_stop")), where + " stop")
         return False
 
@@ -170,9 +185,7 @@ class GuardReplayBase(unittest.TestCase):
         prev = qcpkg.SPAWN
         qcpkg.SPAWN = [].append
         self.addCleanup(setattr, qcpkg, "SPAWN", prev)
-        p = mock.patch.object(ocrun, "agent_turn", FakeReviewer("pass"))
-        p.start()
-        self.addCleanup(p.stop)
+        install_reviewer(self, FakeReviewer("pass"))
         self.w.onboard()
         install_reviewer_hashes(self.w.conn)
         self.assertTrue(auth.create_guard_key())
@@ -190,6 +203,10 @@ class GuardReplayBase(unittest.TestCase):
         with open(hb, "r", encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["install_id"], h["install_id"])
         return g
+
+    def proofs_used(self) -> int:
+        """grants_used rows of the applier's agent proofs (one per carrier and call)."""
+        return self.w.one("SELECT COUNT(*) FROM grants_used WHERE command = ?", "agent-proof " + AP)[0]
 
     def guard_log(self) -> list:
         path = os.path.join(paths.logs_dir(), "guard-%s.jsonl" % canon.now()[:7])
@@ -223,6 +240,7 @@ class TestAtsApplyReplay(GuardReplayBase):
     def replay(self, form_flags: str):
         v = self.prepare()
         v["FORM_FLAGS"] = form_flags
+        self.used_before = self.proofs_used()
         g = self.start_guard()
         r = Replay(self, self.w, g, e2e_fixture("guard_ats_apply.json"), v)
         r.run()
@@ -263,8 +281,12 @@ class TestAtsApplyReplay(GuardReplayBase):
         self.assertIsNotNone(app["resume_variant_id"])
         self.assertEqual(w.one("SELECT status FROM jobs WHERE job_uid = ?", v["JOB"])[0], "applied")
         self.assertEqual(w.one("SELECT removed_at IS NOT NULL FROM staged_files WHERE token = ?", token)[0], 1)
-        # every exec ran as the agent the guard vouched for
+        # every exec ran as the agent the guard vouched for, with a fresh pair of single-use proofs
         self.assertTrue(all(code in ("OK", "NOTHING_TO_DO") for _a, _rc, code in r.jh), r.jh)
+        env_proofs = [e["JH_AGENT_PROOF"] for e in r.envs]
+        self.assertEqual(len(set(env_proofs)), len(env_proofs))
+        self.assertTrue(all(e["JH_SESSION_KEY"] == r.session and e["JH_AGENT_ID"] == AP for e in r.envs))
+        self.assertEqual(self.proofs_used() - self.used_before, 2 * len(r.jh))
         # the guard log has the decisions but no page text
         log = self.guard_log()
         codes = [e.get("code") for e in log if e.get("decision") == "block"]
@@ -291,8 +313,9 @@ class TestDriverOutputIsNotAPage(unittest.TestCase):
         session = "agent:jobhunter-applier:cron:" + url.split("/")[2]
         with open(os.path.join(paths.REPO, "drivers", "read_form.js"), "r", encoding="utf-8") as fh:
             fn = fh.read()
-        for params, text in (({"action": "navigate", "targetUrl": url}, "- heading \"Data Analyst\" [level=1]"),
-                             ({"action": "act", "kind": "evaluate", "fn": fn},
+        for params, text in (({"profile": "jobhunter", "action": "navigate", "targetUrl": url},
+                              "- heading \"Data Analyst\" [level=1]"),
+                             ({"profile": "jobhunter", "action": "act", "kind": "evaluate", "fn": fn},
                               json.dumps({"observed": {"fields": [{"label": "Email", "value": "alex.rivera@example.com"}],
                                                        "resume_filename_visible": "Alex_Rivera_Resume.pdf"},
                                           "required_empty": [], "captcha_visible": captcha, "account_wall": wall,

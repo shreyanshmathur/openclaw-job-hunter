@@ -2,7 +2,7 @@
  "id": "G03",
  "channel": "email_recruiter",
  "subject": "Backend Engineer, Payments",
- "body": "Hi Dana,\n\nYou're listed as the recruiter on Northwind Pay's Backend Engineer, Payments post. It asks for experience with recurring card mandates, which has been most of my last 4 years.\n\nAt Tidewater Freight I led the mandate retry service in Go, which handles about 1 million requests a day. I applied on 20 September, and my notice period is 30 days.\n\nIs the role still open, and does my background fit the level you're hiring for?\n\nThanks,",
+ "body": "Hi Dana,\n\nNorthwind Pay's Backend Engineer, Payments post asks for recurring card mandates and Go. I've spent 4 years building Go payment services at Tidewater Freight.\n\nThere I led the mandate retry service, about 1 million requests a day, and failed mandate payments fell from 3% to 1% in its first year. I applied on 20 September. My notice period is 30 days.\n\nWould a 15 minute call this week work? If the role is filled, a one-line reply is plenty.\n\nThanks,",
  "recipient": {
   "first_name": "Dana",
   "last_name": "Cruz",
@@ -30,10 +30,10 @@
  },
  "profile_facts": {
   "P1": "4 years building Go payment services at Tidewater Freight.",
-  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day.",
+  "P2": "Led the mandate retry service at Tidewater Freight, about 1 million requests per day; failed mandate payments fell from 3% to 1% in its first year.",
   "P3": "Notice period: 30 days.",
   "P4": "Applied to Northwind Pay Backend Engineer, Payments on 20 September 2026.",
-  "P5": "Fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
+  "P5": "At Tidewater Freight, fixed a retry storm behind a slow partner bank in 2025 with per-bank retry budgets; duplicate charge complaints fell from about 30 a week to 3."
  },
  "hook": {
   "anchor": "recurring card mandates",
@@ -46,14 +46,14 @@
  },
  "claims": [
   {
-   "text": "about 1 million requests a day",
+   "text": "failed mandate payments fell from 3% to 1% in its first year",
    "fact_id": "P2"
   },
   {
-   "text": "4 years",
+   "text": "4 years building Go payment services",
    "fact_id": "P1"
   }
  ],
  "field_char_limit": null,
- "note": "recruiter gets the req, the fit and the logistics"
+ "note": "recruiter gets the req, one proven result on the asked-for skill and the logistics"
 }

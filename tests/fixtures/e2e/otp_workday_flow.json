@@ -1,0 +1,59 @@
+{
+ "notes": "INT fixture for tests/test_e2e_otp_accounts.py: a Workday job at the fictional Kestrel Commerce, the snapshots the scripted model sees, and the fake secrets. Nothing real.",
+ "ingest": {
+  "source": "wellfound",
+  "discovered_via": "browser",
+  "jobs": [
+   {
+    "source_url": "https://wellfound.com/jobs/1000002-senior-analyst",
+    "apply_url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001",
+    "company": "Kestrel Commerce",
+    "company_domain": "kestrel.example",
+    "title": "Senior Analyst",
+    "location": "Remote",
+    "work_mode": "remote",
+    "remote_scope": "US",
+    "employment_type": "full_time",
+    "posted_at": "2026-09-27",
+    "years": {
+     "min": 2,
+     "max": 4
+    },
+    "salary": {
+     "min": 65000,
+     "max": 80000,
+     "currency": "USD",
+     "period": "year"
+    },
+    "apply_route_hint": "ats_form",
+    "jd_text": "Kestrel Commerce needs a Senior Analyst. 2 to 4 years of SQL and Python for returns forecasting. Remote in the US.",
+    "native_ids": {}
+   }
+  ]
+ },
+ "fields": [
+  "First Name",
+  "Last Name",
+  "Email",
+  "Notice period (days)"
+ ],
+ "snapshots": {
+  "wd_create": "- heading \"Create an account to apply\" [level=1] [ref=e1]\n- textbox \"Email Address\" [ref=e2]\n- textbox \"Password\" [ref=e3]\n- textbox \"Verify New Password\" [ref=e4]\n- checkbox \"Yes, I have read and consent to the Candidate Privacy Statement\" [ref=e5]\n- button \"Create Account\" [ref=e6]\n- button \"Sign in with Google\" [ref=e7]",
+  "wd_signin_code": "- heading \"Enter the verification code we sent to your email to sign in\" [level=1] [ref=e1]\n- textbox \"Verification Code\" [ref=e8]\n- button \"Verify\" [ref=e9]",
+  "wd_app_form": "- heading \"My Information\" [level=1] [ref=e1]\n- textbox \"First Name\" [ref=e20]\n- textbox \"Last Name\" [ref=e21]\n- textbox \"Email\" [ref=e22]\n- textbox \"Notice period (days)\" [ref=e23]\n- button \"Submit Application\" [ref=e30]",
+  "wd_captcha": "- heading \"Please verify you're a human before you continue\" [level=1] [ref=e1]\n- checkbox \"I'm not a robot\" [ref=e40]\n- button \"Create Account\" [ref=e6]",
+  "wd_confirmation": "- heading \"Thank you for applying. Your application for Senior Analyst was received.\" [level=1]"
+ },
+ "secrets": {
+  "password": "Kx7#fixture#Pw2q",
+  "password_alt": "Kx7fixture-Pw2q9Z",
+  "code": "483920",
+  "code_greenhouse": "Q7RZ4M2K",
+  "link": "https://kestrel.wd5.myworkdayjobs.com/verify?t=FIXTURETOKEN123"
+ },
+ "senders": {
+  "good": "no-reply@myworkday.com",
+  "lookalike": "no-reply@myworkday.com.evil.example",
+  "google": "no-reply@accounts.google.com"
+ }
+}

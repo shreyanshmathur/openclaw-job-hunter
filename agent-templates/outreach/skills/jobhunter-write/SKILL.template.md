@@ -36,7 +36,8 @@ the banned list. Tone per locale is in `__WS__/ref/tone_rules.json`. After a QC 
 
 ## The draft file
 
-Write it with your file tool to `__WS__/work/<cycle_id>/draft-<n>.json`:
+Write it with the write tool, as one whole file, to `__WS__/work/<cycle_id>/draft-<n>.json` (there is no edit
+tool: to fix it, write the whole file again):
 
 ```json
 {"kind": "cold_email", "channel": "email_cold", "contact_uid": "P3KQ7M2A", "job_uid": "J7Q2KX4M",

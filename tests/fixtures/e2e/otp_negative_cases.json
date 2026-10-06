@@ -1,0 +1,19 @@
+{
+ "notes": "Negative cases of tests/test_e2e_otp_accounts.py (FEATURES-OTP-ACCOUNTS-CAPTCHA 5.2): message timing offsets in seconds from the code request and the expected end state.",
+ "timing": [
+  {
+   "name": "expired_code",
+   "offset_s": 660,
+   "expect": "expired"
+  },
+  {
+   "name": "before_request",
+   "offset_s": -120,
+   "expect": "expired"
+  }
+ ],
+ "wrong_senders": [
+  "no-reply@myworkday.com.evil.example",
+  "no-reply@accounts.google.com"
+ ]
+}

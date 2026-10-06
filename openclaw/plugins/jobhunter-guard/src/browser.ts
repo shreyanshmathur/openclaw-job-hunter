@@ -34,12 +34,24 @@ export function parseHostsConfig(raw: unknown): HostsConfig {
   const platforms: PlatformEntry[] = [];
   for (const [key, v] of Object.entries((o.platforms || {}) as Record<string, any>)) {
     if (!v || typeof v.scope !== "string" || !Array.isArray(v.hosts)) throw new Error("bad platform entry " + key);
+    // Optional whole-host regexes for platforms whose tenants share no registrable suffix (Oracle Cloud HCM:
+    // <tenant>.fa.<region>.oraclecloud.com). Each must be anchored at both ends, so it names whole hosts only.
+    const hostPatterns: RegExp[] = [];
+    if (v.host_patterns !== undefined) {
+      if (!Array.isArray(v.host_patterns)) throw new Error("bad host_patterns for platform " + key);
+      for (const hp of v.host_patterns) {
+        const re = typeof hp === "string" && hp.startsWith("^") && hp.endsWith("$") ? compile(hp) : null;
+        if (!re) throw new Error("bad host pattern for platform " + key + ": " + String(hp));
+        hostPatterns.push(re);
+      }
+    }
     platforms.push({
       key,
       scope: v.scope,
       hosts: v.hosts.map((h: string) => String(h).toLowerCase()),
       aliases: Array.isArray(v.aliases) ? v.aliases.map(String) : [],
       consent: consentSiteFor(key, v.scope, v.consent),
+      hostPatterns,
     });
   }
   const neverUrlPatterns: RegExp[] = [];
@@ -68,6 +80,17 @@ export function parseHostsConfig(raw: unknown): HostsConfig {
     if (!re) throw new Error("bad multiline_names for " + kind);
     multilineNames[kind] = re;
   }
+  // Fail closed: both keys are required (a file without them would turn the secret field and social sign-in
+  // fences off silently).
+  if (!Array.isArray(o.forbidden_names)) throw new Error("forbidden_names missing");
+  const forbiddenNames: RegExp[] = [];
+  for (const p of o.forbidden_names) {
+    const re = compile(p);
+    if (!re) throw new Error("bad forbidden name " + p);
+    forbiddenNames.push(re);
+  }
+  const secretFieldNames = compile(o.secret_field_names);
+  if (!secretFieldNames) throw new Error("secret_field_names missing or invalid");
   return {
     neverHosts: (Array.isArray(never.hosts) ? never.hosts : []).map((h: string) => String(h).toLowerCase()),
     neverUrlPatterns,
@@ -80,6 +103,8 @@ export function parseHostsConfig(raw: unknown): HostsConfig {
     riskyNames,
     prepareNames,
     multilineNames,
+    forbiddenNames,
+    secretFieldNames,
   };
 }
 
@@ -158,6 +183,15 @@ export function classifyUrl(url: string | null | undefined, cfg: HostsConfig): H
       break;
     }
   }
+  // host_patterns only after every suffix host, so a listed domain always wins
+  if (!platform) {
+    for (const p of cfg.platforms) {
+      if (p.hostPatterns && p.hostPatterns.some((re) => re.test(host))) {
+        platform = p;
+        break;
+      }
+    }
+  }
   return { url: raw, host, never: false, neverReason: null, platform };
 }
 
@@ -169,6 +203,8 @@ export function blockingScopes(info: HostInfo, write: boolean): string[] {
     out.push(info.platform.scope, "pause:" + info.platform.scope);
     if (info.platform.scope !== info.platform.key) out.push("pause:" + info.platform.key);
     if (write && (info.platform.scope === "ats" || info.platform.scope.startsWith("site:"))) out.push("pause:applications");
+    // the per-platform ATS breaker the core trips (ats_security, captcha_repeat, consent_revoked, code failures)
+    if (info.platform.scope === "ats") out.push("ats:" + info.platform.key);
   }
   return out;
 }
@@ -418,6 +454,121 @@ export function classifyBrowserCall(params: Record<string, unknown>, opts: Class
   return [{ cls: "commit", action: action || "unknown", ...none, why: "unknown browser action" }];
 }
 
+// ------------------------------------------------------------------ secret fields and forbidden names
+// Passwords and verification codes are filled by code (jh.py account create, account signin, code submit over
+// the agent's own browser profile), never by a model; social sign-in buttons and CAPTCHA widgets are never
+// clicked. These checks look only at the refs of the last snapshot of the addressed tab and at the order of
+// the actions in one call (a batch), and hold with or without a token.
+
+export const SECRET_FIELD_REASON = "secret fields are filled by code: jh.py account create, account signin or code submit";
+export const FORBIDDEN_NAME_REASON = "social sign-in buttons and CAPTCHA widgets are never clicked by an agent: the owner signs in or solves the CAPTCHA";
+const SECRET_ROLES = new Set(["textbox", "searchbox", "spinbutton"]);
+// a CSS selector that names a password input or a secret field by its id, name or label
+const SECRET_SELECTOR_RE = /type\s*=\s*["']?password/i;
+
+export function isSecretField(info: RefInfo | undefined, hosts: HostsConfig): boolean {
+  if (!info || !SECRET_ROLES.has(String(info.role).toLowerCase())) return false;
+  const re = hosts.secretFieldNames;
+  re.lastIndex = 0;
+  return re.test((info.name || "").trim());
+}
+
+export function isForbiddenName(info: RefInfo | undefined, hosts: HostsConfig): boolean {
+  if (!info) return false;
+  const name = (info.name || "").trim();
+  return hosts.forbiddenNames.some((re) => {
+    re.lastIndex = 0;
+    return re.test(name);
+  });
+}
+
+function secretSelector(sel: unknown, hosts: HostsConfig): boolean {
+  if (typeof sel !== "string" || sel.length === 0) return false;
+  hosts.secretFieldNames.lastIndex = 0;
+  return SECRET_SELECTOR_RE.test(sel) || hosts.secretFieldNames.test(sel);
+}
+
+// The outcome of the secret field and forbidden name checks of one browser call: a block (code and reason),
+// and the addressed tab's secretFocus flag after the call (undefined: the call does not change it).
+export type SecretCheck = { block: { code: string; reason: string } | null; focus: boolean | undefined };
+
+// `focus`: the tab's secretFocus flag before the call (a click on a secret field set it; the next snapshot,
+// navigation or click on another known ref clears it). A type or press without a ref while it is set types
+// into that field, so it is refused like a type into the field itself. A click on an unknown ref keeps it.
+export function checkSecretFields(params: Record<string, unknown>, hosts: HostsConfig, lookupRef: (ref: string) => RefInfo | undefined, focus: boolean): SecretCheck {
+  const action = typeof params.action === "string" ? params.action : "";
+  let cur = focus;
+  let touched = false;
+  const secret = (): SecretCheck => ({ block: { code: "G_SECRET_FIELD", reason: SECRET_FIELD_REASON }, focus: undefined });
+  const denied = (): SecretCheck => ({ block: { code: "G_TOOL_DENIED", reason: FORBIDDEN_NAME_REASON }, focus: undefined });
+  // a click on a ref: refused on a forbidden name; moves the focus when the ref is known
+  const click = (ref: unknown): SecretCheck | null => {
+    const r = str(ref);
+    if (!r) return null;
+    const info = lookupRef(r);
+    if (!info) return null;
+    if (isForbiddenName(info, hosts)) return denied();
+    cur = isSecretField(info, hosts);
+    touched = true;
+    return null;
+  };
+  // typing (type, press, one fill field): into a known secret ref, by a secret selector, or ref-less while
+  // the focus is in a secret field
+  const typing = (ref: unknown, selector: unknown): boolean => {
+    const r = str(ref);
+    if (r) return isSecretField(lookupRef(r), hosts);
+    if (secretSelector(selector, hosts)) return true;
+    return cur;
+  };
+  const walk = (req: Record<string, unknown>, depth: number): SecretCheck | null => {
+    const kind = typeof req.kind === "string" ? req.kind : "";
+    switch (kind) {
+      case "click":
+        return click(req.ref);
+      case "type":
+        if (typing(req.ref, req.selector)) return secret();
+        // type slowly clicks the element first
+        if (flagOn(req.slowly)) return click(req.ref);
+        return null;
+      case "press":
+        return typing(req.ref, req.selector) ? secret() : null;
+      case "fill": {
+        if (Array.isArray(req.fields)) {
+          for (const f of req.fields) {
+            const fo = f && typeof f === "object" ? (f as Record<string, unknown>) : {};
+            if (typing(fo.ref, fo.selector)) return secret();
+          }
+          return null;
+        }
+        return typing(req.ref, req.selector) ? secret() : null;
+      }
+      case "batch":
+        if (depth > 2 || !Array.isArray(req.actions)) return null; // classifyAct refuses it as a commit
+        for (const a of req.actions) {
+          if (!a || typeof a !== "object") return null;
+          const r = walk(a as Record<string, unknown>, depth + 1);
+          if (r) return r;
+        }
+        return null;
+      default:
+        return null;
+    }
+  };
+  let res: SecretCheck | null = null;
+  // `open` makes a new tab (which starts unmarked) and leaves the marked one as it is
+  if (action === "snapshot" || action === "navigate") {
+    cur = false;
+    touched = true;
+  } else if (action === "upload" || action === "download") {
+    res = click(params.ref); // OpenClaw clicks `ref` (an upload's file chooser, a download link)
+  } else if (action === "act") {
+    const req = actRequestOf(params);
+    if (req) res = walk(req, 0);
+  }
+  if (res) return res;
+  return { block: null, focus: touched ? cur : undefined };
+}
+
 // ------------------------------------------------------------------ snapshot refs
 
 const ROLE_LINE_RE = /^[ \t]*-[ \t]+([A-Za-z][\w-]*)(?:[ \t]+("(?:[^"\\\n]|\\.)*"))?[^\n]*?\[ref=([A-Za-z0-9_]+)\]/gm;
@@ -467,7 +618,7 @@ function walkJson(v: unknown, out: Map<string, RefInfo>, depth: number): void {
   for (const x of Object.values(o)) walkJson(x, out, depth + 1);
 }
 
-type TabState = { refs: Map<string, RefInfo>; url: string | null };
+type TabState = { refs: Map<string, RefInfo>; url: string | null; secretFocus: boolean };
 type SessionTabs = { tabs: Map<string, TabState>; lastTab: string; aliases: Map<string, string> };
 
 const MAX_ALIASES = 500;
@@ -501,7 +652,7 @@ export class RefCache {
     const id = this.resolve(s, tabId);
     let t = s.tabs.get(id);
     if (!t) {
-      t = { refs: new Map(), url: null };
+      t = { refs: new Map(), url: null, secretFocus: false };
       s.tabs.set(id, t);
     }
     if (touch) s.lastTab = id;
@@ -533,6 +684,27 @@ export class RefCache {
 
   clearRefs(key: string, tabId: string | null): void {
     this.tab(key, tabId).refs = new Map();
+  }
+
+  // The tab's secretFocus flag (checkSecretFields); set without making the tab the last used one.
+  setSecretFocus(key: string, tabId: string | null, on: boolean): void {
+    this.tab(key, tabId, false).secretFocus = on;
+  }
+
+  secretFocus(key: string, tabId: string | null): boolean {
+    const s = this.sessions.get(key);
+    if (!s) return false;
+    const t = s.tabs.get(this.resolve(s, tabId));
+    return t ? t.secretFocus === true : false;
+  }
+
+  // The tab key a handle names (a tab id, label or suggested id resolved to the raw targetId; no handle: the
+  // tab this session used last), or null when the session has used no tab.
+  tabKey(key: string, tabId: string | null): string | null {
+    const s = this.sessions.get(key);
+    if (!s) return tabId;
+    const id = this.resolve(s, tabId);
+    return id === "_" ? null : id;
   }
 
   lookup(key: string, tabId: string | null, ref: string): RefInfo | undefined {

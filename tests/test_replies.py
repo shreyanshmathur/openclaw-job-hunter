@@ -1,7 +1,6 @@
 """U6 replies: packets, agent and code classifications, consequences, idempotency, the CLI path."""
 from __future__ import annotations
 
-import io
 import json
 import os
 import shutil
@@ -9,9 +8,11 @@ import unittest
 from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import canon, cli, db, replies, threads
+from jobhunter import canon, db, replies, threads
 from tests.fakes.u6 import U6TestCase, deps
 from tests.fakes.u6 import enrich as enrich_fakes
+from tests.fakes.u6.agentcall import (agent_cli, agent_cli_isolated, identity, legacy_env, proofs_available,
+                                      run_in_process, run_isolated)
 from tests.helpers import insert_action, insert_company, insert_contact, insert_draft, insert_job
 
 
@@ -238,27 +239,60 @@ class TestCodeClasses(RepliesBase):
 
 
 class TestCli(RepliesBase):
-    def run_cli(self, argv, env=None):
-        out = io.StringIO()
-        rc = cli.main(argv, env=env or {}, stdin=io.StringIO(""), stdout=out)
-        return rc, json.loads(out.getvalue())
+    """The outreach agent's calls run the way the guard runs them: `python -I`, argv and env proof of one
+    session (tests.fakes.u6.agentcall)."""
+
+    def record_file(self):
+        return self.home.write_agent_file("outreach", "C20260927T050000ZAAAA/reply.json", json.dumps(
+            {"inbound_id": 1, "thread_key": self.key, "class": "positive", "summary": "Wants a call.",
+             "received_at": canon.now(), "msg_ref": None}))
 
     def test_reply_record_as_agent_deletes_packet(self):
         path = self.packet()
-        rec = self.home.write_agent_file("outreach", "C20260927T050000ZAAAA/reply.json", json.dumps(
-            {"inbound_id": 1, "thread_key": self.key, "class": "positive", "summary": "Wants a call.",
-             "received_at": canon.now(), "msg_ref": None}))
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}
-        rc, env_out = self.run_cli(["reply", "record", "--file", rec], env)
+        rec = self.record_file()
+        rc, env_out = agent_cli_isolated("jobhunter-outreach", ["reply", "record", "--file", rec])
         self.assertEqual(rc, 0, env_out)
         self.assertFalse(os.path.exists(path))
-        rc, env_out = self.run_cli(["reply", "pending"], env)
+        rc, env_out = agent_cli_isolated("jobhunter-outreach", ["reply", "pending"])
         self.assertEqual((rc, env_out["code"]), (0, "NOTHING_TO_DO"))
 
     def test_agent_file_outside_work_is_refused(self):
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}
-        rc, out = self.run_cli(["reply", "record", "--file", "/etc/hosts"], env)
+        rc, out = agent_cli("jobhunter-outreach", ["reply", "record", "--file", "/etc/hosts"])
         self.assertEqual((rc, out["code"]), (10, "E_PATH_NOT_ALLOWED"))
+
+    def test_other_agents_may_not_record_replies(self):
+        rec = self.record_file()
+        rc, out = agent_cli("jobhunter-applier", ["reply", "record", "--file", rec])
+        self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"), out)
+
+    @unittest.skipUnless(proofs_available(), "needs a core with agent proof version 2 (U1)")
+    def test_reply_record_needs_both_proofs_once(self):
+        """Proof version 2 (CLI-ROUTE 5.3): the old agent env, the env proof alone, the argv proof alone, a plain
+        interpreter or a replayed pair never record a reply; both fresh carriers under a real `python -I` do, once."""
+        path = self.packet()
+        rec = self.record_file()
+        argv = ["reply", "record", "--file", rec]
+        rc, out = run_in_process(argv, legacy_env("jobhunter-outreach"))
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
+        env, full, mode = identity("jobhunter-outreach", argv)
+        self.assertEqual((mode, full[0], full[2:]), ("v2", "--agent-proof", argv))
+        rc, out = run_in_process(argv, env)                                 # env proof alone
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
+        env, full, _ = identity("jobhunter-outreach", argv)
+        rc, out = run_in_process(full, {k: v for k, v in env.items() if k != "JH_AGENT_PROOF"})   # argv alone
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
+        env, full, _ = identity("jobhunter-outreach", argv)
+        rc, out = run_in_process(full, env, isolated=False)                 # not python -I
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
+        self.assertIn("python -I", out["message"])
+        self.assertTrue(os.path.exists(path), "nothing was recorded so far")
+        env, full, _ = identity("jobhunter-outreach", argv)
+        rc, out = run_isolated(full, env)                                   # both carriers, real python -I
+        self.assertEqual(rc, 0, out)
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.row("SELECT status FROM inbound_messages WHERE id = 1")[0], "classified")
+        rc, out = run_in_process(full, env)                                 # the same proofs again: refused
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
 
 
 class TestFinderHooks(RepliesBase):
@@ -308,10 +342,8 @@ class TestWebLane(RepliesBase):
         return importlib.import_module("jobhunter.mail.audit")
 
     def run_cli(self, argv):
-        out = io.StringIO()
-        rc = cli.main(argv, env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}, stdin=io.StringIO(""),
-                      stdout=out)
-        return rc, json.loads(out.getvalue())
+        # in this process (the mocks below apply), under the flags of `python -I`, with both proofs
+        return agent_cli("jobhunter-outreach", argv)
 
     def test_web_lane_from_mail_status(self):
         with mock.patch.object(self.audit(), "web_status", return_value=dict(self.STATUS)), \

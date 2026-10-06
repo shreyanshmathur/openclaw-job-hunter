@@ -2,6 +2,7 @@
 calling mail.audit.sent_since over the fake IMAP server."""
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
@@ -16,10 +17,12 @@ from jobhunter.errors import Denied
 from jobhunter.mail import audit
 from jobhunter import mail
 from tests.fakes.u9 import APP_PW, FIXTURES, OWNER, MailTestCase, inbound, write_config
+from tests import helpers
 from tests.helpers import insert_action, insert_company, insert_contact, insert_thread
 
 ALEX = "alex.rivera@kestrel.example"
 MORGAN = "morgan.lee@harbor-analytics.example"
+OUTREACH = "jobhunter-outreach"
 
 
 class AuditTests(MailTestCase):
@@ -297,10 +300,16 @@ class WebAuditTests(MailTestCase):
 
     # ---- the CLI
     def cli(self, argv, agent=False, stdin=""):
-        out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"} if agent else {}
+        """jh.py in this process; agent=True runs it as the replies lane the way the guard does (CLI route 5):
+        both carriers (env proof and `--agent-proof` in front, fresh and single use) under the flags of
+        `python -I`, so a test's fake transport and acl patch still apply."""
         with mock.patch.object(auth, "load_acl", _acl_with_mail_audit):
-            rc = cli.main(argv, env=env, stdin=io.StringIO(stdin), stdout=out)
+            if agent:
+                rc, out = helpers.agent_cli(OUTREACH, argv, stdin=stdin)
+                self.assertIsInstance(out, dict, out)
+                return rc, out
+            out = io.StringIO()
+            rc = cli.main(argv, env={}, stdin=io.StringIO(stdin), stdout=out)
         return rc, json.loads(out.getvalue())
 
     def test_cli_replies_lane_reads_status_then_records(self):
@@ -326,6 +335,52 @@ class WebAuditTests(MailTestCase):
         write_config(self.home)
         rc, out = self.cli(["mail", "audit"], agent=True)
         self.assertEqual((rc, out["code"], out["data"]["handled_by"]), (0, "NOTHING_TO_DO", "code_imap"), out)
+        self.assertEqual(self.imap.commands, [])
+
+    def raw_agent_cli(self, argv, env, isolated=True):
+        """cli.main as the replies lane with exactly the given env and argv (no helper adds a carrier)."""
+        out = io.StringIO()
+        with mock.patch.object(auth, "load_acl", _acl_with_mail_audit):
+            with (helpers.as_isolated() if isolated else contextlib.nullcontext()):
+                rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
+        return rc, json.loads(out.getvalue().strip().splitlines()[-1])
+
+    def assertAuthFailed(self, argv, env, why, isolated=True):
+        rc, out = self.raw_agent_cli(argv, env, isolated=isolated)
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
+        self.assertIn(why, out["message"])
+
+    def test_cli_agent_needs_both_carriers_and_python_I(self):
+        root = paths.root()
+        audit_argv = ["mail", "audit"]
+        self.assertAuthFailed(audit_argv, {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": OUTREACH}, "without the guard's proof")
+        self.assertAuthFailed(audit_argv, helpers.agent_env(root, OUTREACH), "missing argv proof")
+        self.assertAuthFailed(helpers.agent_argv(root, OUTREACH, audit_argv), {}, "missing env proof")
+        self.assertAuthFailed(helpers.agent_argv(root, OUTREACH, audit_argv), helpers.agent_env(root, OUTREACH),
+                              "python -I", isolated=False)
+        self.assertAuthFailed(helpers.agent_argv(root, OUTREACH, audit_argv),
+                              helpers.agent_env(root, OUTREACH, session="agent:jobhunter-outreach:other"),
+                              "different sessions")
+        env = helpers.agent_env(root, OUTREACH)
+        argv = helpers.agent_argv(root, OUTREACH, audit_argv)
+        rc, out = self.raw_agent_cli(argv, dict(env))
+        self.assertEqual((rc, out["code"], out["data"]["audit_due"]), (0, "OK", True), out)
+        self.assertAuthFailed(argv, dict(env), "already used")
+        self.assertEqual(self.imap.commands, [])
+
+    def test_cli_agent_in_a_real_python_I_child(self):
+        """Both carriers in a child `python -I` (the interpreter the guard starts): the proofs are accepted and
+        acl.json alone decides; the web route never reaches IMAP from the child either."""
+        root = paths.root()
+        rc, out = helpers.run_jh(helpers.agent_argv(root, OUTREACH, ["mail", "audit"]),
+                                 env=helpers.agent_env(root, OUTREACH))
+        self.assertIsInstance(out, dict, out)
+        if "mail audit" in _REAL_LOAD_ACL()["agents"][OUTREACH]["commands"]:
+            self.assertEqual((rc, out["code"], out["data"]["audit_due"]), (0, "OK", True), out)
+        else:
+            self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"), out)
+        rc, out = helpers.run_jh(["mail", "audit"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": OUTREACH})
+        self.assertEqual((rc, out["code"]), (11, "E_AUTH_FAILED"), out)
         self.assertEqual(self.imap.commands, [])
 
     def test_cli_human_views(self):

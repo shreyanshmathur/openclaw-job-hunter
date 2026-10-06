@@ -1,17 +1,31 @@
-// Per-agent OpenClaw config for one jobhunter agent (design 10.3 step 9).
+// Per-agent OpenClaw config for one jobhunter agent (design 10.3 step 9, install.sh step 8; CLI route design 6.1).
 //
 // `jh.py install render-agents-patch` renders this object once per entry of openclaw/agents.json and writes
 // {"agents": {"entries": {"<agent id>": <this object>}}} to state/install/agents.patch.json. install.sh then
-// runs `openclaw config patch --file <that> --dry-run --json`, the real patch, and `openclaw config validate`.
+// runs `openclaw config patch --file <that> --dry-run --json`, the real patch, `openclaw config validate`, and
+// `jh.py install verify-exec-policy --fix` (the effective merge must say allowlist or deny, and ask off).
 //
 // Scope rule: only agents.entries["jobhunter-*"]. Never bindings, channels, agents.defaults or
 // browser.defaultProfile. The renderer refuses any other top-level key.
 //
 // Placeholders:
-//   a string that is exactly "__MODEL__", "__SKILLS__", "__TOOLS_ALLOW__", "__TOOLS_DENY__" or
-//   "__MODELS_RUNTIME__" is replaced by the typed value from agents.json ("__MODELS_RUNTIME__" is dropped
-//   on the API key route); inside other strings __WS__ (the agent's workspace), __WS_ROOT__, __REPO__,
-//   __PY__, __ROLE__ and __AGENT_ID__ are replaced as text.
+//   a string that is exactly "__MODEL__", "__SKILLS__", "__TOOLS_ALLOW__", "__TOOLS_DENY__",
+//   "__MODELS_RUNTIME__", "__EXEC_POLICY__" or "__ELEVATED__" is replaced by the typed value rendered from
+//   agents.json ("__MODELS_RUNTIME__" is dropped on the API key route); inside other strings __WS__ (the
+//   agent's workspace), __WS_ROOT__, __REPO__, __PY__, __ROLE__ and __AGENT_ID__ are replaced as text.
+//
+// "__EXEC_POLICY__" is always explicit, so a global setting cannot leak in through a missing key, and it holds
+// `mode` only: OpenClaw 2026.9.5 and later refuse "mode" together with "security" or "ask" in one exec object, and a
+// per-agent mode replaces any security and ask the agent would inherit from the global tools.exec. Agents with
+// exec_policy allowlist get {"mode": "allowlist", "host": "gateway", "strictInlineEval": true, "safeBins": [],
+// "safeBinTrustedDirs": []} (mode allowlist is security allowlist with ask off): one allowlist entry (python, the
+// agent's own jh.py argPattern from openclaw/exec-approvals.json5.tmpl), every miss refused at once, never a
+// question to a person. jobhunter-qc (exec_policy deny) gets {"mode": "deny", "safeBins": [],
+// "safeBinTrustedDirs": []} (security deny, ask off). The rendered patch also carries "security": null and
+// "ask": null, which delete those keys of an older install in the same write. Only
+// `./install.sh --cli-tools native --i-accept-reduced-protection` (mode N, reduced protection) renders mode full
+// for the four tool agents. "__ELEVATED__" is always {"enabled": false}. The effective values are read back
+// after the patch (`jh.py install verify-exec-policy`: security allowlist or deny, ask off).
 {
   "workspace": "__WS__",
   "model": "__MODEL__",
@@ -21,10 +35,8 @@
     "allow": "__TOOLS_ALLOW__",
     "deny": "__TOOLS_DENY__",
     "fs": {"workspaceOnly": true},
-    // allowlist plus ask on a miss; with no approval client connected a miss is denied. The allowlist
-    // entry itself (python, jh.py argPattern) is merged into the approvals document from
-    // openclaw/exec-approvals.json5.tmpl.
-    "exec": {"mode": "ask", "strictInlineEval": true}
+    "exec": "__EXEC_POLICY__",
+    "elevated": "__ELEVATED__"
   },
   // no memory search for pipeline agents [verify key: agents.entries.*.memory.search]
   "memory": {"search": {"enabled": false}}

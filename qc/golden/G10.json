@@ -2,7 +2,7 @@
  "id": "G10",
  "channel": "email_cold",
  "subject": "Hourly invoice exports",
- "body": "Hi Sam,\n\nThe Quarry Labs changelog from early September says invoice exports now run hourly instead of nightly. I made the same move at Tidewater Freight.\n\nWe went from nightly to 15-minute billing exports there, and late invoices fell from 4% to 1%. Your Data Engineer opening lists the export pipeline as the first project.\n\nWould a 15 minute call next week help? If someone else owns this hire, a name is plenty.\n\nThanks,",
+ "body": "Hi Sam,\n\nThe Quarry Labs changelog from early September says invoice exports now run hourly instead of nightly. I made a similar move at Tidewater Freight.\n\nI moved our billing exports there from nightly to 15-minute runs, and late invoices fell from 4% to 1%. The Quarry Labs Data Engineer opening lists the export pipeline as the first project.\n\nWould a 15 minute call next week help? If someone else owns this hire, a name is plenty.\n\nThanks,",
  "recipient": {
   "first_name": "Sam",
   "last_name": "Patel",

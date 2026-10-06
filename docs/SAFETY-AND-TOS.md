@@ -71,8 +71,29 @@ breaker. The risk (a blocked or closed account on that board) is yours to accept
 Jobs are discovered mostly through the public job APIs that companies publish through their applicant tracking
 systems (Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Recruitee, BambooHR, Workday) and public remote
 job boards. The agent fills an application form only for a job that passed your filters and the evaluator, with
-answers from your confirmed profile, and stops for anything it does not know. Forms that need an account, show
-a CAPTCHA or ask sensitive questions go to a list for you.
+answers from your confirmed profile, and stops for anything it does not know. Forms that ask sensitive
+questions go to a list for you.
+
+### Email codes and site accounts (your choice per site, default No)
+
+Many career sites ask for an account or send a code by email. Unless you allowed it for that site, such a job
+goes to you. If you allow it with `./jobhunter browser consent`:
+
+- an account is created only with your own sender address (`owner.gmail_address`) and only for a job you
+  approved; the password is made by the program and the AI model never sees it;
+- for the terms, only a required standard candidate privacy or terms box is ticked. An optional box stays
+  unticked. A required box for anything unusual (marketing, job alerts, talent community, background check,
+  text messages, a paid service, sharing with third parties) stops, and the job comes to you. Every box is
+  logged;
+- a code or sign-in link is read only from the site's own senders, only right after the agent asked for it,
+  and used once;
+- text message codes, authenticator apps, identity checks and "Sign in with Google, LinkedIn, Microsoft or
+  Apple" pages always stop and ask you. Security prompts from Google, LinkedIn, Microsoft, Apple and banks keep
+  stopping the agent as before;
+- at most 3 new accounts a day and 10 a week by default, and repeated failures at one site stop that site.
+
+A site's terms may forbid creating accounts or applying by automated means. That is why it is your decision
+for each site, and why it starts at No. Take it back any time with `./jobhunter browser forget <site>`.
 
 ## Gmail
 
@@ -105,8 +126,16 @@ this is not legal advice. Details: [EMAIL-FINDER.md](EMAIL-FINDER.md).
 
 ## CAPTCHAs and bot detection
 
-The agent never solves, skips, waits out or works around a CAPTCHA or any verification. It stops and tells you.
-There is no setting to change this.
+The program never solves, skips or works around a CAPTCHA or any verification. There are no solver services,
+no tricks to hide that a program drives the browser, and no clicks inside a CAPTCHA box: the safety plugin
+refuses them. There is no setting to change this.
+
+On a company application form, the agent pauses that one job and hands the CAPTCHA to you: a chat message with
+a screenshot and a short code. You solve it yourself in the agent's browser window and send `/jh continue
+<code>`; the program then only checks that the CAPTCHA is gone before the job goes back in line. If it is not
+solved within 2 hours the job is skipped. A third CAPTCHA at the same site in one day stops that site. You can
+turn the hand-off off (`./jobhunter config lower captcha.handoff false`): the job then simply goes to you. On
+job boards and LinkedIn a CAPTCHA still stops the agent as before.
 
 ## Your responsibilities
 

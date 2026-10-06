@@ -1,6 +1,7 @@
 // execFile wrapper for jh.py (design 1.4): no shell, fixed interpreter and script, bounded time and
-// output. The child never inherits OPENCLAW_SHELL or JH_* variables, so jh.py classifies the call as
-// the `system` caller (or `chat` when a --grant is passed).
+// output. The child never inherits an agent proof or a harness marker (the scrub list of the CLI route
+// design 5.5, the same as jobhunter.auth.scrub_agent_env), so jh.py classifies the call as the `system`
+// caller (or `chat` when a --grant is passed).
 
 import { execFile } from "node:child_process";
 
@@ -14,12 +15,18 @@ export type JhResult = {
 
 export type JhRunner = (argv: string[], opts?: { timeoutMs?: number }) => Promise<JhResult>;
 
+// Names dropped from the child env: exact names, then prefixes.
+export const SCRUB_NAMES = ["OPENCLAW_SHELL", "OPENCLAW_CHANNEL_CONTEXT", "CLAUDECODE", "JOBHUNTER_HOME", "JOBHUNTER_DB"];
+export const SCRUB_PREFIXES = ["OPENCLAW_MCP_", "CLAUDE_CODE_", "JH_"];
+
+export function scrubbed(name: string): boolean {
+  return SCRUB_NAMES.includes(name) || SCRUB_PREFIXES.some((p) => name.startsWith(p));
+}
+
 export function childEnv(base: NodeJS.ProcessEnv): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(base)) {
-    if (v === undefined) continue;
-    if (k === "OPENCLAW_SHELL" || k.startsWith("JH_") || k === "OPENCLAW_CHANNEL_CONTEXT") continue;
-    if (k === "JOBHUNTER_HOME" || k === "JOBHUNTER_DB") continue;
+    if (v === undefined || scrubbed(k)) continue;
     env[k] = v;
   }
   env.PYTHONIOENCODING = "utf-8";

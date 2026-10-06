@@ -23,10 +23,14 @@ from .threads import LIVE_SQL, OPEN_DRAFT_SQL, cfg, dep, linkedin_enabled, load_
 
 LEASE_MINUTES = 30
 ANSWER_REASON = "answer_question"   # U4 answers.request_human hands jobs over with this reason
-ATS_SOURCES = ("greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "bamboohr", "workday")
+ATS_SOURCES = ("greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee", "bamboohr", "workday",
+               "icims", "successfactors", "taleo", "oracle_hcm", "jobvite")
 ATS_HOSTS = (("greenhouse.io", "greenhouse"), ("lever.co", "lever"), ("ashbyhq.com", "ashby"),
              ("smartrecruiters.com", "smartrecruiters"), ("workable.com", "workable"), ("recruitee.com", "recruitee"),
-             ("bamboohr.com", "bamboohr"), ("myworkdayjobs.com", "workday"))
+             ("bamboohr.com", "bamboohr"), ("myworkdayjobs.com", "workday"), ("myworkdaysite.com", "workday"),
+             ("icims.com", "icims"), ("successfactors.com", "successfactors"), ("successfactors.eu", "successfactors"),
+             ("sapsf.com", "successfactors"), ("sapsf.eu", "successfactors"), ("taleo.net", "taleo"),
+             ("jobs.jobvite.com", "jobvite"), ("app.jobvite.com", "jobvite"), ("oraclecloud.com", "oracle_hcm"))
 BOARD_SITES = {"naukri": "naukri", "instahyre": "instahyre", "foundit": "foundit", "cutshort": "cutshort",
                "hirist": "hirist", "iimjobs": "iimjobs", "wellfound": "wellfound", "yc": "yc",
                "workatastartup": "yc", "linkedin_jobs": "linkedin_jobs", "linkedin_post": "linkedin_posts",
@@ -82,6 +86,9 @@ def plan_route(conn, job, config: dict | None = None) -> tuple[str, str]:
             if ats else None
         if flag is not None and flag[0] == "1":
             return "human", "ats_human_queue"
+        if mode == "browser" and ats == "workday" and not _accounts_allowed("workday"):
+            # Workday needs a candidate account: only with the owner's ats_accounts consent for workday
+            return "human", "workday_account_consent"
         if mode == "browser":
             return ("package", "ats_form") if route == "ats_form" else ("open_posting", "ats_route_unconfirmed")
         return "human", "site_mode_" + mode
@@ -98,6 +105,14 @@ def plan_route(conn, job, config: dict | None = None) -> tuple[str, str]:
             return "open_posting", "route_unknown"
         return "human", "no_url"
     return "human", "route_" + str(route)
+
+
+def _accounts_allowed(site: str) -> bool:
+    try:
+        from . import identity
+        return identity.capability_active("ats_accounts", site)
+    except Exception:
+        return False
 
 
 def _open_draft(conn, job_id: int, kinds: tuple) -> dict | None:
@@ -163,10 +178,18 @@ def _scan(conn, limit: int, config: dict) -> dict:
             break
         if job["contact_state"] in ("do_not_contact", "active_thread") or _skipped(conn, job, stamp):
             continue
+        pkg = _open_draft(conn, job["id"], ("application_package",))
+        if pkg is not None and pkg["status"] == "approved" and (pkg["expires_at"] is None or pkg["expires_at"] > stamp):
+            # an approved package (for example a job back from a solved CAPTCHA) goes straight to submit
+            submit.append(_item(job, "submit", "package_approved", pkg))
+            continue
         needs, reason = plan_route(conn, job, config)
         if needs == "skip":
             continue
         (human if needs == "human" else new).append(_item(job, needs, reason, None))
+    # CAPTCHA-resumed jobs first (the owner just solved the check for them)
+    resumed = {r[0] for r in conn.execute("SELECT job_uid FROM jobs WHERE status_reason = 'captcha_resolved'")}
+    submit.sort(key=lambda it: 0 if it["job_uid"] in resumed else 1)
     return {"reconcile": _reconcile_tasks(conn), "submit": submit, "revise": revise, "new": new, "human": human}
 
 

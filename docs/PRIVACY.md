@@ -6,13 +6,13 @@ Everything personal stays on your computer, in folders git ignores, plus the Goo
 
 | Folder or place | What is in it |
 |---|---|
-| `private/` (mode 700, files 600) | your config, confirmed profile, answer bank, resume copies and resume variants, exclusions list, owner PIN hash, your per-site browser consent (`consent.json`), the Gmail app password (`secrets.json`, only on the optional app password route), email finder keys (`enrich_keys.json`, only on Linux and WSL or with `--store file`), the Sheet URL and secret, the guard key, `home.json` |
+| `private/` (mode 700, files 600) | your config, confirmed profile, answer bank, resume copies and resume variants, exclusions list, owner PIN hash, your per-site browser consent (`consent.json`, including the email code and site account permissions), site account passwords (`ats_accounts.json`, only on Linux and WSL), the Gmail app password (`secrets.json`, only on the optional app password route), email finder keys (`enrich_keys.json`, only on Linux and WSL or with `--store file`), the Sheet URL and secret, the guard key, `home.json` |
 | `state/` | the database (jobs, contacts, drafts, actions, replies), backups (14 days), install manifest, QC packets while a review runs |
 | `logs/` | command and event logs (kept 30 days) |
 | `exports/` | CSV exports you ask for |
 | `~/.openclaw-job-hunter/<install id>/workspaces/` | the agents' work files (deleted after 7 days) |
 | OpenClaw's own folders | agent sessions and transcripts, the `jobhunter` browser profile (the cookies of the sites you allowed: copied from your Chrome, or from logging in by hand inside it) |
-| macOS login Keychain | the Gmail app password (optional route) and email finder keys, if you connected any |
+| macOS login Keychain | the Gmail app password (optional route), email finder keys and site account passwords, if you connected or allowed any |
 | Your Google Sheet | a readable copy of what the agent did |
 
 Nothing is uploaded anywhere else by this project. The model provider (Anthropic, through your Claude login
@@ -58,6 +58,36 @@ login gets there only after you allowed that site in `./jobhunter browser consen
   same session your own Chrome uses, so this signs your Chrome out of Google too; a session made by logging in
   by hand inside the `jobhunter` window is separate and can be signed out alone. On the default `web_ui` route
   no email is sent while Gmail is not allowed (the optional app password route is in `docs/EMAIL-SETUP.md`).
+
+## Email codes, site accounts and CAPTCHA screenshots
+
+These are off for every site until you allow them with `./jobhunter browser consent`.
+
+**What is read in your mailbox.** Only when the agent has just asked a site for a code or sign-in link, and only
+a message that arrives after that request and within 10 minutes, sent from that site's reviewed sender
+domains (a fixed list in the code) to your own address. Mail from Google, LinkedIn, Microsoft, Apple,
+Facebook, PayPal and banks is never used, whatever it says. The message must hold exactly one code of the
+expected shape, or one sign-in link to the site's own pages. Each code is used once. Nothing of the message is
+stored except a keyed hash of the code or link (HMAC-SHA256 with a random salt made on your computer), the
+sender domain and the times. After use the message is marked read (`otp.after_use`: `leave`, `mark_read` or
+`archive`). The code is typed into the page by the program; it is never sent to the AI model, the Sheet or
+your chat.
+
+**Where site passwords live.** On macOS, only in your login Keychain: service
+`openclaw-job-hunter.<install id>.ats`, account `<host>|<email>`. On Linux and WSL, in
+`private/ats_accounts.json` (mode 600). The password is made by the program (20 random characters by default)
+and typed into the page by the program; the model never sees it. `./jobhunter doctor` reports whether the
+store is available but never reads a password.
+
+**What `./jobhunter accounts forget <host>` does.** It deletes the stored password and the local record. The
+account on the site itself still exists: sign in there and delete it if you want it gone.
+
+**CAPTCHA screenshots.** When a form shows a CAPTCHA, a screenshot of that page goes only to your own chat. It
+is kept in `state/captcha/` (mode 600) and deleted after 2 days (`captcha.screenshot_retention_days`).
+
+**The browser control port.** The program types codes and passwords through the agent browser's local control
+port (loopback only, recorded as `browser_cdp` in `private/home.json`). Any program running as your own macOS
+user can reach that port; this is the same boundary as the OpenClaw browser itself.
 
 ## Email finder (optional, off by default)
 

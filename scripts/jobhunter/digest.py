@@ -41,6 +41,28 @@ def _replies(conn, since: str, style: str) -> list[str]:
     return out
 
 
+def _codes_accounts_captchas(conn, since: str) -> str | None:
+    """'Job sites: 2 email codes used, 1 account created, CAPTCHAs: 1 solved by you, 1 skipped' (counts only)."""
+    try:
+        codes = conn.execute("SELECT count(*) FROM code_uses WHERE used_at >= ?", (since,)).fetchone()[0]
+        made = conn.execute("SELECT count(*) FROM ats_accounts WHERE created_at >= ? AND status <> 'failed'",
+                            (since,)).fetchone()[0]
+        solved = conn.execute("SELECT count(*) FROM captcha_tasks WHERE status = 'resolved' AND resolved_at >= ?",
+                              (since,)).fetchone()[0]
+        skipped = conn.execute("SELECT count(*) FROM captcha_tasks WHERE status = 'timed_out' AND resolved_at >= ?",
+                               (since,)).fetchone()[0]
+    except Exception:
+        return None
+    parts = []
+    if codes:
+        parts.append("%d email code%s used" % (codes, "" if codes == 1 else "s"))
+    if made:
+        parts.append("%d account%s created" % (made, "" if made == 1 else "s"))
+    if solved or skipped:
+        parts.append("CAPTCHAs: %d solved by you, %d skipped" % (solved, skipped))
+    return ("Job sites: " + ", ".join(parts)) if parts else None
+
+
 def build_digest(conn, since: str | None, config: dict | None = None) -> str | None:
     """Delta text since `since` (UTC timestamp; None means the last 24 hours), or None when nothing is new."""
     config = S.load_config() if config is None else config
@@ -79,6 +101,9 @@ def build_digest(conn, since: str | None, config: dict | None = None) -> str | N
     if c["replies"]:
         lines.append("Replies: %d (%d positive)" % (c["replies"], c["positive"]))
         lines.extend("  " + x for x in _replies(conn, since, style))
+    sites = _codes_accounts_captchas(conn, since)
+    if sites:
+        lines.append(sites)
     if c["drafts"]:
         lines.append("Drafts written: %d (%d passed QC on the first try, %d dropped)"
                      % (c["drafts"], c["first_pass"], c["dropped"]))

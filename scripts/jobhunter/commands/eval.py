@@ -41,7 +41,7 @@ def cmd_next(args, ctx):
         packets = evaluate.claim(conn, args.limit, cycle_id)
     if not packets:
         return Result(data={"packets": []}, code="NOTHING_TO_DO", message="no jobs are waiting for evaluation",
-                      next="run cycle end and reply NO_REPLY")
+                      next="run cycle end and reply CYCLE_DONE")
     return Result(data={"packets": packets}, message="%d packet(s) written" % len(packets),
                   next="read the brief once, then write one scorecard per packet and run eval record")
 

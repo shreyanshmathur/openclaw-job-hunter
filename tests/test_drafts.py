@@ -12,7 +12,7 @@ from jobhunter import canon, cli, db, drafts
 from jobhunter.auth import Caller as _FallbackCaller
 from jobhunter.commands import drafts as cmd_drafts, qc as cmd_qc
 from jobhunter.errors import Denied
-from tests.fakes.u3 import GOOD_BODY, QCTestCase
+from tests.fakes.u3 import GOOD_BODY, QCTestCase, agent_cli, agent_cli_child
 from tests.helpers import insert_action, insert_contact, insert_thread
 
 PROFILE_FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "profile")
@@ -325,9 +325,10 @@ class TestResumeLintNames(QCTestCase):
 
 class TestCli(QCTestCase):
     def run_cli(self, argv, agent="jobhunter-outreach"):
+        if agent:
+            return agent_cli(self.home, agent, argv, [cmd_drafts, cmd_qc])
         out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": agent} if agent else {}
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out, modules=[cmd_drafts, cmd_qc])
+        rc = cli.main(argv, env={}, stdin=io.StringIO(""), stdout=out, modules=[cmd_drafts, cmd_qc])
         return rc, json.loads(out.getvalue())
 
     def run_human(self, argv):
@@ -379,6 +380,30 @@ class TestCli(QCTestCase):
     def test_path_outside_workspace_refused(self):
         rc, env = self.run_cli(["draft", "create", "--file", "/etc/hosts"])
         self.assertEqual(env["code"], "E_PATH_NOT_ALLOWED")
+
+    def test_agent_call_in_a_real_python_i_child(self):
+        """The guard starts jh.py as `<PY> -I jh.py --agent-proof <T> ...` with the env proof (CLI-ROUTE-DESIGN 5):
+        both carriers in a real isolated interpreter reach the outreach agent's draft commands."""
+        from jobhunter import auth
+        if not hasattr(auth, "argv_proof"):
+            self.skipTest("proof version 2 is not there yet (claude-cli route core, U1)")
+        uid = self.create()["draft_uid"]
+        rc, env, isolated = agent_cli_child(self.home, "jobhunter-outreach", ["draft", "show", uid, "--field", "body"])
+        self.assertEqual(isolated, 1)
+        self.assertEqual((rc, env["code"]), (0, "OK"), env)
+        self.assertEqual(env["data"]["value"], GOOD_BODY)
+        rc, env, _iso = agent_cli_child(self.home, "jobhunter-applier", ["draft", "show", uid])
+        self.assertEqual(env["code"], "E_NOT_FOUND")              # still scoped to the agent the proofs name
+
+    def test_agent_call_without_python_i_is_refused(self):
+        from jobhunter import auth
+        if not hasattr(auth, "argv_proof"):
+            self.skipTest("proof version 2 is not there yet (claude-cli route core, U1)")
+        uid = self.create()["draft_uid"]
+        rc, env, isolated = agent_cli_child(self.home, "jobhunter-outreach", ["draft", "show", uid], isolated=False)
+        self.assertEqual(isolated, 0)
+        self.assertEqual((rc, env["code"]), (11, "E_AUTH_FAILED"))
+        self.assertIn("python -I", env["message"])
 
     def test_agents_cannot_approve(self):
         rc, env = self.run_cli(["approve", "ACDE"])

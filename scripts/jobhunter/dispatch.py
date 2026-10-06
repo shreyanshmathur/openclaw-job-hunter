@@ -6,9 +6,10 @@ reason random_skip) with skip_probability; browser-lane slots stay 35 minutes ap
 
 tick(conn): plans the local day on its first tick, then for every due planned slot: paused, global or lane
 breaker, or outside hours -> skipped; no work -> skipped (no_work); browser lease or a running cycle of the
-lane -> left planned unless more than 45 minutes late (missed); guard heartbeat stale -> skipped
-(guard_missing, high alert); else `openclaw cron run <job-id>` -> triggered. tick manages its own
-transactions (it calls openclaw between them).
+lane -> left planned unless more than 45 minutes late (missed); guard heartbeat stale or without identity
+proof version 2 -> skipped (guard_missing, high alert); the lane's cron job differs from its install manifest
+spec (ocrun.verify_job, CLI route 6.3.1) -> skipped (cron_drift, audit event and high alert); else
+`openclaw cron run <job-id>` -> triggered. tick manages its own transactions (it calls openclaw between them).
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import random
 
 from . import breakers, config as _config, db, gate, locks, ocrun
 from .canon import fmt_ts, now, seconds_between, ts_add
+from .errors import Denied
 from .events import enqueue_notification, log_event
 
 LANES = ("scout", "evaluator", "applier", "outreach", "replies")
@@ -106,6 +108,34 @@ def plan_day(conn, local_date: str, cfg: dict | None = None) -> list[dict]:
     return out
 
 
+NUDGE_META = "dispatch_nudge:applier"
+
+
+def _nudge(conn, cfg: dict) -> dict | None:
+    """After the owner continued a CAPTCHA (meta dispatch_nudge:applier): one extra applier slot now, when inside
+    the lane's window and days and under the lane's hard cycles-per-day maximum; the nudge is used up either way.
+    Runs inside the caller's tx."""
+    from . import hardmax
+    at = db.meta_get(conn, NUDGE_META)
+    if not at:
+        return None
+    db.meta_delete(conn, NUDGE_META)
+    spec = cfg["dispatch"]["lanes"]["applier"]
+    d = _config.now_local(cfg)
+    if d.isoweekday() not in spec["days"] or not _config.in_window(d, spec["window"]):
+        return None
+    local_date = _config.local_date(None, cfg)
+    n = conn.execute("SELECT count(*) FROM dispatch_slots WHERE local_date = ? AND lane = 'applier' AND status IN "
+                     "('planned','triggered')", (local_date,)).fetchone()[0]
+    if n >= int(hardmax.LANE_CYCLES_MAX["applier"][1]):
+        return None
+    slot_at = now()
+    conn.execute("INSERT INTO dispatch_slots (local_date, lane, slot_at, status, reason) VALUES (?, 'applier', ?, "
+                 "'planned', 'captcha_resume') ON CONFLICT (lane, slot_at) DO NOTHING", (local_date, slot_at))
+    log_event(conn, "dispatch_nudge", lane="applier", slot_at=slot_at)
+    return {"lane": "applier", "slot_at": slot_at, "status": "planned", "reason": "captcha_resume"}
+
+
 def _lane_blocked(conn, cfg: dict, lane: str) -> str | None:
     if breakers.is_paused():
         return "paused"
@@ -125,10 +155,12 @@ def _lane_blocked(conn, cfg: dict, lane: str) -> str | None:
     return None
 
 
-def tick(conn, work_count=None, cron_run=None) -> dict:
-    """One dispatcher tick (see module doc). Returns {triggered: [...], skipped: [...], planned}."""
+def tick(conn, work_count=None, cron_run=None, verify_job=None) -> dict:
+    """One dispatcher tick (see module doc). Returns {triggered: [...], skipped: [...], planned}.
+    `verify_job(key, listing)` (default ocrun.verify_job) raises Denied(E_CRON_DRIFT) for a drifted job."""
     work_count = work_count or WORK_COUNT
     cron_run = cron_run or ocrun.cron_run
+    verify_job = verify_job or ocrun.verify_job
     with db.tx(conn):
         cfg = _config.load(conn)
         breakers.close_expired(conn)
@@ -136,13 +168,41 @@ def tick(conn, work_count=None, cron_run=None) -> dict:
         if cfg["dispatch"]["mode"] == "dispatcher":
             today = _config.local_date(None, cfg)
             planned = plan_day(conn, today, cfg)
+        if cfg["dispatch"]["mode"] == "dispatcher":
+            nudged = _nudge(conn, cfg)
+            if nudged:
+                planned = list(planned) + [nudged]
+        from . import otp
+        otp.expire_waiting(conn, cfg)
         due = conn.execute("SELECT * FROM dispatch_slots WHERE status = 'planned' AND slot_at <= ? ORDER BY slot_at",
                            (now(),)).fetchall()
+    try:
+        from . import captcha
+        captcha.expire_all(conn)
+    except Exception as exc:   # a CAPTCHA timeout must never stop the dispatcher
+        log_event(conn, "captcha_expire_failed", error="%s: %s" % (type(exc).__name__, exc))
     triggered, skipped, left = [], [], []
     if cfg["dispatch"]["mode"] != "dispatcher":
         return {"triggered": [], "skipped": [], "planned": [], "mode": cfg["dispatch"]["mode"]}
     job_ids = ocrun.cron_job_ids()
     failures = []
+    listing = {"doc": None}
+
+    def drift_of(lane: str):
+        """None when the lane's job matches its spec, else (reason, data) (one cron list per tick)."""
+        try:
+            if listing["doc"] is None and verify_job is ocrun.verify_job:
+                res = ocrun.cron_list()
+                if not res["ok"]:
+                    return "cron_list_failed", {"error": res.get("error")}
+                listing["doc"] = res["doc"]
+            verify_job(JOB_KEYS[lane], listing["doc"])
+        except Denied as d:
+            if d.code == "E_CRON_DRIFT":
+                return "cron_drift", {"fields": (d.data or {}).get("fields") or []}
+            return "cron_list_failed", {"error": d.message}
+        return None
+
     for slot in due:
         lane = slot["lane"]
         reason = None
@@ -166,17 +226,32 @@ def tick(conn, work_count=None, cron_run=None) -> dict:
                     continue
             if reason is None:
                 hb = gate.guard_heartbeat()
-                if not hb["fresh"]:
+                if not hb["fresh"] or hb.get("proof_version") != 2:
                     reason = "guard_missing"
-                    enqueue_notification(conn, "guard_missing:%s" % now()[:13], "high", "alert",
-                                         "The jobhunter-guard plugin is not running: no agent cycle starts until it is "
-                                         "back (openclaw plugins list).")
+                    text = ("The jobhunter-guard plugin is not running: no agent cycle starts until it is back "
+                            "(openclaw plugins list).") if not hb["fresh"] else \
+                        ("The jobhunter-guard plugin is an old version without identity proof version 2: no agent "
+                         "cycle starts until ./install.sh has run.")
+                    enqueue_notification(conn, "guard_missing:%s" % now()[:13], "high", "alert", text)
             if reason is None and JOB_KEYS[lane] not in job_ids:
                 reason = "job_id_unknown"
             if reason is not None:
                 conn.execute("UPDATE dispatch_slots SET status = 'skipped', reason = ? WHERE id = ?", (reason, slot["id"]))
                 skipped.append({"lane": lane, "slot_at": slot["slot_at"], "reason": reason})
                 continue
+        drift = drift_of(lane)          # openclaw cron list, outside any transaction
+        if drift is not None:
+            reason, data = drift
+            with db.tx(conn):
+                conn.execute("UPDATE dispatch_slots SET status = 'skipped', reason = ? WHERE id = ?", (reason, slot["id"]))
+                log_event(conn, "cron_drift" if reason == "cron_drift" else "dispatch_failed", lane=lane,
+                          key=JOB_KEYS[lane], **data)
+                if reason == "cron_drift":
+                    enqueue_notification(conn, "cron_drift:%s:%s" % (lane, now()[:10]), "high", "alert",
+                                         "The %s automation was changed outside Job Hunter, so it does not start. "
+                                         "Run ./install.sh again to repair it." % lane)
+            skipped.append({"lane": lane, "slot_at": slot["slot_at"], "reason": reason})
+            continue
         res = cron_run(job_ids[JOB_KEYS[lane]])
         with db.tx(conn):
             if res.get("ok"):

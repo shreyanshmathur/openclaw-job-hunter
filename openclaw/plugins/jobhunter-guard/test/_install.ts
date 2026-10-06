@@ -8,7 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { GuardRuntime } from "../src/runtime.ts";
-import type { JhResult } from "../src/jhcall.ts";
+import type { JhResult, JhRunner } from "../src/jhcall.ts";
+import { parseKey, verifyArgvProof, verifyEnvProof } from "../src/grant.ts";
+import type { GuardConfig } from "../src/types.ts";
 import { ALL_CONSENT, DRIVER_TEXT, FIXTURES, PY, REPO, makeDb } from "./_helpers.ts";
 import { sha256Hex } from "../src/browser.ts";
 
@@ -18,10 +20,12 @@ export const INSTALL_ID = "IABCDEFGH";
 export type TempInstall = {
   root: string;
   ws: string;
+  home: string; // a fictional home folder inside the temp install (the runtime's `~`)
   db: DatabaseSync;
   jhCalls: string[][];
   now: { ms: number };
   runtime: GuardRuntime;
+  runner: JhRunner;
   cleanup: () => void;
 };
 
@@ -60,6 +64,7 @@ export function makeInstall(opts: { ownerFallback?: Array<{ channel: string; sen
   mk("private");
   mk("state", "guard");
   mk("logs");
+  mk("home", ".openclaw", "workspace");
   for (const role of ["scout", "evaluator", "applier", "outreach", "qc"]) {
     for (const sub of ["work", "inbox"]) fs.mkdirSync(path.join(ws, role, sub), { recursive: true });
   }
@@ -82,17 +87,20 @@ export function makeInstall(opts: { ownerFallback?: Array<{ channel: string; sen
     const exitCode = opts.jhExit ?? 0;
     return { exitCode, stdout: "OK from fake jh.py", stderr: "", envelope: { ok: exitCode === 0 }, error: null };
   };
+  const home = path.join(root, "home");
   const runtime = new GuardRuntime(
     { repo: root, python: PY, homeFile, publicReadonlyAgents: ["main"], ownerFallback: opts.ownerFallback },
-    { runner, nowMs: () => now.ms },
+    { runner, nowMs: () => now.ms, homeDir: home },
   );
   return {
     root,
     ws,
+    home,
     db,
     jhCalls,
     now,
     runtime,
+    runner,
     cleanup: () => {
       runtime.close();
       db.close();
@@ -105,8 +113,10 @@ function subst(v: unknown, inst: TempInstall): unknown {
   if (typeof v === "string") {
     return v
       .replace(/@JH@/g, PY + " " + inst.root + "/scripts/jh.py")
+      .replace(/@PY@/g, PY)
       .replace(/@REPO@/g, inst.root)
       .replace(/@WS@/g, inst.ws)
+      .replace(/@HOME@/g, inst.home)
       .replace(/@DRIVER@/g, DRIVER_TEXT);
   }
   if (Array.isArray(v)) return v.map((x) => subst(x, inst));
@@ -125,16 +135,73 @@ function outcome(r: unknown, agent: string): string {
   return agent.startsWith("jobhunter-") ? "allow" : "pass";
 }
 
+function readJsonl(file: string): Record<string, unknown>[] {
+  if (!fs.existsSync(file)) return [];
+  return fs.readFileSync(file, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+}
+
 // Replay a recorded transcript (see README "Transcript replay") against a temporary install.
 export function replay(file: string, inst: TempInstall): void {
-  const t = JSON.parse(fs.readFileSync(path.join(FIXTURES, file), "utf8")) as { name: string; steps: Record<string, any>[] };
-  t.steps.forEach((raw, i) => {
-    const step = subst(raw, inst) as Record<string, any>;
-    const where = t.name + " step " + (i + 1);
+  const t = JSON.parse(fs.readFileSync(path.join(FIXTURES, file), "utf8")) as { name: string; config?: Partial<GuardConfig>; steps: Record<string, any>[] };
+  const runtimes = new Map<string, GuardRuntime>();
+  const runtimeFor = (mode: string | undefined): GuardRuntime => {
+    const key = mode || "default";
+    if (!t.config && key === "default") return inst.runtime;
+    let rt = runtimes.get(key);
+    if (!rt) {
+      const over = { ...((subst(t.config || {}, inst) as Partial<GuardConfig>) || {}), ...(mode === "gate" ? { claudeNativeTools: "gate" as const } : {}) };
+      rt = new GuardRuntime({ ...inst.runtime.config, ...over }, { runner: inst.runner, nowMs: () => inst.now.ms, homeDir: inst.home });
+      runtimes.set(key, rt);
+    }
+    return rt;
+  };
+  const key = parseKey(KEY_HEX);
+  try {
+    t.steps.forEach((raw, i) => replayStep(subst(raw, inst) as Record<string, any>, t.name + " step " + (i + 1), inst, runtimeFor, key));
+  } finally {
+    for (const rt of runtimes.values()) rt.close();
+  }
+}
+
+function replayStep(step: Record<string, any>, where: string, inst: TempInstall, runtimeFor: (mode: string | undefined) => GuardRuntime, key: Buffer): void {
+  {
     if (step.call) {
       const c = step.call;
-      const r = inst.runtime.evaluate({ toolName: c.tool, params: c.params }, { agentId: c.agent, sessionKey: c.session });
+      const ctx = { agentId: c.agent, sessionKey: c.session, ...(c.ctx || {}) };
+      const r = runtimeFor(step.mode).evaluate({ toolName: c.tool, params: c.params }, ctx);
       assert.equal(outcome(r, c.agent), step.expect, where + ": " + JSON.stringify(r));
+      if (step.expect_rewrite) {
+        // the R2 rewrite: "<PY> -I <jh.py> --agent-proof <proof for this agent, session and rest> <rest>"
+        const want = step.expect_rewrite as { rest: string; workdir?: string; timeout?: number };
+        const params = (r as { params?: Record<string, unknown> } | undefined)?.params;
+        assert.ok(params, where + ": no rewrite");
+        const toks = String(params!.command).split(" ");
+        const jh = inst.root + "/scripts/jh.py";
+        assert.deepEqual(toks.slice(0, 4), [PY, "-I", jh, "--agent-proof"], where);
+        assert.equal(toks.slice(5).join(" "), want.rest, where);
+        const parts = verifyArgvProof(key, toks[4], toks.slice(5), Math.floor(inst.now.ms / 1000));
+        assert.ok(parts && parts.agent === c.agent, where + ": proof " + toks[4]);
+        if (want.workdir !== undefined) {
+          assert.equal(params!.workdir, want.workdir, where);
+          assert.equal(params!.timeoutSeconds, 90, where);
+        }
+        if (want.timeout !== undefined) assert.equal(params!.timeout, want.timeout, where);
+      }
+    } else if (step.env) {
+      const e = step.env;
+      const env = runtimeFor(step.mode).execEnv({ agentId: e.agent, sessionKey: e.session, runId: e.runId });
+      if (step.expect_env === false) {
+        assert.equal(env, undefined, where);
+      } else {
+        assert.equal(env?.JH_AGENT_ID, e.agent, where);
+        const parts = verifyEnvProof(key, String(env?.JH_AGENT_PROOF), e.session, Math.floor(inst.now.ms / 1000));
+        assert.ok(parts && parts.agent === e.agent, where + ": env proof");
+      }
+    } else if (step.expect_log) {
+      const want = step.expect_log as { kind: string; count: number };
+      const month = new Date(inst.now.ms).toISOString().slice(0, 7);
+      const lines = readJsonl(path.join(inst.root, "logs", "guard-" + month + ".jsonl")).filter((l) => l.kind === want.kind);
+      assert.equal(lines.length, want.count, where + ": " + want.kind + " lines");
     } else if (step.result) {
       const c = step.result;
       const r = inst.runtime.observe({ toolName: c.tool, params: c.params, result: c.result, error: c.error }, { agentId: c.agent, sessionKey: c.session });
@@ -151,5 +218,5 @@ export function replay(file: string, inst: TempInstall): void {
     } else {
       throw new Error(where + ": unknown step");
     }
-  });
+  }
 }

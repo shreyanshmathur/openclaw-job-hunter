@@ -1,11 +1,20 @@
 // Shared types for the jobhunter-guard plugin. Erasable TypeScript only (Node 24 strips the types).
 
+export type ProofCarrier = "argv" | "env";
+
 export type GuardConfig = {
   repo: string;
   python: string;
   homeFile: string;
   publicReadonlyAgents: string[];
   ownerFallback?: Array<{ channel: string; senderId: string }>;
+  // Optional keys of the Claude subscription route (design CLI route 6.4); parseConfig fills the defaults.
+  claudeNativeTools?: "deny" | "gate"; // "gate" only in the reduced-protection mode N
+  pinToolSurface?: boolean; // before_prompt_build narrows jobhunter runs to their ACL tools
+  proofCarriers?: ProofCarrier[]; // where the agent identity proof goes: the argv rewrite, the exec env, or both
+  recordEvents?: boolean; // logs/guard-events-<yyyymmdd>.jsonl (test profiles only)
+  protectedRoots?: { read: string[]; write: string[] }; // R7: absolute roots other agents may not read or write
+  qcVerdictFile?: boolean; // fallback F-QC: jobhunter-qc may write its verdict file under work/verdict/
 };
 
 export type AclAgent = {
@@ -28,6 +37,7 @@ export type PlatformEntry = {
   hosts: string[];
   aliases: string[];
   consent: string | null; // the private/consent.json site these hosts need (null: public pages, no login)
+  hostPatterns: RegExp[]; // optional "host_patterns": whole-host regexes tested after every suffix host
 };
 
 export type HostsConfig = {
@@ -42,6 +52,8 @@ export type HostsConfig = {
   riskyNames: RegExp;
   prepareNames: Record<string, RegExp>;
   multilineNames: Record<string, RegExp>; // per token kind: textbox names where a typed newline is a line break
+  forbiddenNames: RegExp[]; // a click on a ref with such a name is G_TOOL_DENIED (social sign-in, CAPTCHA widgets)
+  secretFieldNames: RegExp; // a type or fill into a textbox with such a name is G_SECRET_FIELD
 };
 
 export type OpenToken = {
@@ -72,7 +84,10 @@ export type Snapshot = {
   driverHashes: Set<string>;
   sessionStopped: boolean;
   writeBlocked: Set<string>; // sites (platform key or host) with a job-level stop in this session
-  consent?: { ok: boolean; sites: Set<string>; reason: string }; // private/consent.json; absent = no consent
+  // private/consent.json; absent = no consent. capabilities: capability name -> sites with an active row.
+  consent?: { ok: boolean; sites: Set<string>; reason: string; capabilities?: Map<string, Set<string>> };
+  // the addressed tab's focus is in a secret field (a click on a password, code or PIN textbox); absent = false
+  secretFocus?: boolean;
   paused: boolean;
   openBreakers: Set<string>;
   token: OpenToken | null;
@@ -82,6 +97,12 @@ export type Snapshot = {
   currentUrl: string | null;
   lookupRef: (ref: string) => RefInfo | undefined;
   realpath: (p: string) => string;
+  // R2: mint an argv proof for this call; verify one this guard minted (a second decision of one call)
+  mintProof: (agentId: string, sessionKey: string, rest: string[]) => string;
+  verifyOwnProof: (token: string, agentId: string, sessionKey: string, rest: string[]) => boolean;
+  // R7: the gateway user's home folder (`~`) and a bounded glob expansion of an absolute pattern on disk
+  homeDir: string;
+  glob: (absPattern: string) => string[];
 };
 
 export type ToolEvent = {
@@ -100,6 +121,8 @@ export type ToolCtx = {
   runId?: string;
   toolName?: string;
   toolKind?: string;
+  workspaceDir?: string; // the agent's workspace (OpenClaw resolves relative tool paths against it)
+  cwd?: string; // native Claude Code tools: the run's working folder
 };
 
 // One fill or commit action that the runtime appends to state/guard/<token>.jsonl (12.17).
@@ -111,8 +134,9 @@ export type TokenRecord = {
   name: string | null;
 };
 
+// `native` marks a call in Claude Code's native tool shape (logged as a `native_tool` guard log line).
 export type Decision =
-  | { kind: "pass"; command?: string }
+  | { kind: "pass"; command?: string; native?: boolean }
   | {
       kind: "allow";
       params?: Record<string, unknown>;
@@ -121,8 +145,10 @@ export type Decision =
       actionClass?: string;
       command?: string;
       host?: string | null;
+      native?: boolean;
+      secretFocus?: boolean; // browser: the addressed tab's new secretFocus flag (absent: unchanged)
     }
-  | { kind: "block"; code: string; reason: string; command?: string; actionClass?: string; host?: string | null };
+  | { kind: "block"; code: string; reason: string; command?: string; actionClass?: string; host?: string | null; native?: boolean };
 
 export const BLOCK_CODES = [
   "G_GUARD_UNHEALTHY",
@@ -143,4 +169,6 @@ export const BLOCK_CODES = [
   "G_NOT_OWNER",
   "G_NO_CONSENT",
   "G_PAGE_UNKNOWN",
+  "G_OTHER_AGENT_DENIED",
+  "G_SECRET_FIELD",
 ] as const;

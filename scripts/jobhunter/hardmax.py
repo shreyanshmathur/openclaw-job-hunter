@@ -90,6 +90,11 @@ HARD_MAX: dict = {
     "dispatch.lanes.outreach.cycles_per_day": LANE_CYCLES_MAX["outreach"],
     "dispatch.lanes.replies.cycles_per_day": LANE_CYCLES_MAX["replies"],
     "linkedin.warmup_weeks[].*": 30,
+    # email codes, site accounts and the CAPTCHA hand-off (FEATURES-OTP-ACCOUNTS-CAPTCHA 1.3)
+    "otp.window_minutes": 10, "otp.max_uses_day_per_site": 6, "otp.max_uses_day": 20, "otp.failure_breaker_24h": 5,
+    "accounts.max_new_day": 5, "accounts.max_new_week": 20, "accounts.failure_breaker_24h": 3,
+    "captcha.timeout_minutes": 240, "captcha.max_tasks_day": 10, "captcha.max_open": 3,
+    "captcha.repeat_breaker_per_site_day": 5, "captcha.screenshot_retention_days": 7,
     # stop-rule thresholds (4.2.1 class F: only stricter): more aged invites before the acceptance check runs
     # is looser
     "linkedin.adaptive.min_invites_aged_7d": 20,
@@ -116,6 +121,7 @@ HARD_MIN: dict = {
     "qc.review.min_any": 3, "qc.golden_min_agreement": 18, "exclusions.min_keep_ratio": 0.5,
     "browser.lease_minutes": 35, "browser.dwell_seconds": [5, 20], "approval.approval_ttl_hours": 12,
     "active_hours.battery_floor_pct": 10, "dispatch.lanes.*.min_spacing_minutes": 45,
+    "otp.poll_seconds": 10, "accounts.password_length": 16,
 }
 
 # ---------------------------------------------------------------- classes
@@ -130,6 +136,7 @@ CLASSES.update({
     "schema_version": "fixed", "browser.profile": "fixed", "qc.review.agent": "fixed",
     "browser.require_display": "fixed", "browser.type_slowly": "fixed",
     "outreach.referral_ask_only_after_reply": "fixed", "boards.sites.*.risk": "fixed",
+    "captcha.handoff": "A", "otp.after_use": "bounded", "accounts.key_store": "bounded",
     "gmail.ceilings.*.gap_jitter_minutes": "bounded", "boards.daily_jitter_pct": "bounded",
     "evaluator.years_tolerance.below": "bounded", "evaluator.years_tolerance.above": "bounded",
     "qc.review.timeout_s": "bounded", "dispatch.lanes.*.skip_probability": "bounded",
@@ -143,6 +150,8 @@ BOUNDS: dict = {
     "evaluator.years_tolerance.below": (0, 5), "evaluator.years_tolerance.above": (0, 5),
     "qc.review.timeout_s": (60, 300), "dispatch.lanes.*.skip_probability": (0.0, 0.5),
     "gmail.bounce_stop.rolling_window_sends": (20, 100), "linkedin.adaptive.acceptance_window_days": (30, 60),
+    # bounded string keys: the allowed values (anything else gives the default)
+    "otp.after_use": ("leave", "mark_read", "archive"), "accounts.key_store": ("auto", "keychain", "file"),
 }
 
 # ---------------------------------------------------------------- email finder (enrich.*)
@@ -180,6 +189,8 @@ ENRICH_KEY_STORES = ("auto", "keychain", "file")
 AUTHORITY_STRICT = {
     "approval.mode": "human", "approval.per_channel.linkedin": "human", "gmail.tier": "conservative",
     "linkedin.tier": "conservative", "channels.linkedin.enabled": False,
+    # false: a CAPTCHA on a form sends the job to the owner as before, without a hand-off task
+    "captcha.handoff": False,
 }
 
 # approval.always_human: items can be added, the default four can never be removed

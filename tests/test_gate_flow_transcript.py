@@ -21,15 +21,15 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import io
 import json
 import os
 import re
 import unittest
 
 import tests  # noqa: F401
-from jobhunter import canon, cli, db, paths
+from jobhunter import canon, db, paths
 from tests.fakes.u6 import U6TestCase, deps
+from tests.fakes.u6.agentcall import agent_cli
 from tests.helpers import insert_company, insert_contact, insert_job
 
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "browser")
@@ -117,11 +117,17 @@ class Checker:
     def parse_exec(self, command: str):
         """(command name, args dict) or raise ValueError with the reason."""
         toks = command.split(" ")
-        if any(not TOKEN_RE.match(t) for t in toks):
+        if any(not TOKEN_RE.match(t) or t.startswith("=") for t in toks):
             raise ValueError("unsafe token in %r" % command)
-        if toks[:2] != [self.py, self.repo + "/scripts/jh.py"]:
+        jh = self.repo + "/scripts/jh.py"
+        if toks[:2] == [self.py, jh]:
+            rest = toks[2:]
+        elif toks[:3] == [self.py, "-I", jh]:   # the guard inserts -I itself; a typed one is accepted
+            rest = toks[3:]
+        else:
             raise ValueError("not a jh.py call")
-        rest = toks[2:]
+        if any(t.startswith("--agent-p") for t in rest):
+            raise ValueError("--agent-proof is added by the safety plugin; a typed one is refused")
         if rest[:1] == ["--cycle"]:
             if len(rest) < 2 or not re.match(self.classes["cycle"], rest[1]):
                 raise ValueError("bad --cycle")
@@ -399,7 +405,6 @@ class Replay:
         self.values = values
         self.last_result = None
         self.outputs = []
-        self.env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": self.agent}
 
     def sub(self, obj):
         if isinstance(obj, str):
@@ -452,9 +457,8 @@ class Replay:
             if name in self.NOOP:
                 continue
             if name in self.CLI:
-                out = io.StringIO()
-                rc = cli.main(p["command"].split(" ")[2:], env=self.env, stdin=io.StringIO(""), stdout=out)
-                env = json.loads(out.getvalue())
+                # as the guard runs the recorded command: python -I, argv and env proof of the agent's session
+                rc, env = agent_cli(self.agent, p["command"].split(" ")[2:])
                 self.case.assertEqual(rc, 0, env)
                 self.outputs.append((name, env))
                 continue
@@ -558,9 +562,9 @@ class TestTranscripts(U6TestCase):
         self.assertEqual(self.checker(t2["agent"]).check(rp2.steps()), [])
         self.assertEqual(self.row("SELECT state FROM threads WHERE thread_key = ?", key)[0], "invite_accepted")
         self.clock.advance(days=3, minutes=5)
-        out = io.StringIO()
-        cli.main(["outreach", "next"], env=rp.env, stdin=io.StringIO(""), stdout=out)
-        targets = json.loads(out.getvalue())["data"]["targets"]
+        rc, res = agent_cli(rp.agent, ["outreach", "next"])
+        self.assertEqual(rc, 0, res)
+        targets = res["data"]["targets"]
         self.assertEqual([(x["kind"], x["thread_key"]) for x in targets], [("post_accept_message", key)])
 
     def test_observed_mismatch_is_caught(self):
@@ -728,6 +732,23 @@ class TestTranscripts(U6TestCase):
         def other_tab(steps):
             steps[self.index(steps, send)]["params"]["targetId"] = "T2"
 
+        def missing_profile(steps):   # the guard no longer fills the profile in (R4): a missing one is refused
+            del steps[2]["params"]["profile"]
+
+        def typed_proof(steps):
+            steps.insert(1, {"tool": "exec", "params": {
+                "command": "{PY} {REPO}/scripts/jh.py --agent-proof jhp2.jobhunter-outreach.1790000000."
+                           "0123456789abcdef.0123456789abcdef." + "a" * 64 + " outreach next --limit 3",
+                "timeoutSeconds": 90}})
+
+        def typed_proof_abbrev(steps):
+            steps.insert(1, {"tool": "exec", "params": {
+                "command": "{PY} -I {REPO}/scripts/jh.py outreach next --agent-p x", "timeoutSeconds": 90}})
+
+        def equals_token(steps):   # zsh =word expansion
+            steps.insert(1, {"tool": "exec", "params": {"command": "{PY} {REPO}/scripts/jh.py thread list =python3",
+                                                        "timeoutSeconds": 90}})
+
         cases = [("commit action before gate arm", click_before_arm), ("commit action before the dwell", no_dwell),
                  ("typed with slowly", fast_typing), ("not in drivers/manifest.json", unknown_script),
                  ("unsafe token", shell_trick), ("not in the jobhunter-outreach ACL", human_only),
@@ -739,7 +760,11 @@ class TestTranscripts(U6TestCase):
                  ("'click' is not a browser call the guard knows", top_level_click),
                  ("'type' is not a browser call the guard knows", top_level_type),
                  ("ref e47 is not in the latest snapshot of this tab", stale_ref),
-                 ("ref e47 is not in the latest snapshot of this tab", other_tab)]
+                 ("ref e47 is not in the latest snapshot of this tab", other_tab),
+                 ("profile must be jobhunter", missing_profile),
+                 ("--agent-proof is added by the safety plugin", typed_proof),
+                 ("--agent-proof is added by the safety plugin", typed_proof_abbrev),
+                 ("unsafe token", equals_token)]
         for expect, fn in cases:
             with self.subTest(case=fn.__name__):
                 v = self.mutated(fn)
@@ -928,6 +953,93 @@ class TestPrograms(unittest.TestCase):
             self.assertIn(needle, step)
         for flag in ("--observed-file", "--platform-ref-file", "--evidence-file"):
             self.assertIn(flag, self.acl["agents"]["jobhunter-applier"]["commands"]["gate confirm"])
+
+    def test_tools_paragraph(self):
+        """CLI route (design CLI-ROUTE 10): both AGENTS templates carry the common Tools paragraph: bridged
+        OpenClaw tools only, Claude Code tools off, never ask a person, never type the proof, absolute workspace
+        paths without ~ @ .. $, whole-file writes (no edit tool), browser profile jobhunter, refusals end the
+        cycle, CYCLE_DONE as the final word."""
+        for rel in ("agent-templates/applier/AGENTS.template.md", "agent-templates/outreach/AGENTS.template.md"):
+            flat = " ".join(self.read(rel).split())
+            tools = flat[flat.index("## Tools"):flat.index("## Hard rules")]
+            with self.subTest(file=rel):
+                for needle in ("Your tools are exec, read, write and browser.", "`mcp__openclaw__exec`",
+                               "`mcp__openclaw__read`", "`mcp__openclaw__write`", "`mcp__openclaw__browser`",
+                               "AskUserQuestion) are switched off for you",
+                               "never ask a person anything: nobody is there and nothing waits for approval",
+                               "`timeoutSeconds: 90`", "adds `-I` and an `--agent-proof` option",
+                               "Never type `--agent-proof` yourself and never copy one",
+                               "start with your workspace folder `__WS__/`",
+                               "Never use `~`, `@`, `..` or `$` in a path",
+                               "Read only inside your workspace, with the read tool",
+                               "Write whole files only inside its `work/` and `inbox/` folders, with the write tool",
+                               "there is no edit tool, so to fix a file, write it again",
+                               'Always pass `profile: "jobhunter"` to the browser tool',
+                               "A refused call is refused at once",
+                               "an OpenClaw message that a command is not allowed or a path is outside the workspace",
+                               "Finish every cycle with the single word `CYCLE_DONE`",
+                               "end with the single word the message names (`PROBE_DONE`)"):
+                    self.assertIn(needle, tools)
+
+    def test_cycle_done_replaces_no_reply(self):
+        """9.8 reply rules: no U6 program ends with NO_REPLY; every cycle end in the AGENTS programs replies
+        CYCLE_DONE."""
+        files = [f for fs in TEMPLATES.values() for f in fs] + list(SHARED) + OTHER_U6
+        for rel in files:
+            with self.subTest(file=rel):
+                self.assertNotIn("NO_REPLY", self.read(rel))
+        for rel in ("agent-templates/applier/AGENTS.template.md", "agent-templates/outreach/AGENTS.template.md"):
+            flat = " ".join(self.read(rel).split())
+            ends = re.findall(r"cycle end[^.]*?(?:,| and) reply `([A-Z_]+)`", flat)
+            self.assertTrue(ends, rel)
+            self.assertEqual(set(ends), {"CYCLE_DONE"}, rel)
+        for rel in ("agent-templates/applier/IDENTITY.md", "agent-templates/outreach/IDENTITY.md"):
+            self.assertIn("Final reply of every run: the single word `CYCLE_DONE`.", self.read(rel))
+        stop = " ".join(self.read("skills-src/jobhunter-stop-detect/SKILL.template.md").split())
+        self.assertIn("run `cycle end --cycle <cycle_id>`, reply `CYCLE_DONE`", stop)
+
+    def test_refusals_end_the_cycle(self):
+        """Guard codes and OpenClaw refusals (allowlist miss, path outside the workspace, tool not available)
+        stop the cycle at once; nobody approves them later."""
+        stop = " ".join(self.read("skills-src/jobhunter-stop-detect/SKILL.template.md").split())
+        sec = stop[stop.index("## Guard blocks and OpenClaw refusals"):stop.index("## Identity")]
+        for needle in ("nobody approves it later and nothing waits", "`G_NO_TOKEN` or `G_NOT_ARMED`",
+                       "`G_EXEC_SHAPE`", "`G_EXEC_ACL`", "`G_EXEC_PARAM`", "`G_PATH_DENIED`", "`G_TOOL_DENIED`",
+                       "`G_BROWSER_PROFILE`", "an OpenClaw refusal: a command that is not allowed",
+                       "a path outside the workspace", "a tool that is not available or not allowed",
+                       "reply `CYCLE_DONE`", "Never retry a refused call in another form",
+                       "never ask anyone to allow it"):
+            self.assertIn(needle, sec)
+        gate = " ".join(self.read("skills-src/jobhunter-gate/SKILL.template.md").split())
+        for needle in ("(`G_BROWSER_PROFILE`); nothing fills it in for you", "or an OpenClaw refusal",
+                       "skill `jobhunter-stop-detect` says (\"Guard blocks\")"):
+            self.assertIn(needle, gate)
+        for rel in ("agent-templates/applier/AGENTS.template.md", "agent-templates/outreach/AGENTS.template.md"):
+            flat = " ".join(self.read(rel).split())
+            self.assertIn("and any OpenClaw refusal (a command that is not allowed, a path outside the workspace, "
+                          "a tool that is not available), means stop", flat, rel)
+
+    def test_read_and_write_tool_wording(self):
+        """The U6 skills name the read tool and the write tool (whole files), never an edit tool, never a ~ path,
+        and every one that opens a page shows a browser call with profile jobhunter."""
+        skills = ("skills-src/jobhunter-gate/SKILL.template.md", "skills-src/jobhunter-stop-detect/SKILL.template.md",
+                  "agent-templates/applier/skills/jobhunter-apply-ats/SKILL.template.md",
+                  "agent-templates/applier/skills/jobhunter-apply-email/SKILL.template.md",
+                  "agent-templates/outreach/skills/jobhunter-replies/SKILL.template.md")
+        for rel in skills:
+            text = self.read(rel)
+            flat = " ".join(text.split())
+            with self.subTest(file=rel):
+                self.assertIn("read tool", flat)
+                self.assertIn("with the write tool", flat)
+                self.assertNotRegex(flat, r"(?i)(use|with) the edit tool|apply_patch")
+                self.assertNotRegex(text, r"(?<![\w/])~/")
+                calls = [m.group(0) for m in re.finditer(r'\{"action": [^\n`]*\}', text)]
+                self.assertTrue([c for c in calls if '"profile": "jobhunter"' in c], rel)
+        for rel in [f for fs in TEMPLATES.values() for f in fs] + list(SHARED):
+            with self.subTest(file=rel):
+                self.assertNotRegex(self.read(rel), r"`[^`\n]*--agent-proof [^`\n]*`",
+                                    "a program must never show a command with a typed --agent-proof")
 
     def test_agents_md_size(self):
         for rel in ("agent-templates/applier/AGENTS.template.md", "agent-templates/outreach/AGENTS.template.md"):

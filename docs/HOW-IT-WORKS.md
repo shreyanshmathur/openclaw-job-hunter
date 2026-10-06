@@ -8,7 +8,7 @@
 | `state/jobhunter.sqlite3` | The single source of truth: jobs, evaluations, contacts, drafts, QC results, every action, threads, breakers, counters. Unique indexes and triggers refuse duplicates even if a bug slips through. |
 | Five OpenClaw agents | `jobhunter-scout` (finds jobs in logged-in sites, read only), `jobhunter-evaluator` (scores jobs), `jobhunter-applier` (tailors resumes, fills application forms), `jobhunter-outreach` (researches people and companies, writes emails, reads replies), `jobhunter-qc` (an independent reviewer with no tools at all). |
 | `jobhunter-guard` plugin | Runs inside OpenClaw and decides every tool call of those five agents before it happens. |
-| Automations | OpenClaw cron jobs declared in `openclaw/crons.json`. Command jobs run code with no model; agent jobs are started only by the dispatcher. |
+| Automations | OpenClaw cron jobs declared in `openclaw/crons.json`. Command jobs run code with no model. Agent jobs always carry an explicit tool list and are started only by the dispatcher, the first run wizard (onboarding), the install identity checks and `./jobhunter run`, each time after a check that the guard runs and the job still matches what the installer declared. No agent is ever started with `openclaw agent`. |
 | The `jobhunter` browser profile | OpenClaw's separate browser profile the agents use. It holds only the logins of the sites you allowed (`./jobhunter browser consent`, recorded in `private/consent.json`); your normal Chrome is never driven. |
 | Your Google Sheet | A readable mirror of the database, rebuilt at any time. |
 
@@ -62,6 +62,29 @@ The guard plugin enforces, inside OpenClaw:
   the cycle even if the model ignores it.
 
 The rules in plain words: [ENFORCEMENT.md](ENFORCEMENT.md).
+
+## Layers that keep an agent in its lane
+
+No single check is trusted alone. Each agent call meets these layers, in this order:
+
+1. **Tool surface (OpenClaw).** Every agent run is a restricted run: an automation with an explicit tool list.
+   On the Claude subscription route that switches Claude Code's own tools off (Bash, Read, Write, Edit,
+   AskUserQuestion and the rest); the model only gets OpenClaw's exec, read, write and, where needed, browser
+   tools. A question to a person is cancelled at once, so nothing ever waits.
+2. **OpenClaw policy.** Each agent may only use its listed tools, reads and writes stay in its workspace, and its
+   exec policy is allowlist with ask off: one allowed program (`jh.py`, run with `python -I`, with an identity
+   proof of that agent). Anything else is refused at once. The installer reads the effective policy back.
+3. **The guard plugin.** It checks every call before it happens: the `jh.py` command and its arguments, every
+   file path (absolute and inside the agent's own workspace; `~`, `@`, `..`, `$` and URLs are refused), the
+   browser profile, and calls aimed at other agents. It adds the identity proof to every `jh.py` command.
+4. **`jh.py` itself.** It verifies two signed, single-use proofs that name the same agent and session, then that
+   agent's permissions. A call without them is never an agent, and a jobhunter agent can never pass as the
+   system.
+5. **Checks after the fact.** The guard log, the identity probes of the installer and `./jobhunter doctor
+   --probe`, the automation drift check before every run, and the nightly audit.
+
+Agent identity cannot be forged by an agent whose shell is confined. An agent with an unconfined shell runs as
+you and is trusted like you; the installer and `./jobhunter doctor` name such agents in red.
 
 ## When things run
 

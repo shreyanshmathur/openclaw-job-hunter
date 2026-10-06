@@ -33,4 +33,4 @@ resume.
 
 `__PY__ __REPO__/scripts/jh.py profile salary-record --file __WS__/work/onboarding/salary.json`
 
-Exit 10 names what to fix; fix it once. Then reply `NO_REPLY`.
+Exit 10 names what to fix; fix it once. Then reply with the single word `ONBOARD_DONE`.

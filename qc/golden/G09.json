@@ -2,7 +2,7 @@
  "id": "G09",
  "channel": "inmail",
  "subject": "Zone-level demand forecasts",
- "body": "Hi Priya, your team's September post at Lumen said stockouts in new zones run at 9% with city-level forecasts. At Fernleaf Grocers I rebuilt forecasting at store-zone level, and stockouts in new zones fell from 11% to 6% in one quarter. Is your Senior Data Analyst role still open? If someone else owns it, a name is plenty.",
+ "body": "Hi Priya, your team's September post at Lumen said stockouts in new zones run at 9% with city-level forecasts. At Fernleaf Grocers I rebuilt forecasting at store-zone level, and stockouts in new zones fell from 11% to 6% in one quarter. Is the Senior Data Analyst role at Lumen still open? If someone else owns it, a name is plenty.",
  "recipient": {
   "first_name": "Priya",
   "last_name": "Menon",
@@ -31,7 +31,7 @@
  "profile_facts": {
   "P1": "At Fernleaf Grocers, rebuilt demand forecasting at store-zone level; stockouts in new zones fell from 11% to 6% in one quarter.",
   "P2": "3 years as a data analyst at Fernleaf Grocers.",
-  "P3": "Wrote a one-page note on zone-level feature selection, published at https://example.com/zone-notes"
+  "P3": "Wrote a one-page note on the zone-level features behind the Fernleaf stockout drop from 11% to 6%, published at https://example.com/zone-notes"
  },
  "hook": {
   "anchor": "stockouts in new zones",

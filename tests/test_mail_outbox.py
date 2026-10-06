@@ -15,6 +15,7 @@ from jobhunter import breakers, canon, cli, db, drafts, gate, mail, paths
 from jobhunter.errors import Denied
 from jobhunter.mail import mime, outbox
 from tests.fakes.u9 import OWNER, MailTestCase, inbound, write_config
+from tests import helpers
 from tests.helpers import insert_action, insert_company, insert_contact, insert_draft, insert_job, insert_thread
 
 ALEX = "alex.rivera@kestrel.example"
@@ -533,10 +534,23 @@ class OutboxTests(MailTestCase):
         self.assertEqual(json.loads(out.getvalue())["code"], "E_PAUSED")
 
     def test_agents_cannot_run_the_mailer(self):
-        out = io.StringIO()
-        rc = cli.main(["mail", "run"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"},
-                      stdin=io.StringIO(""), stdout=out)
-        self.assertEqual(rc, 11)
+        """`mail run` is system only: an agent with valid proofs on both carriers (CLI route 5) is refused by the
+        caller check, in this process (fake transport in place) and in a real `python -I` child."""
+        self.cold()
+        root = paths.root()
+        for agent in ("jobhunter-outreach", "jobhunter-applier"):
+            rc, env = helpers.agent_cli(agent, ["mail", "run"])
+            self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"), env)
+        rc, env = helpers.agent_cli("jobhunter-outreach", ["mail", "run", "--quiet"])
+        self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"), env)
+        write_config(self.home, route="web_ui")      # the child has no fake transport: no route to the network
+        rc, env = helpers.run_jh(helpers.agent_argv(root, "jobhunter-outreach", ["mail", "run"]),
+                                 env=helpers.agent_env(root, "jobhunter-outreach"))
+        self.assertEqual((rc, env["code"]), (11, "E_CALLER_NOT_ALLOWED"), env)
+        rc, env = helpers.run_jh(["mail", "run"], env={"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"})
+        self.assertEqual((rc, env["code"]), (11, "E_AUTH_FAILED"), "an agent id without the guard's proof")
+        self.assertEqual((self.smtp.messages, self.smtp.connections, self.imap.commands), ([], 0, []))
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM actions WHERE route = 'mailer'").fetchone()[0], 0)
 
 
 class NotConnectedTests(MailTestCase):

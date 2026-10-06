@@ -199,11 +199,11 @@ def desktop_notify(title: str, text: str) -> bool:
         return False
 
 
-def _default_sender(channel: str, target: str, message_file: str) -> dict:
+def _default_sender(channel: str, target: str, message_file: str, media: str | None = None) -> dict:
     try:
         mod = importlib.import_module("jobhunter.ocrun")
         fn = getattr(mod, "message_send")
-        res = fn(channel, target, message_file)
+        res = fn(channel, target, message_file, media=media) if media else fn(channel, target, message_file)
     except (ImportError, AttributeError, NotImplementedError) as exc:
         return {"ok": False, "error": "openclaw message send is not available: %s" % exc}
     except Denied as d:
@@ -239,15 +239,21 @@ def chat_target(config: dict) -> tuple[str, str, str | None]:
     return channel, target, None
 
 
-def send_text(text: str, config: dict | None = None, sender=None) -> dict:
-    """Send one message to the owner's chat now (used by `notify test` and flush)."""
+def send_text(text: str, config: dict | None = None, sender=None, media: str | None = None) -> dict:
+    """Send one message to the owner's chat now (used by `notify test` and flush). media: one image (a CAPTCHA
+    screenshot), sent with openclaw message send --media; a missing file sends the text alone."""
     config = S.load_config() if config is None else config
     channel, target, why_not = chat_target(config)
     if why_not:
         return {"ok": False, "error": why_not, "channel": channel, "not_configured": True}
     path = _write_message(text)
     try:
-        res = (sender or _default_sender)(channel, target, path)
+        if media and not os.path.isfile(media):
+            media = None
+        if media:
+            res = (sender or _default_sender)(channel, target, path, media=media)
+        else:
+            res = (sender or _default_sender)(channel, target, path)
     finally:
         try:
             os.unlink(path)
@@ -270,6 +276,12 @@ def flush(conn, deliver: bool, max_items: int = 8, *, sender=None, desktop=None,
     if not rows:
         return {"delivered": 0, "failed": 0, "pending_high": pending_high, "quiet_hours": quiet, "sent": False,
                 "stale": n_stale}
+    # a row with an image (the CAPTCHA screenshot) is sent on its own, never batched
+    media = None
+    if "media_path" in rows[0].keys() and rows[0]["media_path"]:
+        rows, media = rows[:1], rows[0]["media_path"]
+    elif "media_path" in rows[0].keys():
+        rows = [r for r in rows if not r["media_path"]] or rows[:1]
     text, n_fit = compose(rows)
     if not deliver:
         return {"delivered": 0, "failed": 0, "pending_high": pending_high, "quiet_hours": quiet, "sent": False,
@@ -297,7 +309,7 @@ def flush(conn, deliver: bool, max_items: int = 8, *, sender=None, desktop=None,
                 "stale": n_stale, "not_sent_reason": why_not}
 
     included = rows[:n_fit]   # only the items that fit in the composed message count as sent
-    res = send_text(text, config, sender)
+    res = send_text(text, config, sender, media=media)
     now = canon.now()
     with db.tx(conn):
         if res["ok"]:

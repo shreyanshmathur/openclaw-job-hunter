@@ -14,6 +14,7 @@ import importlib
 import json
 import os
 import re
+import sqlite3
 
 from . import canon, paths
 from . import sheets_labels as L
@@ -924,9 +925,37 @@ def build_status(conn, config: dict | None = None) -> dict:
         "dispatch": dispatch_today(conn, tz),
         "browser_sites": browser_consent(conn),
         "email_finder": email_finder(conn, config),
+        "captcha_tasks": captcha_tasks(conn),
         "env_warnings": paths.env_warnings(),
         "now": canon.now(),
     }
+
+
+def captcha_tasks(conn) -> list[dict]:
+    """Open CAPTCHA hand-offs (FEATURES-OTP-ACCOUNTS-CAPTCHA 4.2), soonest deadline first, with minutes left."""
+    try:
+        rows = conn.execute("SELECT t.code, t.platform, t.site, t.deadline_at, j.job_uid, j.title, "
+                            "COALESCE(co.display_name, j.company_name_raw) AS company FROM captcha_tasks t "
+                            "JOIN jobs j ON j.id = t.job_id LEFT JOIN companies co ON co.id = j.company_id "
+                            "WHERE t.status = 'open' ORDER BY t.deadline_at").fetchall()
+    except sqlite3.DatabaseError:
+        return []
+    now = canon.now()
+    out = []
+    for r in rows:
+        try:
+            left = max(0, int((canon.parse_ts(r["deadline_at"]) - canon.parse_ts(now)).total_seconds() // 60))
+        except ValueError:
+            left = None
+        out.append({"code": r["code"], "job_uid": r["job_uid"], "company": r["company"] or "", "title": r["title"],
+                    "site": L.platform_label(r["platform"]) if r["platform"] != "host" else r["site"][5:],
+                    "deadline_at": r["deadline_at"], "minutes_left": left})
+    return out
+
+
+def captcha_line(t: dict) -> str:
+    return ("captcha %s %s / %s (%s) %s min left: solve it in the agent window, then ./jobhunter continue %s"
+            % (t["code"], t["company"], t["title"], t["site"], t["minutes_left"], t["code"]))
 
 
 def render_status_text(d: dict, tz=None) -> str:
@@ -947,6 +976,8 @@ def render_status_text(d: dict, tz=None) -> str:
             s += " Earliest reset %s." % fmt_local(b["until"], tz)
         lines.append(s)
         lines.append("  What to do: " + b["todo"])
+    for t in d.get("captcha_tasks") or []:
+        lines.append(captcha_line(t))
     q = d["queues"]
     lines.append("Waiting for you: %d approvals, %d tasks, %d jobs to apply to yourself"
                  % (q["approvals_waiting"], q["human_tasks"], q["jobs_needing_you"]))
@@ -1026,8 +1057,10 @@ def build_inbox(conn, config: dict | None = None) -> dict:
         item = {"task_uid": r["task_uid"], "kind": r["kind"], "question": r["question"] or "",
                 "created_at": r["created_at"]}
         (questions if r["kind"] == "answer_question" else tasks).append(item)
+    tasks.sort(key=lambda t: 0 if t["kind"] == "captcha" else 1)       # CAPTCHAs first: they have a deadline
     return {"approvals": pending_approvals(conn, config), "questions": questions, "tasks": tasks,
-            "breakers": open_breakers(conn), "undelivered_high": undelivered(conn, "high", 20)}
+            "captcha_tasks": captcha_tasks(conn), "breakers": open_breakers(conn),
+            "undelivered_high": undelivered(conn, "high", 20)}
 
 
 TASK_LABELS = {
@@ -1037,12 +1070,13 @@ TASK_LABELS = {
     "relogin": "Log in again", "confirm_company_merge": "Confirm two companies are the same",
     "confirm_agency": "Confirm a recruiting agency", "review_audit_mismatch": "Review an unrecorded send",
     "connect_mail": "Connect your email", "suggest_auto": "Consider automatic approval",
+    "captcha": "Solve a CAPTCHA",
 }
 
 
 def render_inbox_text(d: dict, tz=None) -> str:
     tz = tz or _dt.timezone.utc
-    lines = []
+    lines = [captcha_line(t) for t in d.get("captcha_tasks") or []]
     if d["approvals"]:
         lines.append("Waiting for your approval (%d):" % len(d["approvals"]))
         for a in d["approvals"]:
@@ -1207,5 +1241,47 @@ def settings_rows(conn, config: dict | None = None, limits: list | None = None, 
                      "" if u["limit"] is None else str(u["limit"]), str(u["used"]),
                      "Most allowed in 24 hours; the agent stops at this number."] + (["wait"] if full else []))
     rows += _consent_rows(consent, tz)
+    rows += capability_rows(conn, config)
     rows += _finder_rows(finder, tz)
+    return rows
+
+
+CAPABILITY_STATE = {"granted": ("Granted", "good"), "declined": ("Declined", "muted"), "revoked": ("Taken back", "muted"),
+                    "not_granted": ("Not asked", "muted"), "unavailable": ("Unavailable: Gmail not allowed", "wait")}
+
+
+def capability_rows(conn, config: dict | None = None) -> list[list]:
+    """The 'Email codes and site accounts' section: one row per site and capability, and the used-today counts
+    (FEATURES-OTP-ACCOUNTS-CAPTCHA 4.1). Read only; nothing secret."""
+    try:
+        from . import identity
+        summary = identity.capability_summary(conn, config)
+    except Exception:
+        return []
+    rows = [["Email codes and site accounts", "", "", "", "section"]]
+    what = {"email_codes": "may read verification codes and sign-in links this site emails you",
+            "ats_accounts": "may create and use an account on this site with your address"}
+    for cap in ("email_codes", "ats_accounts"):
+        for r in summary.get(cap) or []:
+            label, tone = CAPABILITY_STATE.get(r["state"], (r["state"], "muted"))
+            if r["state"] == "unavailable" and (cfg(config, "gmail.route", "web_ui") == "app_password"):
+                label = "Unavailable: email not connected"
+            rows.append(["%s: %s" % (r["label"], "email codes" if cap == "email_codes" else "site accounts"), label,
+                         "", "The agent %s. Change it with ./jobhunter browser consent." % what[cap], tone])
+    since = canon.ts_add(canon.now(), days=-1)
+    try:
+        codes = _one(conn, "SELECT count(*) FROM code_uses WHERE used_at > ?", (since,))
+        new = _one(conn, "SELECT count(*) FROM ats_accounts WHERE created_at > ?", (since,))
+        handoffs = _one(conn, "SELECT count(*) FROM captcha_tasks WHERE opened_at > ?", (since,))
+        open_n = _one(conn, "SELECT count(*) FROM captcha_tasks WHERE status = 'open'")
+    except sqlite3.DatabaseError:
+        return rows
+    for label, used, key, why in (
+            ("Email codes used (24 h)", codes, "otp.max_uses_day", "Codes and sign-in links used for all sites."),
+            ("New site accounts (24 h)", new, "accounts.max_new_day", "Accounts the agent created."),
+            ("CAPTCHA hand-offs (24 h)", handoffs, "captcha.max_tasks_day", "CAPTCHAs handed to you to solve."),
+            ("Open CAPTCHA tasks", open_n, "captcha.max_open", "Waiting for /jh continue <code>.")):
+        limit = cfg(config, key, None)
+        rows.append([label, "%d of %s" % (used, limit), str(used), why] +
+                    (["wait"] if limit is not None and used >= int(limit) else []))
     return rows

@@ -1,24 +1,32 @@
 """Shared driver for the end-to-end tests (INT, tests/test_e2e_*.py). Not a test module.
 
 Everything runs the real modules of every unit in a temp home (tests.helpers.TempHome): the `jh` CLI is called
-in process through cli.main with the caller class a real call would have (system, agent with OPENCLAW_SHELL and
-JH_AGENT_ID, or the owner with --pin-stdin). Only three things are replaced, each at the seam the owning unit
-provides for tests: the QC reviewer's model turn (ocrun.agent_turn, tests/fakes/u3 FakeReviewer), the detached
-QC worker spawn (qc.SPAWN) and, where a test says so, the mail transport (U9 fake SMTP and IMAP servers) and
-the openclaw binary (a fake script in this folder). Fictional people and companies only.
+in process through cli.main with the caller class a real call would have: system, the owner with --pin-stdin, or
+a jobhunter agent exactly as the guard runs it (CLI-ROUTE-DESIGN 5: `--agent-proof <T>` in front of the
+arguments and a JH_AGENT_PROOF env proof, both single use and for one session, under the flags of `python -I`;
+tests.helpers.agent_argv, agent_env and as_isolated). Only three things are replaced, each at the seam the owning
+unit provides for tests: the QC reviewer's one-shot cron run (ocrun.qc_turn, tests/fakes/u3 FakeQcTurn answering
+with a FakeReviewer, so the real qc.agent_turn and review parser run), the detached QC worker spawn (qc.SPAWN)
+and, where a test says so, the mail transport (U9 fake SMTP and IMAP servers) and the openclaw binary (a fake
+script in this folder). Fictional people and companies only.
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
+import shlex
 import shutil
 import sqlite3
 import stat
+import subprocess
+import sys
 from unittest import mock
 
 import tests  # noqa: F401  (puts scripts/ on sys.path)
-from jobhunter import auth, cli, db, pacing, paths
+from jobhunter import auth, canon, cli, db, pacing, paths
+from tests import helpers
 from tests.helpers import TempHome
 
 REPO = paths.REPO
@@ -59,6 +67,89 @@ class CliError(AssertionError):
     pass
 
 
+# ---------------------------------------------------------------- jh.py as OpenClaw's exec tool starts it
+# The child plays `<PY> -I <REPO>/scripts/jh.py <args>`: a python -I interpreter (unless isolated=False) whose
+# whole environment is the one given, running jh.py's cli.main against the current test home and test clock.
+# It reports every caller classification (class and agent id, or the refusal code) so a test can prove that no
+# agent call was ever classified `system`.
+_EXEC_CHILD = r"""
+import io, json, sys
+spec = json.loads(sys.stdin.read())
+sys.path.insert(0, spec["scripts"])
+from jobhunter import auth, canon, paths
+paths.use_test_home(spec["root"])
+canon.set_test_clock(spec["now"])
+seen = []
+markers = []
+_real = auth.classify
+def _classify(*a, **k):
+    try:
+        c = _real(*a, **k)
+    except BaseException as exc:
+        seen.append({"refused": getattr(exc, "code", type(exc).__name__)})
+        raise
+    seen.append({"class": c.cls, "agent_id": c.agent_id})
+    markers.append(list((getattr(c, "detail", None) or {}).get("markers") or []))
+    return c
+auth.classify = _classify
+from jobhunter import cli
+out = io.StringIO()
+rc = cli.main(spec["argv"], stdin=io.StringIO(""), stdout=out)
+sys.stdout.write(json.dumps({"rc": rc, "out": out.getvalue(), "isolated": sys.flags.isolated, "classify": seen,
+                            "markers": markers}))
+"""
+CHILD_PATH = "/usr/bin:/bin"
+
+
+def run_jh_child(argv, env: dict, cwd: str | None = None, isolated: bool = True, timeout: int = 120) -> dict:
+    """One jh.py call in a child interpreter: {rc, envelope, isolated, classify, markers} (classify: one
+    {class, agent_id} or {refused: code} per classification; markers: the harness marker names of each accepted
+    one). env is the child's whole environment (PATH added when missing); cwd defaults to the install root."""
+    child_env = {str(k): str(v) for k, v in (env or {}).items()}
+    child_env.setdefault("PATH", CHILD_PATH)
+    spec = {"scripts": os.path.join(REPO, "scripts"), "root": paths.root(), "now": canon.now(),
+            "argv": [str(t) for t in argv]}
+    cmd = [sys.executable] + (["-I"] if isolated else []) + ["-c", _EXEC_CHILD]
+    if cwd:
+        os.makedirs(cwd, exist_ok=True)
+    p = subprocess.run(cmd, input=json.dumps(spec), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                       env=child_env, cwd=cwd or paths.root(), universal_newlines=True, timeout=timeout)
+    try:
+        res = json.loads(p.stdout)
+    except ValueError:
+        raise AssertionError("jh child failed (exit %s): %s %s" % (p.returncode, p.stdout[-2000:], p.stderr[-2000:]))
+    text = (res.get("out") or "").strip()
+    try:
+        envelope = json.loads(text.splitlines()[-1]) if text else {}
+    except ValueError:
+        envelope = {"raw": text[-2000:]}
+    return {"rc": res["rc"], "envelope": envelope, "isolated": res["isolated"], "classify": res["classify"],
+            "markers": res["markers"]}
+
+
+def split_rewritten(command: str, carriers=("argv", "env")) -> list:
+    """The jh.py arguments of a guard-rewritten exec command, `<PY> -I <REPO>/scripts/jh.py [--agent-proof <T>]
+    <args>` (the proof pair only with the argv carrier). AssertionError for any other shape."""
+    toks = shlex.split(command)
+    h = paths.home()
+    want = [h["python"], "-I", os.path.join(REPO, "scripts", "jh.py")]
+    if toks[:3] != want:
+        raise AssertionError("not a guard-rewritten jh.py command: %s" % command)
+    if "argv" in carriers and (len(toks) < 5 or toks[3] != "--agent-proof"):
+        raise AssertionError("the guard did not insert the argv proof: %s" % command)
+    if "argv" not in carriers and any(t.startswith("--agent-p") for t in toks):
+        raise AssertionError("an argv proof without the argv carrier: %s" % command)
+    return toks[3:]
+
+
+def exec_tool_env(guard_env: dict | None) -> dict:
+    """The environment OpenClaw's exec tool gives the command: its own marker plus what the guard's
+    resolve_exec_env hook returned for this exec."""
+    env = {"OPENCLAW_SHELL": "exec"}
+    env.update(guard_env or {})
+    return env
+
+
 class World:
     """A temp home plus the calls a lane, the mailer or the owner makes."""
 
@@ -87,18 +178,25 @@ class World:
 
     # ------------------------------------------------------------ CLI
     def run(self, argv, who: str = "system", stdin_text: str = "", cycle: str | None = None):
-        """(rc, envelope) of one jh.py call. who: system | human (PIN on stdin) | jobhunter-<lane> (agent)."""
+        """(rc, envelope) of one jh.py call. who: system | human (PIN on stdin) | jobhunter-<lane> (agent: both
+        proof carriers for the session agent:<id>:test, as the guard gives them, under python -I flags)."""
         argv = list(argv)
         if cycle:
             argv = ["--cycle", cycle] + argv
         env = {}
+        call = argv
+        isolated = False
         if who.startswith("jobhunter-"):
-            env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": who}
+            env = helpers.agent_env(paths.root(), who)
+            call = helpers.agent_argv(paths.root(), who, argv)
+            isolated = True
         elif who == "human":
             argv = ["--pin-stdin"] + argv
+            call = argv
             stdin_text = PIN + "\n" + stdin_text
         out = io.StringIO()
-        rc = cli.main(argv, env=env, stdin=io.StringIO(stdin_text), stdout=out)
+        with (helpers.as_isolated() if isolated else contextlib.nullcontext()):
+            rc = cli.main(call, env=env, stdin=io.StringIO(stdin_text), stdout=out)
         text = out.getvalue().strip()
         try:
             envelope = json.loads(text.splitlines()[-1]) if text else {}
@@ -290,17 +388,29 @@ COLD_BODIES = [
 COLD_SUBJECT = "Pincode-level RTO models"
 
 
-def install_qc_fakes(test) -> None:
-    """The two QC seams every e2e test replaces (U3): no detached worker spawn, the fake reviewer model turn."""
+def install_reviewer(test, reviewer=None):
+    """The reviewer's one-shot cron run (U1 ocrun.qc_turn, CLI-ROUTE-DESIGN 6.3.2) replaced by U3's FakeQcTurn
+    answering with `reviewer` (a tests.fakes.u3 FakeReviewer, default mode pass), so the real qc.agent_turn, its
+    reply handling and the review parser run. Returns the FakeReviewer (its .calls name the agent jobhunter-qc)."""
     from jobhunter import ocrun
+    from tests.fakes.u3 import FakeQcTurn, FakeReviewer
+    rev = reviewer if reviewer is not None else FakeReviewer("pass")
+    turn = FakeQcTurn(lambda session_key, message_file, timeout_s:
+                      rev("jobhunter-qc", session_key, message_file, timeout_s)["text"])
+    p = mock.patch.object(ocrun, "qc_turn", turn)
+    p.start()
+    test.addCleanup(p.stop)
+    return rev
+
+
+def install_qc_fakes(test, reviewer=None):
+    """The two QC seams every e2e test replaces (U3): no detached worker spawn, the fake reviewer run
+    (install_reviewer). Returns the FakeReviewer."""
     from jobhunter import qc as qcpkg
-    from tests.fakes.u3 import FakeReviewer
     prev = qcpkg.SPAWN
     qcpkg.SPAWN = [].append
     test.addCleanup(setattr, qcpkg, "SPAWN", prev)
-    p = mock.patch.object(ocrun, "agent_turn", FakeReviewer("pass"))
-    p.start()
-    test.addCleanup(p.stop)
+    return install_reviewer(test, reviewer)
 
 
 class OutreachSteps:

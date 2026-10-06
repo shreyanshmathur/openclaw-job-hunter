@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { activeSites, readConsent } from "../src/consent.ts";
+import { activeCapabilities, activeSites, capabilityActive, readConsent, validCapabilitySite } from "../src/consent.ts";
 import { classifyUrl, consentSiteFor, parseHostsConfig } from "../src/browser.ts";
 import { decide, hasConsent } from "../src/policy.ts";
 import { BLOCK_CODES } from "../src/types.ts";
@@ -394,4 +394,106 @@ test("the test helper writes the core's consent shape", () => {
   assert.deepEqual(Object.keys(raw.sites.linkedin).sort(), Object.keys(row("linkedin")).sort());
   assert.equal(raw.sites.naukri.status, "revoked");
   assert.deepEqual(sorted(activeSites(raw)), ["linkedin"]);
+});
+
+// ------------------------------------------------------------------ capabilities (FEATURES-OTP-ACCOUNTS-CAPTCHA 1.2)
+
+function capRow(cap: string, site: string, extra: Record<string, unknown> = {}) {
+  return { site, capability: cap, status: "granted", granted_at: G1, revoked_at: null, declined_at: null, by: "owner", method: "pin", ...extra };
+}
+
+function capDoc(rows: Array<Record<string, unknown>>, base: Record<string, unknown> = doc(row("gmail"))) {
+  const caps: Record<string, Record<string, unknown>> = {};
+  for (const r of rows) {
+    const c = String(r.capability);
+    (caps[c] = caps[c] || {})[String(r.site)] = r;
+  }
+  return { ...base, capabilities: caps };
+}
+
+function capsOf(m: Map<string, Set<string>>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [k, v] of m) out[k] = sorted(v);
+  return out;
+}
+
+test("capability rows: granted, granted_at, no revoked_at, site and capability equal their keys", () => {
+  const d = capDoc([
+    capRow("email_codes", "workday"),
+    capRow("email_codes", "host:careers.kestrel.example"),
+    capRow("ats_accounts", "workday", { email: "alex.rivera@example.com" }),
+    capRow("email_codes", "icims", { status: "declined", granted_at: null, declined_at: G2 }),
+    capRow("email_codes", "taleo", { status: "revoked", revoked_at: G2 }),
+    capRow("ats_accounts", "taleo", { revoked_at: G2 }), // granted but revoked_at set
+    capRow("ats_accounts", "jobvite", { granted_at: "" }),
+    capRow("ats_accounts", "lever", { granted_at: null }),
+  ]);
+  assert.deepEqual(capsOf(activeCapabilities(d)), { email_codes: ["host:careers.kestrel.example", "workday"], ats_accounts: ["workday"] });
+  // a row filed under another site or capability key gives nothing
+  const moved = { capabilities: { email_codes: { workday: capRow("email_codes", "icims"), lever: capRow("ats_accounts", "lever"), greenhouse: { status: "granted", granted_at: G1 } } } };
+  assert.deepEqual(capsOf(activeCapabilities(moved)), { email_codes: [], ats_accounts: [] });
+  // unknown capability names are ignored; a missing or malformed capabilities object is no capability
+  assert.deepEqual(capsOf(activeCapabilities({ capabilities: { sms_codes: { workday: capRow("sms_codes", "workday") } } })), { email_codes: [], ats_accounts: [] });
+  for (const bad of [undefined, null, [], "x", { email_codes: [] }, { email_codes: "workday" }]) {
+    assert.deepEqual(capsOf(activeCapabilities({ sites: {}, capabilities: bad })), { email_codes: [], ats_accounts: [] }, JSON.stringify(bad));
+  }
+  // site keys: a platform key or host:<host> (lower case, no port)
+  for (const good of ["workday", "oracle_hcm", "host:careers.kestrel.example"]) assert.ok(validCapabilitySite(good), good);
+  for (const bad of ["Workday", "host:Careers.Kestrel.example", "host:careers.kestrel.example:443", "host:localhost", "host:", "host:" + "a".repeat(98) + ".example", "a b"]) {
+    assert.equal(validCapabilitySite(bad), false, bad);
+  }
+  assert.deepEqual(capsOf(activeCapabilities(capDoc([capRow("email_codes", "host:Careers.Kestrel.example")]))), { email_codes: [], ats_accounts: [] });
+});
+
+test("capabilityActive: the platform key of the host, else host:<host> covering its subdomains", () => {
+  const caps = activeCapabilities(capDoc([capRow("email_codes", "workday"), capRow("ats_accounts", "host:careers.kestrel.example")]));
+  assert.equal(capabilityActive(caps, "email_codes", "workday", "kestrel.wd5.myworkdayjobs.com"), true);
+  assert.equal(capabilityActive(caps, "ats_accounts", "workday", "kestrel.wd5.myworkdayjobs.com"), false);
+  assert.equal(capabilityActive(caps, "email_codes", "icims", "careers-kestrel.icims.com"), false);
+  assert.equal(capabilityActive(caps, "ats_accounts", null, "careers.kestrel.example"), true);
+  assert.equal(capabilityActive(caps, "ats_accounts", null, "jobs.careers.kestrel.example"), true);
+  assert.equal(capabilityActive(caps, "ats_accounts", null, "evilcareers.kestrel.example"), false);
+  assert.equal(capabilityActive(caps, "ats_accounts", null, "kestrel.example"), false);
+  assert.equal(capabilityActive(caps, "email_codes", null, "careers.kestrel.example"), false);
+  assert.equal(capabilityActive(caps, "ats_accounts", null, null), false);
+  assert.equal(capabilityActive(undefined, "email_codes", "workday", null), false);
+  assert.equal(capabilityActive(caps, "sms_codes", "workday", null), false);
+});
+
+test("readConsent reads capabilities with the same file-safety rules (a bad file gives no consent at all)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jhg-caps-"));
+  try {
+    const file = path.join(dir, "consent.json");
+    let c = readConsent(file);
+    assert.equal(c.ok, false);
+    assert.deepEqual(capsOf(c.capabilities), { email_codes: [], ats_accounts: [] });
+    const body = JSON.stringify(capDoc([capRow("email_codes", "workday"), capRow("ats_accounts", "workday")]));
+    fs.writeFileSync(file, body, { mode: 0o600 });
+    c = readConsent(file);
+    assert.equal(c.ok, true);
+    assert.deepEqual(capsOf(c.capabilities), { email_codes: ["workday"], ats_accounts: ["workday"] });
+    // no capabilities object: fine, sites still read
+    fs.writeFileSync(file, JSON.stringify(doc(row("gmail"))));
+    c = readConsent(file);
+    assert.equal(c.ok, true);
+    assert.deepEqual(sorted(c.sites), ["gmail"]);
+    assert.deepEqual(capsOf(c.capabilities), { email_codes: [], ats_accounts: [] });
+    // shared-writable, a link, another shape, too large: no capability either
+    fs.writeFileSync(file, body);
+    fs.chmodSync(file, 0o666);
+    assert.deepEqual(capsOf(readConsent(file).capabilities), { email_codes: [], ats_accounts: [] });
+    fs.chmodSync(file, 0o600);
+    const link = path.join(dir, "link.json");
+    fs.symlinkSync(file, link);
+    assert.equal(readConsent(link).ok, false);
+    assert.deepEqual(capsOf(readConsent(link).capabilities), { email_codes: [], ats_accounts: [] });
+    fs.writeFileSync(file, JSON.stringify({ capabilities: { email_codes: { workday: capRow("email_codes", "workday") } } })); // no sites object
+    assert.equal(readConsent(file).ok, false);
+    assert.deepEqual(capsOf(readConsent(file).capabilities), { email_codes: [], ats_accounts: [] });
+    fs.writeFileSync(file, body.replace(/}$/, " ".repeat(1024 * 1024) + "}"));
+    assert.match(readConsent(file).reason, /too large/);
+    assert.deepEqual(capsOf(readConsent(file).capabilities), { email_codes: [], ats_accounts: [] });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

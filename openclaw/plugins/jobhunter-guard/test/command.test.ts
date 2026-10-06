@@ -89,3 +89,39 @@ test("help text is ASCII and has no spaced hyphen dashes", () => {
   assert.ok(/^[\x0a\x20-\x7e]*$/.test(HELP_TEXT));
   assert.ok(!/ - /.test(HELP_TEXT));
 });
+
+// ------------------------------------------------------------------ /jh continue (CAPTCHA hand-off, 3.3)
+
+test("/jh continue <code> parses; bad shapes are refused with the usage error", () => {
+  assert.deepEqual(parseJh("continue K7QA"), { command: "continue", args: ["K7QA"] });
+  assert.deepEqual(parseJh("continue k7qa"), { command: "continue", args: ["K7QA"] });
+  assert.deepEqual(parseJh("Continue  K7QA  "), { command: "continue", args: ["K7QA"] });
+  for (const bad of ["continue", "continue K7Q", "continue K7QAX", "continue K7QA now", "continue B0O1", "continue K7-A", "continue --grant x"]) {
+    const p = parseJh(bad) as { error?: string };
+    assert.ok("error" in p, bad);
+    assert.equal(p.error, "usage: /jh continue <4-character code>", bad);
+  }
+  assert.ok(HELP_TEXT.split("\n").includes("/jh continue <code>  after you solved a CAPTCHA in the agent's browser window"));
+});
+
+test("/jh continue: the owner runs jh.py continue with a valid grant; a non-owner gets G_NOT_OWNER and nothing runs", async () => {
+  const r = fakeRunner({ stdout: "Resolved. The job goes back to the front of the apply queue." });
+  const now = 1790000000;
+  const out = await handleJh({ senderIsOwner: true, channel: "whatsapp", args: "continue K7QA" }, { key: () => key, run: r.run, ownerFallback: undefined, nowS: () => now });
+  assert.match(out.text, /^Resolved/);
+  assert.equal(r.calls.length, 1);
+  assert.deepEqual(r.calls[0].slice(2), ["--human", "continue", "K7QA"]);
+  assert.equal(verifyGrant(key, r.calls[0][1], "continue", ["K7QA"], now), true);
+
+  const r2 = fakeRunner();
+  const logs: Record<string, unknown>[] = [];
+  for (const ctx of [{ senderId: "stranger-4", channel: "whatsapp" }, { senderIsOwner: false }, { senderId: "+10000000000", channel: "telegram" }]) {
+    const refused = await handleJh({ ...ctx, args: "continue K7QA" }, { key: () => key, run: r2.run, ownerFallback: fallback, log: (e) => logs.push(e) });
+    assert.match(refused.text, /^G_NOT_OWNER/);
+  }
+  assert.equal(r2.calls.length, 0);
+  assert.ok(logs.every((e) => e.code === "G_NOT_OWNER"));
+  const usage = await handleJh({ senderIsOwner: true, args: "continue K7" }, { key: () => key, run: r2.run, ownerFallback: undefined });
+  assert.match(usage.text, /^usage: \/jh continue/);
+  assert.equal(r2.calls.length, 0);
+});

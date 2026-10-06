@@ -4,7 +4,7 @@
 // The entry is a plain object in the shape definePluginEntry() returns, so the plugin has no runtime
 // dependency on the openclaw package (the tests import it directly with node --test).
 
-import { GuardRuntime, parseConfig, type Logger } from "./src/runtime.ts";
+import { GuardRuntime, parseConfig, strayRunNotice, strayRunTrigger, type Logger } from "./src/runtime.ts";
 
 export const PLUGIN_ID = "jobhunter-guard";
 const HEARTBEAT_MS = 5 * 60 * 1000;
@@ -42,6 +42,19 @@ const jsonSchema = {
         properties: { channel: { type: "string" }, senderId: { type: "string" } },
       },
     },
+    claudeNativeTools: { type: "string", enum: ["deny", "gate"] },
+    pinToolSurface: { type: "boolean" },
+    proofCarriers: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["argv", "env"] } },
+    recordEvents: { type: "boolean" },
+    protectedRoots: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        read: { type: "array", items: { type: "string" } },
+        write: { type: "array", items: { type: "string" } },
+      },
+    },
+    qcVerdictFile: { type: "boolean" },
   },
 };
 
@@ -105,7 +118,29 @@ export function register(api: Api): GuardRuntime | null {
     }
   });
 
-  api.on("resolve_exec_env", (_event: any, ctx: any) => (runtime ? runtime.execEnv(ctx || {}) : undefined));
+  // R8: the env proof. The event carries the session key too; ctx wins when both name one.
+  api.on("resolve_exec_env", (event: any, ctx: any) => {
+    if (!runtime) return undefined;
+    const c = { ...(ctx || {}) };
+    if (!c.sessionKey && event && typeof event.sessionKey === "string") c.sessionKey = event.sessionKey;
+    return runtime.execEnv(c);
+  });
+
+  // Tool-surface pin: a jobhunter run only ever sees its ACL tools (defense in depth for stray runs; it does
+  // not restrict a stray `openclaw agent` run on OpenClaw 2026.9.8, V7). A run not started from a cron job also
+  // gets the stray-run notice (model behavior only). Without a valid config a jobhunter run gets no tools at all.
+  // OpenClaw 2026.9.8 runs this hook only with plugins.entries.jobhunter-guard.hooks.allowConversationAccess true;
+  // without that grant it is blocked at registration and neither the pin nor the notice applies.
+  api.on("before_prompt_build", (_event: any, ctx: any) => {
+    if (runtime) return runtime.promptTools(ctx || {});
+    const agent = String((ctx && ctx.agentId) || "");
+    const key = String((ctx && ctx.sessionKey) || "");
+    if (!agent.startsWith("jobhunter-") && !key.startsWith("agent:jobhunter-")) return undefined;
+    const trigger = strayRunTrigger(ctx || {});
+    if (trigger === null) return { toolsAllow: [] };
+    const id = agent.startsWith("jobhunter-") ? agent : key.split(":")[1] || "jobhunter";
+    return { toolsAllow: [], prependSystemContext: strayRunNotice(id, trigger) };
+  });
 
   // Owner only. With no ownerFallback the host must report the sender as the owner (requiredScopes on
   // a chat surface is satisfied only by an owner, and it makes the host expose senderIsOwner). With an

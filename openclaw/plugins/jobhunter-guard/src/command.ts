@@ -32,6 +32,7 @@ export const HELP_TEXT = [
   "/jh status  what is running and what is blocked",
   "/jh inbox  approvals and questions waiting for you",
   "/jh lower <setting> <value>  tighten a limit (raising needs the terminal and your PIN)",
+  "/jh continue <code>  after you solved a CAPTCHA in the agent's browser window",
   "Unpause, breaker reset and raising limits are terminal only: ./jobhunter <command>",
 ].join("\n");
 
@@ -95,6 +96,12 @@ export function parseJh(raw: string | undefined): JhCommand | { help: true } | {
       const area = (words[0] || "all").toLowerCase();
       if (!AREA_RE.test(area)) return { error: "usage: /jh pause [all|linkedin|gmail|applications|site:<name>]" };
       return { command: "pause", args: ["--scope", area] };
+    }
+    case "continue": {
+      // the CAPTCHA hand-off (jh.py continue <code>): the owner solved the CAPTCHA in the agent's window
+      const code = (words[0] || "").toUpperCase();
+      if (words.length !== 1 || !CODE_RE.test(code)) return { error: "usage: /jh continue <4-character code>" };
+      return { command: "continue", args: [code] };
     }
     case "lower": {
       if (words.length !== 2 || !PATH_RE.test(words[0]) || !VALUE_RE.test(words[1]) || words[1].startsWith("-")) {

@@ -1,0 +1,673 @@
+{
+ "notes": "Recorded-shape ATS pages for the fake CDP server (tests/fakes/u6/fake_cdp.py): fields, buttons with a state-machine action, page text, URL and CAPTCHA widgets. Fictional company Kestrel Commerce; no real tenant.",
+ "pages": {
+  "blank": {
+   "url": "about:blank",
+   "title": "",
+   "text": "",
+   "fields": [],
+   "buttons": []
+  },
+  "wd_posting": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001",
+   "title": "Senior Analyst - Kestrel Commerce Careers",
+   "text": "Senior Analyst. Remote. Kestrel Commerce builds returns forecasting tools. Apply",
+   "fields": [],
+   "buttons": [
+    {
+     "name": "Apply",
+     "aid": "adventureButton",
+     "action": {
+      "goto": "wd_create"
+     }
+    }
+   ]
+  },
+  "wd_create": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create Account. Create an account to apply. Email Address. Password. Verify New Password. Already have an account? Sign In",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Verify New Password",
+     "aid": "verifyPassword",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Yes, I have read and consent to the Candidate Privacy Statement",
+     "aid": "createAccountCheckbox",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Create Account",
+     "aid": "createAccountSubmitButton",
+     "action": {
+      "create_account": {
+       "next": "wd_verify_link",
+       "exists": "wd_exists"
+      }
+     }
+    },
+    {
+     "name": "Sign In",
+     "aid": "signInLink",
+     "action": {
+      "goto": "wd_signin"
+     }
+    }
+   ]
+  },
+  "wd_create_code": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create Account. Create an account to apply. Email Address. Password. Verify New Password.",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Verify New Password",
+     "aid": "verifyPassword",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Yes, I have read and consent to the Candidate Privacy Statement",
+     "aid": "createAccountCheckbox",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Create Account",
+     "aid": "createAccountSubmitButton",
+     "action": {
+      "create_account": {
+       "next": "wd_verify_code",
+       "exists": "wd_exists"
+      }
+     }
+    }
+   ]
+  },
+  "wd_create_strict": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create Account. Create an account to apply. Email Address. Password. Verify New Password.",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Verify New Password",
+     "aid": "verifyPassword",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Yes, I have read and consent to the Candidate Privacy Statement",
+     "aid": "createAccountCheckbox",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Create Account",
+     "aid": "createAccountSubmitButton",
+     "action": {
+      "create_account": {
+       "next": "wd_verify_link",
+       "password_rule": "alnum_dash_only"
+      }
+     }
+    }
+   ]
+  },
+  "wd_create_marketing": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create Account. Create an account to apply. Email Address. Password. Verify New Password.",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Verify New Password",
+     "aid": "verifyPassword",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Yes, I have read and consent to the Candidate Privacy Statement",
+     "aid": "createAccountCheckbox",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Send me job alerts and marketing emails from our partners",
+     "aid": "marketingCheckbox",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Create Account",
+     "aid": "createAccountSubmitButton",
+     "action": {
+      "create_account": {
+       "next": "wd_verify_link"
+      }
+     }
+    }
+   ]
+  },
+  "wd_exists": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "An account with this email already exists. Sign In or reset your password.",
+   "fields": [],
+   "buttons": []
+  },
+  "wd_verify_link": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login/verify-sent",
+   "title": "Kestrel Commerce Careers",
+   "text": "We sent you a verification link. Check your email to finish creating your account.",
+   "fields": [],
+   "buttons": []
+  },
+  "wd_verify_code": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login/verify-code",
+   "title": "Kestrel Commerce Careers",
+   "text": "Enter the verification code we sent to your email.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Verification Code",
+     "autocomplete": "one-time-code",
+     "code": true,
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Verify",
+     "aid": "verifyButton",
+     "action": {
+      "verify_code": {
+       "next": "wd_signin"
+      }
+     }
+    }
+   ]
+  },
+  "wd_link_verified": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login?verified=1",
+   "title": "Kestrel Commerce Careers",
+   "text": "Your email address is verified. Sign In. Email Address. Password.",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Sign In",
+     "aid": "signInSubmitButton",
+     "action": {
+      "signin": {
+       "next": "wd_signin_code"
+      }
+     }
+    }
+   ]
+  },
+  "wd_signin": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login",
+   "title": "Kestrel Commerce Careers",
+   "text": "Sign In. Email Address. Password. Forgot your password?",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Sign In",
+     "aid": "signInSubmitButton",
+     "action": {
+      "signin": {
+       "next": "wd_signin_code"
+      }
+     }
+    }
+   ]
+  },
+  "wd_signin_direct": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login",
+   "title": "Kestrel Commerce Careers",
+   "text": "Sign In. Email Address. Password.",
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Sign In",
+     "aid": "signInSubmitButton",
+     "action": {
+      "signin": {
+       "next": "wd_app_form"
+      }
+     }
+    }
+   ]
+  },
+  "wd_signin_code": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login/code",
+   "title": "Kestrel Commerce Careers",
+   "text": "Enter the verification code we sent to your email to sign in.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Verification Code",
+     "autocomplete": "one-time-code",
+     "code": true,
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Verify",
+     "aid": "verifyButton",
+     "action": {
+      "verify_code": {
+       "next": "wd_app_form"
+      }
+     }
+    }
+   ]
+  },
+  "wd_app_form": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/myInformation",
+   "title": "Kestrel Commerce Careers",
+   "text": "My Information. First Name. Last Name. Email Address. Notice period (days). Resume. Submit Application",
+   "fields": [
+    {
+     "type": "text",
+     "label": "First Name"
+    },
+    {
+     "type": "text",
+     "label": "Last Name"
+    },
+    {
+     "type": "email",
+     "label": "Email Address"
+    },
+    {
+     "type": "text",
+     "label": "Notice period (days)"
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Submit Application",
+     "aid": "bottom-navigation-next-button",
+     "action": {
+      "submit": "wd_confirmation"
+     }
+    }
+   ]
+  },
+  "wd_confirmation": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/done",
+   "title": "Kestrel Commerce Careers",
+   "text": "Thank you for applying. Your application for Senior Analyst was received.",
+   "fields": [],
+   "buttons": []
+  },
+  "wd_sms": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login/mfa",
+   "title": "Kestrel Commerce Careers",
+   "text": "We sent a code to your mobile phone. Enter the code to continue.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Code",
+     "autocomplete": "one-time-code",
+     "code": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Verify",
+     "action": {
+      "verify_code": {
+       "next": "wd_app_form"
+      }
+     }
+    }
+   ]
+  },
+  "wd_sms_and_email": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login/mfa",
+   "title": "Kestrel Commerce Careers",
+   "text": "We sent a code to your mobile. Check your email too.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Code",
+     "autocomplete": "one-time-code",
+     "code": true
+    }
+   ],
+   "buttons": []
+  },
+  "wd_captcha": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply/applyManually",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create Account. Please verify you're a human before you continue.",
+   "captcha": {
+    "frames": 1,
+    "containers": 1
+   },
+   "fields": [
+    {
+     "type": "email",
+     "label": "Email Address",
+     "aid": "email",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Password",
+     "aid": "password",
+     "required": true
+    },
+    {
+     "type": "password",
+     "label": "Verify New Password",
+     "aid": "verifyPassword",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Yes, I have read and consent to the Candidate Privacy Statement",
+     "aid": "createAccountCheckbox",
+     "required": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Create Account",
+     "aid": "createAccountSubmitButton",
+     "action": {
+      "create_account": {
+       "next": "wd_verify_link"
+      }
+     }
+    }
+   ]
+  },
+  "wd_social": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/job/Remote/Senior-Analyst_JR-1001/apply",
+   "title": "Kestrel Commerce Careers",
+   "text": "Start your application. Sign in with Google. Apply Manually.",
+   "fields": [],
+   "buttons": [
+    {
+     "name": "Sign in with Google",
+     "action": {
+      "goto": "google_signin"
+     }
+    },
+    {
+     "name": "Apply Manually",
+     "action": {
+      "goto": "wd_create"
+     }
+    }
+   ]
+  },
+  "google_signin": {
+   "url": "https://accounts.google.com/v3/signin/identifier",
+   "title": "Sign in - Google Accounts",
+   "text": "Sign in. Use your Google Account.",
+   "fields": [],
+   "buttons": []
+  },
+  "wd_link_error": {
+   "url": "https://kestrel.wd5.myworkdayjobs.com/en-US/External/login?error=1",
+   "title": "Kestrel Commerce Careers",
+   "text": "This link is invalid or has expired.",
+   "fields": [],
+   "buttons": []
+  },
+  "gh_security_code": {
+   "url": "https://job-boards.greenhouse.io/kestrelcommerce/jobs/4000001",
+   "title": "Job Application for Data Analyst at Kestrel Commerce",
+   "text": "Security code. Enter the 8-character security code we sent to your email, then submit your application again.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Security code",
+     "name": "security_code",
+     "code": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Submit application",
+     "action": {
+      "verify_code": {
+       "next": "gh_confirmation"
+      }
+     }
+    }
+   ]
+  },
+  "gh_confirmation": {
+   "url": "https://job-boards.greenhouse.io/kestrelcommerce/jobs/4000001/confirmation",
+   "title": "Thank you",
+   "text": "Thank you for applying to Kestrel Commerce.",
+   "fields": [],
+   "buttons": []
+  },
+  "oracle_verify": {
+   "url": "https://kestrel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/apply/email",
+   "title": "Kestrel Commerce Careers",
+   "text": "Verify your email. Enter the verification code we sent to your email.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Verification Code",
+     "placeholder": "Enter code",
+     "code": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Verify",
+     "action": {
+      "verify_code": {
+       "next": "blank"
+      }
+     }
+    }
+   ]
+  },
+  "sf_otp": {
+   "url": "https://career5.successfactors.eu/careers?company=kestrelcom&login_ns=register",
+   "title": "Kestrel Commerce Careers",
+   "text": "Enter the one-time passcode we emailed you.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Digit 1",
+     "maxlength": 1,
+     "code": true
+    },
+    {
+     "type": "text",
+     "label": "Digit 2",
+     "maxlength": 1,
+     "code": true
+    },
+    {
+     "type": "text",
+     "label": "Digit 3",
+     "maxlength": 1,
+     "code": true
+    },
+    {
+     "type": "text",
+     "label": "Digit 4",
+     "maxlength": 1,
+     "code": true
+    },
+    {
+     "type": "text",
+     "label": "Digit 5",
+     "maxlength": 1,
+     "code": true
+    },
+    {
+     "type": "text",
+     "label": "Digit 6",
+     "maxlength": 1,
+     "code": true
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Submit Code",
+     "action": {
+      "verify_code": {
+       "next": "blank"
+      }
+     }
+    }
+   ]
+  },
+  "icims_account": {
+   "url": "https://careers-kestrel.icims.com/jobs/1001/login",
+   "title": "Kestrel Commerce Careers",
+   "text": "Create an account to apply. Email. Password. Confirm Password.",
+   "fields": [
+    {
+     "type": "text",
+     "label": "Email",
+     "name": "email"
+    },
+    {
+     "type": "password",
+     "label": "Password"
+    },
+    {
+     "type": "password",
+     "label": "Confirm Password"
+    },
+    {
+     "type": "checkbox",
+     "label": "I agree to the Privacy Policy",
+     "required": true
+    },
+    {
+     "type": "checkbox",
+     "label": "Sign me up for job alerts",
+     "required": false
+    }
+   ],
+   "buttons": [
+    {
+     "name": "Register",
+     "action": {
+      "create_account": {
+       "next": "blank"
+      }
+     }
+    },
+    {
+     "name": "Cancel",
+     "action": {
+      "goto": "blank"
+     }
+    }
+   ]
+  }
+ }
+}

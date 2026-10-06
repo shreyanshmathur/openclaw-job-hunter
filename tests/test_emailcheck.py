@@ -1,7 +1,6 @@
 """U6 address checks: grades, MX result, no-guessing domains, DNS parsing (no network), CLI exits."""
 from __future__ import annotations
 
-import io
 import json
 import unittest
 
@@ -9,9 +8,10 @@ GMAIL = "gmail" + ".com"   # built at run time so the leak check sees no real-lo
 from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import canon, cli, db, emailcheck
+from jobhunter import canon, db, emailcheck
 from tests.fakes.u6 import U6TestCase, set_config
 from tests.fakes.u6 import enrich as enrich_fakes
+from tests.fakes.u6.agentcall import agent_cli
 from tests.helpers import insert_company, insert_contact, insert_job
 
 GOOGLE_MX = ["aspmx.l.google.com", "alt1.aspmx.l.google.com"]
@@ -197,11 +197,9 @@ class TestProviderGrades(U6TestCase):
 
 
 class TestCli(U6TestCase):
-    def run_cli(self, argv):
-        out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}
-        rc = cli.main(argv, env=env, stdin=io.StringIO(""), stdout=out)
-        return rc, json.loads(out.getvalue())
+    def run_cli(self, argv, agent="jobhunter-outreach"):
+        # in this process (lookup_mx is mocked), as the guard runs it: python -I, argv and env proof
+        return agent_cli(agent, argv)
 
     def test_no_mx_exit_7_and_stored(self):
         insert_contact(self.conn, email="alex.rivera@kestrel.example")
@@ -220,6 +218,14 @@ class TestCli(U6TestCase):
         with mock.patch.object(emailcheck, "lookup_mx", side_effect=emailcheck.LookupFailed("timeout")):
             rc, out = self.run_cli(["email", "verify", "--address", "sam.lee@kestrel.example", "--grade", "A"])
         self.assertEqual((rc, out["code"]), (12, "E_NETWORK"))
+
+    def test_evaluator_may_not_verify(self):
+        insert_contact(self.conn, email="alex.rivera@kestrel.example")
+        with mock.patch.object(emailcheck, "lookup_mx", return_value=GOOGLE_MX) as mx:
+            rc, out = self.run_cli(["email", "verify", "--address", "alex.rivera@kestrel.example", "--grade", "A"],
+                                   agent="jobhunter-evaluator")
+        self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"), out)
+        self.assertFalse(mx.called)
 
 
 if __name__ == "__main__":

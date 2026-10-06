@@ -107,4 +107,5 @@ for recorded research (code refuses URLs that are not in salary.json), or
 
 `__PY__ __REPO__/scripts/jh.py profile infer-record --file __WS__/work/onboarding/inference.json`
 
-Exit 10 names the fields to fix; fix them once and run it again. Then reply `NO_REPLY`.
+Exit 10 names the fields to fix; fix them once and run it again. Then reply with the single word
+`ONBOARD_DONE`.

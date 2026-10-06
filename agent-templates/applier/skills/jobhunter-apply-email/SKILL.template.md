@@ -11,7 +11,9 @@ Used for `apply next` items with `needs: email` (the posting says "send your CV 
 and QC and approval clear it. Then `preflight` tells you the email route: on `web_ui` (the default) you send the
 approved draft in Gmail yourself under a gate token (section "Web route" below); on `app_password` the mailer
 sends it with the approved resume attached and you never open Gmail. Every command starts with
-`__PY__ __REPO__/scripts/jh.py`.
+`__PY__ __REPO__/scripts/jh.py`. Every file below (contact, evidence, draft, precheck, observed) is a whole file
+you write with the write tool under `__WS__/work/<cycle_id>/`; there is no edit tool, so to fix a file, write it
+again.
 
 ## Steps
 
@@ -26,9 +28,9 @@ sends it with the approved resume attached and you never open Gmail. Every comma
 3. Tailor the resume (skill `jobhunter-resume-tailor`) and wait until the resume draft is approved (in human
    mode this can take until a later cycle; release the job with `apply release --job <job_uid>`).
 4. Write the application email with the writer brief (`__WS__/ref/writer_brief.md`, channel
-   `email_application`): subject names the role as the posting names it, 60 to 150 words, why this role, one or
-   two proof points that trace to profile facts, a plain close. No links unless the posting asks for them.
-   The draft file:
+   `email_application`; read it with the read tool): subject names the role as the posting names it, 60 to 150
+   words, why this role, one or two proof points that trace to profile facts, a plain close. No links unless the
+   posting asks for them. The draft file:
 
    ```json
    {"kind": "application_email", "channel": "email_application", "job_uid": "<job_uid>",
@@ -45,7 +47,9 @@ sends it with the approved resume attached and you never open Gmail. Every comma
 ## Web route (`gmail.route = web_ui`) only
 
 When `preflight` reports the web route, the send is a browser action under a gate token: follow skill
-`jobhunter-gmail-web` with skill `jobhunter-gate` after the draft is approved:
+`jobhunter-gmail-web` with skill `jobhunter-gate` after the draft is approved. Every browser call carries
+`"profile": "jobhunter"`, for example
+`{"action": "navigate", "profile": "jobhunter", "targetUrl": "https://mail.google.com/mail/u/0/#inbox"}`:
 
 1. Session check on the Gmail inbox (skill `jobhunter-stop-detect`: `read_login_state.js`, then
    `identity check --platform gmail`). Signed out, a verification prompt or another account: stop.

@@ -21,8 +21,8 @@ Every command starts with `__PY__ __REPO__/scripts/jh.py`.
 
 ## Steps
 
-1. Read the packet. If `jd_text` is empty, score only what the title and job fields support and say so in
-   `reason_text`.
+1. Read the packet with the read tool, at the absolute path `eval next` gave you. If `jd_text` is empty, score
+   only what the title and job fields support and say so in `reason_text`.
 2. Gates first (see the brief). Set a gate true only with clear evidence. For `must_have_missing`, add one entry
    per hard requirement that no profile fact supports, each with an exact `jd_quote`.
 3. Criteria: an integer from 0 to 5 each with one short `evidence` sentence. For `skills`, list claimed matches
@@ -34,10 +34,11 @@ Every command starts with `__PY__ __REPO__/scripts/jh.py`.
    and the biggest gap or deal breaker.
 6. `model`: the model id you run as. `must_have_quotes`: optional list of the JD's hard requirements you saw,
    each an exact quote.
-7. Write the scorecard JSON to `scorecard_path` with the write tool. Only the keys shown in the brief.
+7. Write the scorecard JSON to `scorecard_path` with the write tool (whole file). Only the keys shown in the brief.
 8. Run `eval record --job <job_uid> --file <scorecard_path>`. The answer gives `score`, `verdict`, `status`,
    `clamped` and `evidence_failures`. A clamp is not an error: move on. Exit 10 lists what to fix in
-   `data.errors`: fix the file once and record again; if it fails again, `eval release --job <job_uid>`.
+   `data.errors`: fix the file once (there is no edit tool: write the whole file again) and record again; if it
+   fails again, `eval release --job <job_uid>`.
 
 ## Scorecard shape
 

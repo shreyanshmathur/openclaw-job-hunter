@@ -21,7 +21,7 @@ NOTIFY_PRIORITIES = ("high", "normal", "low")
 NOTIFY_KINDS = ("approval", "question", "alert", "positive_reply", "info", "digest")
 HUMAN_TASK_KINDS = ("apply_manually", "answer_question", "review_reply", "resolve_unknown", "confirm_not_sent",
                     "reset_breaker", "confirm_profile", "relax_gate", "relogin", "confirm_company_merge",
-                    "confirm_agency", "review_audit_mismatch", "connect_mail", "suggest_auto")
+                    "confirm_agency", "review_audit_mismatch", "connect_mail", "suggest_auto", "captcha")
 HUMAN_TASK_REFS = ("job_id", "draft_id", "thread_id", "action_id", "company_id")
 
 

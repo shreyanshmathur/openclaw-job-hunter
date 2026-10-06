@@ -1,7 +1,6 @@
 """U6 contacts: 12.8 validation, identity merging through people.resolve, exclusions, job links, CLI exits."""
 from __future__ import annotations
 
-import io
 import json
 import unittest
 
@@ -9,8 +8,9 @@ GMAIL = "gmail" + ".com"   # built at run time so the leak check sees no real-lo
 MEMBER_URL = "https://www.linkedin.com/in/" + "ACoAAB1234567"   # an opaque member id URL, built the same way
 
 import tests  # noqa: F401
-from jobhunter import canon, cli, contacts, db
+from jobhunter import canon, contacts, db
 from tests.fakes.u6 import U6TestCase
+from tests.fakes.u6.agentcall import agent_cli
 from tests.helpers import HomeTestCase, insert_action, insert_job
 
 BASE = {"full_name": "Alex Rivera", "title": "Head of Analytics", "company": "Kestrel Commerce",
@@ -178,13 +178,10 @@ class TestContactCompanyDomains(HomeTestCase):
 
 
 class TestContactCli(U6TestCase):
-    env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}
-
-    def run_cli(self, data):
+    def run_cli(self, data, agent="jobhunter-outreach"):
+        # in this process (the U6 fakes apply), as the guard runs it: python -I, argv and env proof
         path = self.home.write_agent_file("outreach", "C20260927T050000ZAAAA/contact.json", json.dumps(data))
-        out = io.StringIO()
-        rc = cli.main(["contact", "add", "--file", path], env=self.env, stdin=io.StringIO(""), stdout=out)
-        return rc, json.loads(out.getvalue())
+        return agent_cli(agent, ["contact", "add", "--file", path])
 
     def test_ok_then_already_contacted(self):
         rc, out = self.run_cli(BASE)
@@ -194,6 +191,11 @@ class TestContactCli(U6TestCase):
         rc, out = self.run_cli(BASE)
         self.assertEqual((rc, out["code"]), (3, "E_DUP_PERSON"))
         self.assertIn("contact_uid", out["data"])
+
+    def test_agents_without_the_command_are_refused(self):
+        rc, out = self.run_cli(BASE, agent="jobhunter-scout")
+        self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"), out)
+        self.assertEqual(self.row("SELECT count(*) FROM contacts")[0], 0)
 
     def test_dnc_exit_7_keeps_the_row(self):
         stamp = canon.now()

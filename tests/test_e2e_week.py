@@ -26,7 +26,7 @@ import unittest
 from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import breakers, canon, emailcheck, ocrun, sheets_labels, sheets_rows, sources
+from jobhunter import breakers, canon, emailcheck, sheets_labels, sheets_rows, sources
 from jobhunter import qc as qcpkg
 from jobhunter.mail import fetch
 from jobhunter.sources import greenhouse
@@ -34,7 +34,7 @@ from tests.fakes.u1 import write_heartbeat
 from tests.fakes.u2 import FakeClient
 from tests.fakes.u3 import FakeReviewer, install_reviewer_hashes
 from tests.fakes.u9 import OWNER, inbound
-from tests.fixtures.e2e.support import AP, OWNER_CHAT, REPO, ApplyWorld, e2e_fixture
+from tests.fixtures.e2e.support import AP, ApplyWorld, OWNER_CHAT, REPO, e2e_fixture, install_reviewer
 from tests.test_e2e_outreach import MailWorld
 
 OU = "jobhunter-outreach"
@@ -139,10 +139,7 @@ class TestSimulatedWeek(unittest.TestCase):
         prev = qcpkg.SPAWN
         qcpkg.SPAWN = [].append
         self.addCleanup(setattr, qcpkg, "SPAWN", prev)
-        self.reviewer = FakeReviewer("pass")
-        p = mock.patch.object(ocrun, "agent_turn", self.reviewer)
-        p.start()
-        self.addCleanup(p.stop)
+        self.reviewer = install_reviewer(self, FakeReviewer("pass"))
         self.mail_runs = []
 
     # ------------------------------------------------------------------ helpers

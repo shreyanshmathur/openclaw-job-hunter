@@ -1,0 +1,300 @@
+{
+  "version": 2,
+  "fingerprint": null,
+  "default_profile_untouched": null,
+  "runs": {
+    "2026.9.8": {
+      "T0": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): install.sh --yes rc 0 in 157 s, four probes ok, selftest and qc smoke ok, verify-exec-policy green, 19 automations all disabled",
+        "note": "the test clone used claude-sonnet-5 in place of claude-opus-5-5 in agents.json and crons.json (Claude Code too old for opus-5-5)"
+      },
+      "T1": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): probe-evaluator ok in 14 s; whoami class agent jobhunter-evaluator, carriers argv and env, markers OPENCLAW_SHELL, isolated; claude args carry --tools \"\" and --strict-mcp-config"
+      },
+      "T2": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): read 28 ms, write 64 ms, job show 0.41 s, zero pending approvals"
+      },
+      "T3": {
+        "status": "partial",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): guard-on refusals in 5 to 24 ms, nothing reached jh.py",
+        "parts": {
+          "guard_on": {
+            "status": "pass",
+            "evidence": "G_EXEC_SHAPE for /bin/ls, chains, pipes, substitution, env and elevated; G_EXEC_ACL for dispatch tick"
+          },
+          "guard_off": {
+            "status": "not_run",
+            "note": "not run: the operator's permission system refused disabling the guard plugin on jhtest; the step was stopped, not worked around; offline stand-in: tests/test_e2e_claude_cli_route.py TestGuardOffLayers (L2 allowlist and L4 only)"
+          }
+        }
+      },
+      "T4": {
+        "status": "fail",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): the 11 tool calls were refused in 4 to 11 ms, but Claude Code expanded an @<path> mention of the test message into a file attachment before any tool call (D12)",
+        "parts": {
+          "guard_on": {
+            "status": "fail",
+            "evidence": "D12: the private key file reached the evaluator's context as a prompt attachment; no tool call, no guard event"
+          },
+          "guard_off": {
+            "status": "not_run",
+            "note": "not run: the operator's permission system refused disabling the guard plugin on jhtest; the step was stopped, not worked around; offline stand-in: TestGuardOffLayers t4b (workspaceOnly rendered for every agent, T4 targets outside the workspace); whether workspaceOnly refuses every path form is V5 and needs the live run"
+          }
+        }
+      },
+      "T5": {
+        "status": "partial",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): scout eval stats G_EXEC_ACL, minted evaluator command G_EXEC_PARAM; offline L4 9 of 9 refused",
+        "parts": {
+          "guard_on": {
+            "status": "pass",
+            "evidence": "(a) G_EXEC_ACL in 30 ms, (b) G_EXEC_PARAM in 14 ms"
+          },
+          "guard_off": {
+            "status": "not_run",
+            "note": "not run: the operator's permission system refused disabling the guard plugin on jhtest; the step was stopped, not worked around; offline stand-in: TestGuardOffLayers t5c (allowlist miss for the scout)"
+          },
+          "offline": {
+            "status": "pass",
+            "evidence": "(d) to (g) and five more forged or mismatched proofs refused as designed, 0.12 to 0.34 s each"
+          }
+        }
+      },
+      "T6": {
+        "status": "fail",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): the stray run started claude with --setting-sources user and --allowedTools mcp__openclaw__*, no --tools \"\" (V7, D10)",
+        "parts": {
+          "pin_on": {
+            "status": "fail",
+            "evidence": "the pin did not restrict the stray run; the model declined native tools on its own"
+          },
+          "pin_off": {
+            "status": "not_run",
+            "note": "not attempted after the guard-disable refusal"
+          }
+        }
+      },
+      "T6b": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): turn ended in 6 s with no pending operator input",
+        "note": "by model behavior only: the pin was not in force (see T6)",
+        "parts": {
+          "pin_on": {
+            "status": "pass",
+            "evidence": "6 s, no pending operator input",
+            "note": "mechanism not in force, the model declined"
+          },
+          "pin_off": {
+            "status": "not_run",
+            "note": "recorded only (known gap of V7); not attempted"
+          }
+        }
+      },
+      "T7": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): qc golden ran 20 one-shot review jobs with --tools \"\", 20 of 20 verdicts parsed from the run record, no job left",
+        "note": "agreement 15 of 20 against 18 needed is calibration (O2), not transport"
+      },
+      "T7b": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): qc with --tools \"\" ended in 4.9 s, no pending input"
+      },
+      "T8": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): salary-record as jobhunter-scout and infer-record as jobhunter-evaluator, ONBOARD_DONE, no E_CALLER_NOT_ALLOWED, zero pending"
+      },
+      "T9": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): second install all SKIP or DONE; seeded drift repaired with the dispatcher paused and resumed; verify-exec-policy green with the global seeds; T2 again with zero pending"
+      },
+      "T10": {
+        "status": "not_run",
+        "note": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): install and doctor print the red line for main, but the jh.py calls were not exercised (the model declined both prompts); round 1 had status ok, dispatch tick G_EXEC_ACL and the key read G_PATH_DENIED",
+        "parts": {
+          "guard_on": {
+            "status": "not_run",
+            "note": "model declined the fixed prompts twice"
+          },
+          "guard_off": {
+            "status": "not_run",
+            "note": "not run: the operator's permission system refused disabling the guard plugin on jhtest; the step was stopped, not worked around; offline stand-in: TestGuardOffLayers t10 and TestNativeTools"
+          }
+        }
+      },
+      "T11": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): dispatch tick and qc worker ran as system via run-preflight, no markers"
+      },
+      "T12": {
+        "status": "pass",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): mock provider on loopback, PROBE_DONE, whoami agent jobhunter-evaluator with both carriers, forged proof G_EXEC_PARAM, path and shape refusals"
+      },
+      "T13": {
+        "status": "partial",
+        "evidence": "round 2 (2026-10-06, 2026.9.8, Claude Code 2.1.270, tree before the D10 and D12 fixes): guard on blocks as designed",
+        "parts": {
+          "guard_on": {
+            "status": "pass",
+            "evidence": "no profile and profile openclaw G_BROWSER_PROFILE in 10 to 19 ms; profile jobhunter status, about:blank, close ok",
+            "note": "after_tool_call not evidenced (V10 open)"
+          },
+          "guard_off": {
+            "status": "not_run",
+            "note": "not run: the operator's permission system refused disabling the guard plugin on jhtest; the step was stopped, not worked around; offline stand-in: TestGuardOffLayers t13 (browser only for the three browsing agents, no defaultProfile change, every complete call example names the jobhunter profile)"
+          }
+        }
+      }
+    },
+    "2026.9.5": {
+      "T0": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T1": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T2": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T3": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T4": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T5": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T6": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T6b": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T7": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T7b": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      },
+      "T11": {
+        "status": "not_run",
+        "note": "not run: the 9.5 pass needs the user's OK in chat to move the 9.8 jhtest state aside (CLI-ROUTE-DESIGN 13.1)"
+      }
+    }
+  },
+  "v_items": {
+    "V1": {
+      "status": "open",
+      "fallback": null,
+      "note": "restricted runs seen on 9.8 (T1, T7b); 9.5 not run"
+    },
+    "V2": {
+      "status": "open",
+      "fallback": null
+    },
+    "V3": {
+      "status": "open",
+      "fallback": null
+    },
+    "V4": {
+      "status": "open",
+      "fallback": null,
+      "note": "T3b (guard off) not run"
+    },
+    "V5": {
+      "status": "open",
+      "fallback": null,
+      "note": "T4b (guard off) not run"
+    },
+    "V6": {
+      "status": "open",
+      "fallback": null
+    },
+    "V7": {
+      "status": "failed",
+      "fallback": null,
+      "evidence": "T6 on 9.8, rounds 1 and 2: the stray run was not restricted",
+      "note": "D10 open; fallback pin-off-stray-unsupported not applied yet"
+    },
+    "V8": {
+      "status": "open",
+      "fallback": null
+    },
+    "V9": {
+      "status": "open",
+      "fallback": null
+    },
+    "V10": {
+      "status": "open",
+      "fallback": null,
+      "note": "T13: the guard logs nothing for a benign page; guard-off part not run"
+    },
+    "V11": {
+      "status": "open",
+      "fallback": null
+    },
+    "V12": {
+      "status": "open",
+      "fallback": null
+    },
+    "V13": {
+      "status": "open",
+      "fallback": null
+    },
+    "V14": {
+      "status": "open",
+      "fallback": null
+    },
+    "V15": {
+      "status": "open",
+      "fallback": null
+    },
+    "V16": {
+      "status": "open",
+      "fallback": null
+    },
+    "V17": {
+      "status": "open",
+      "fallback": null
+    },
+    "V18": {
+      "status": "open",
+      "fallback": null
+    }
+  },
+  "attempts": [
+    {
+      "date": "2026-10-06",
+      "openclaw": "2026.9.8",
+      "outcome": "blocked at install step 9: the agents config patch did not validate (exec mode cannot be combined with security or ask); no jobhunter cron job or agent turn ran; the owner's own OpenClaw state was unchanged after teardown"
+    },
+    {
+      "date": "2026-10-06",
+      "openclaw": "2026.9.8",
+      "outcome": "round 1: install completed only with three test-harness workarounds (D6, D7, D8, since fixed); guard-on checks passed apart from D9 and V7; every guard-off variant not run (guard disable refused by the operator's permission system); owner's state unchanged"
+    },
+    {
+      "date": "2026-10-06",
+      "openclaw": "2026.9.8",
+      "outcome": "round 2: results in runs; new blocker D12 (prompt @path attachments) and V7 still failing; guard-off variants, the T10 jh.py calls and the 9.5 pass not run; owner's OpenClaw state, LaunchAgents and Claude Code settings unchanged; two stray-run skills folders of round 1 left in the system temp folder because their owner is uncertain"
+    },
+    {
+      "date": "2026-10-06",
+      "openclaw": "2026.9.8",
+      "outcome": "round 3: D12 fixed and confirmed live (T4a, T4c, T4d); new blocker D13 (V13: the run record keeps at most 2000 characters of the reply, golden QC 15 of 20); the guard-off variants (T3b, T4b, T5c, T6 and T6b pin off, T10 and T13 off) and T6/T6b pin on not run because the operator's permission system refused disabling the guard plugin and the stray agent run, so those steps were stopped, not worked around; the T10 jh.py turns and the 9.5 pass not run (the 9.5 pass needs the user's OK to move the 9.8 jhtest state aside, 13.1); runs above still hold round 2; owner's OpenClaw state unchanged"
+    }
+  ]
+}

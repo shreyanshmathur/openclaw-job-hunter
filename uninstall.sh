@@ -12,6 +12,9 @@
 # jobhunter-* agents and their config entries, and the jobhunter exec approvals. It never removes OpenClaw,
 # Claude Code, channel links, the Gateway service or your Google Sheet.
 set -euo pipefail
+# A person may run this from a Claude Code terminal. Claude Code's markers would make jh.py treat every call
+# as an unproven agent (jobhunter.auth.harness_markers), so this entry point drops them for its children.
+unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 JH="$REPO/scripts/jh.py"
@@ -73,6 +76,8 @@ warn() { say "WARNING: $*"; FAILED=1; }
 
 step 1 "Pause and remove the automations"
 "$REPO/jobhunter" pause >/dev/null 2>&1 || say "NOTE: ./jobhunter pause did not complete; removing the automations anyway"
+# every jobhunter:* job OpenClaw knows: the declared ones, the probe and onboarding jobs, and any QC one-shot
+# job (jobhunter:qc-review-*) a stopped review left behind
 if oc cron list --all --json >"$TMPD/cron.json" 2>/dev/null; then
   ids="$(jhh install job-ids --which all --from-list "$TMPD/cron.json" 2>/dev/null)" || ids=""
   n=0
@@ -103,6 +108,15 @@ while IFS="$TAB" read -r id ws model <&3; do
 done 3<<EOF
 $agents
 EOF
+
+# what the identity checks and the onboarding runs left behind (agents delete moves a workspace to the Trash
+# only when OpenClaw owns it)
+rm -rf "$REPO/state/probe"
+if [ -n "$JH_WS_ROOT" ] && [ -d "$JH_WS_ROOT" ]; then
+  for d in "$JH_WS_ROOT"/*/work/probe "$JH_WS_ROOT"/*/work/onboarding; do
+    if [ -d "$d" ]; then rm -rf "$d"; fi
+  done
+fi
 
 step 4 "Remove the config entries and exec approvals"
 p="$(jhh install render-uninstall-patch 2>&1)" || die "$p"

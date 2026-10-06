@@ -1,0 +1,63 @@
+{
+ "name": "claude-cli restricted runs: the onboarding pair and the probe through the guard and jh.py",
+ "note": "The bridged mcp__openclaw__* calls of the jobhunter:onboard-salary (scout) and jobhunter:onboard-profile (evaluator) cron jobs and of the evaluator probe, in the shapes OpenClaw 2026.9.8 hands plugin hooks (canonical tool names; ctx with agentId, sessionKey, sessionId, runId, workspaceDir). Built from the 9.8 source shapes (the U8 transcript transcript-claude-cli-restricted.json); replaced by the redacted recordEvents output of the jhtest run (same file name). Each exec goes through the guard (before_tool_call, then resolve_exec_env) and the rewritten command runs under python -I with OPENCLAW_SHELL and exactly that environment. Placeholders: {PY}, {REPO}, {ROOT} (the test install), {WS_ROOT}, {JH} = {PY} {REPO}/scripts/jh.py, {FIXTURE:<name>} = tests/fixtures/profile/<name>. Fictional data only.",
+ "runs": [
+  {
+   "agent": "jobhunter-scout",
+   "session": "agent:jobhunter-scout:cron:onboard-salary",
+   "ctx": {"sessionId": "sess-sc-1", "runId": "run-sc-1", "workspaceDir": "{WS_ROOT}/scout"},
+   "steps": [
+    {"tool": "exec", "params": {"command": "{JH} whoami", "timeoutSeconds": 90},
+     "jh": {"code": "OK", "agent_id": "jobhunter-scout", "data": {"class": "agent", "agent_id": "jobhunter-scout", "carriers": ["argv", "env"], "isolated": true}}},
+    {"tool": "read", "params": {"path": "{WS_ROOT}/scout/work/onboarding/salary_inputs.json"}},
+    {"tool": "read", "params": {"path": "{WS_ROOT}/scout/ref/salary_research.md"}},
+    {"tool": "browser", "params": {"action": "navigate", "targetUrl": "https://salaries.example.org/data-analyst-springfield"}, "expect": "G_BROWSER_PROFILE"},
+    {"tool": "browser", "params": {"profile": "openclaw", "action": "navigate", "targetUrl": "https://salaries.example.org/data-analyst-springfield"}, "expect": "G_BROWSER_PROFILE"},
+    {"tool": "write", "params": {"path": "{WS_ROOT}/scout/work/onboarding/salary.json", "content": "{FIXTURE:salary.json}"}},
+    {"tool": "exec", "params": {"command": "{JH} profile salary-record --file {WS_ROOT}/scout/work/onboarding/salary.json", "timeoutSeconds": 90},
+     "jh": {"code": "OK", "agent_id": "jobhunter-scout", "data": {"sources_recorded": 2}}, "keep": "salary"},
+    {"tool": "exec", "params": {"command": "{JH} profile infer-record --file {WS_ROOT}/scout/work/onboarding/salary.json", "timeoutSeconds": 90}, "expect": "G_EXEC_ACL"},
+    {"tool": "exec", "params": {"command": "{PY} -I {REPO}/scripts/jh.py --agent-proof jhp2.jobhunter-evaluator.1790000000.0123456789abcdef.0123456789abcdef.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa whoami", "timeoutSeconds": 90}, "expect": "G_EXEC_PARAM"},
+    {"tool": "exec", "params": {"command": "{JH} whoami --agent-proof=x", "timeoutSeconds": 90}, "expect": "G_EXEC_PARAM"},
+    {"tool": "exec", "params": {"command": "/bin/ls /", "timeoutSeconds": 90}, "expect": "G_EXEC_SHAPE"},
+    {"tool": "read", "params": {"path": "~/.ssh/id_ed25519"}, "expect": "G_PATH_DENIED"},
+    {"tool": "read", "params": {"path": "{ROOT}/private/guard.key"}, "expect": "G_PATH_DENIED"},
+    {"tool": "read", "params": {"path": "@../evaluator/ref/profile_inference.md"}, "expect": "G_PATH_DENIED"},
+    {"tool": "read", "params": {"path": "work/../../evaluator/work/onboarding/profile_inputs.json"}, "expect": "G_PATH_DENIED"},
+    {"tool": "write", "params": {"path": "{WS_ROOT}/scout/AGENTS.md", "content": "x"}, "expect": "G_PATH_DENIED"},
+    {"tool": "edit", "params": {"path": "{WS_ROOT}/scout/work/onboarding/salary.json", "edits": [{"oldText": "a", "newText": "b"}]}, "expect": "G_TOOL_DENIED"}
+   ]
+  },
+  {
+   "agent": "jobhunter-evaluator",
+   "session": "agent:jobhunter-evaluator:cron:onboard-profile",
+   "ctx": {"sessionId": "sess-ev-1", "runId": "run-ev-1", "workspaceDir": "{WS_ROOT}/evaluator"},
+   "steps": [
+    {"tool": "read", "params": {"path": "{WS_ROOT}/evaluator/ref/profile_inference.md"}},
+    {"tool": "read", "params": {"path": "work/onboarding/profile_inputs.json"}},
+    {"tool": "write", "params": {"path": "{WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "content": "{FIXTURE:inference.json}"}},
+    {"tool": "exec", "params": {"command": "{JH} profile infer-record --file {WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "timeoutSeconds": 90},
+     "jh": {"code": "OK", "agent_id": "jobhunter-evaluator"}, "keep": "infer"},
+    {"tool": "exec", "params": {"command": "{PY} -I {REPO}/scripts/jh.py profile status", "timeoutSeconds": 90},
+     "jh": {"code": "OK", "agent_id": "jobhunter-evaluator"}},
+    {"tool": "exec", "params": {"command": "{JH} profile salary-record --file {WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "timeoutSeconds": 90}, "expect": "G_EXEC_ACL"},
+    {"tool": "exec", "params": {"command": "{JH} home show", "env": {"PYTHONPATH": "/tmp"}, "timeoutSeconds": 90}, "expect": "G_EXEC_SHAPE"},
+    {"tool": "exec", "params": {"command": "{JH} home show", "elevated": true, "timeoutSeconds": 90}, "expect": "G_EXEC_SHAPE"},
+    {"tool": "read", "params": {"path": "{WS_ROOT}/scout/work/onboarding/salary.json"}, "expect": "G_PATH_DENIED"},
+    {"tool": "write", "params": {"path": "{WS_ROOT}/evaluator/work/.mcp.json", "content": "{}"}, "expect": "G_PATH_DENIED"},
+    {"tool": "apply_patch", "params": {"input": "*** Begin Patch\n*** Add File: work/x.txt\n+x\n*** End Patch"}, "expect": "G_TOOL_DENIED"}
+   ]
+  },
+  {
+   "agent": "jobhunter-evaluator",
+   "session": "agent:jobhunter-evaluator:cron:probe-evaluator",
+   "ctx": {"sessionId": "sess-ev-2", "runId": "run-ev-2", "workspaceDir": "{WS_ROOT}/evaluator"},
+   "steps": [
+    {"tool": "exec", "params": {"command": "{JH} whoami", "timeoutSeconds": 90},
+     "jh": {"code": "OK", "agent_id": "jobhunter-evaluator", "data": {"class": "agent", "agent_id": "jobhunter-evaluator", "carriers": ["argv", "env"], "isolated": true}}, "keep": "probe"},
+    {"tool": "write", "params": {"path": "{WS_ROOT}/evaluator/work/probe/ok.txt", "content": "OK"}},
+    {"tool": "read", "params": {"path": "{WS_ROOT}/evaluator/work/probe/ok.txt"}}
+   ]
+  }
+ ]
+}

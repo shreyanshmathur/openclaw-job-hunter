@@ -14,7 +14,10 @@ function agentExec(agent: string, command: string) {
 
 test("tokenize accepts only plain single-space tokens", () => {
   assert.deepEqual(tokenize("a b c"), ["a", "b", "c"]);
-  const bad = ["", " a", "a  b", "a ", "a|b", "a;b", "a && b", "a 'b'", 'a "b"', "a $HOME", "a\nb", "a > f", "a `x`", "a\tb", "a (b)", "a * b"];
+  assert.deepEqual(tokenize("a b=c"), ["a", "b=c"]);
+  const proof = "jhp2.jobhunter-scout.1790000000.0123456789abcdef.0123456789abcdef." + "0a".repeat(32);
+  assert.deepEqual(tokenize("--agent-proof " + proof), ["--agent-proof", proof]);
+  const bad = ["", " a", "a  b", "a ", "a|b", "a;b", "a && b", "a 'b'", 'a "b"', "a $HOME", "a\nb", "a > f", "a `x`", "a\tb", "a (b)", "a * b", "=python3", "a =b", "a ==b"];
   for (const s of bad) assert.equal(tokenize(s), null, JSON.stringify(s));
   assert.equal(tokenize(123 as unknown as string), null);
 });
@@ -91,6 +94,18 @@ const table: Row[] = [
   ["jobhunter-outreach", JH + " email verify --address alex@example.com --grade A", null],
   ["jobhunter-evaluator", JH + " eval record --job JABCDEFG --file " + WS + "/evaluator/work/" + CYCLE + "/JABCDEFG.json", null],
   ["jobhunter-qc", JH + " home show", "G_EXEC_ACL"],
+  // -I and the --agent-p* prefix (the guard writes --agent-proof itself)
+  ["jobhunter-scout", PY + " -I " + REPO_PATH + "/scripts/jh.py preflight --lane scout", null],
+  ["jobhunter-scout", PY + " -I -I " + REPO_PATH + "/scripts/jh.py preflight --lane scout", "G_EXEC_SHAPE"],
+  ["jobhunter-scout", PY + " -E " + REPO_PATH + "/scripts/jh.py preflight --lane scout", "G_EXEC_SHAPE"],
+  ["jobhunter-scout", PY + " -I", "G_EXEC_SHAPE"],
+  ["jobhunter-scout", JH + " --agent-proof x preflight --lane scout", "G_EXEC_PARAM"],
+  ["jobhunter-scout", JH + " --agent-proof=x preflight --lane scout", "G_EXEC_PARAM"],
+  ["jobhunter-scout", JH + " --agent-p x preflight --lane scout", "G_EXEC_PARAM"],
+  ["jobhunter-scout", JH + " --agent-pr preflight --lane scout", "G_EXEC_PARAM"],
+  ["jobhunter-scout", JH + " preflight --lane scout --agent-proof x", "G_EXEC_PARAM"],
+  ["jobhunter-scout", PY + " -I " + REPO_PATH + "/scripts/jh.py --agent-proof x preflight --lane scout", "G_EXEC_PARAM"],
+  ["jobhunter-scout", JH + " preflight --lane =scout", "G_EXEC_SHAPE"],
 ];
 
 test("agent exec decision table (R2)", () => {
@@ -104,6 +119,39 @@ test("agent exec decision table (R2)", () => {
   }
 });
 
+test("parseAgentExec returns the jh.py arguments and strips only an own proof pair", () => {
+  const opts = { python: PY, repo: REPO_PATH, commands: acl.agents["jobhunter-scout"].commands, classes, workRoots: roots("scout") };
+  const plain = parseAgentExec(JH + " --cycle " + CYCLE + " preflight --lane scout", opts);
+  assert.equal(plain.ok, true);
+  if (plain.ok) {
+    assert.deepEqual(plain.rest, ["--cycle", CYCLE, "preflight", "--lane", "scout"]);
+    assert.equal(plain.isolated, false);
+    assert.equal(plain.cycle, CYCLE);
+  }
+  const seen: Array<[string, string[]]> = [];
+  const own = (tok: string, after: string[]) => {
+    seen.push([tok, after]);
+    return tok === "jhp2.own";
+  };
+  const cmd = PY + " -I " + REPO_PATH + "/scripts/jh.py --agent-proof jhp2.own preflight --lane scout";
+  const stripped = parseAgentExec(cmd, { ...opts, ownProof: own });
+  assert.equal(stripped.ok, true);
+  if (stripped.ok) {
+    assert.deepEqual(stripped.rest, ["preflight", "--lane", "scout"]);
+    assert.equal(stripped.isolated, true);
+  }
+  assert.deepEqual(seen, [["jhp2.own", ["preflight", "--lane", "scout"]]]);
+  const other = parseAgentExec(cmd.replace("jhp2.own", "jhp2.other"), { ...opts, ownProof: own });
+  assert.equal(other.ok, false);
+  if (!other.ok) assert.equal(other.code, "G_EXEC_PARAM");
+  // without -I the pair is never stripped
+  const noI = parseAgentExec(JH + " --agent-proof jhp2.own preflight --lane scout", { ...opts, ownProof: own });
+  assert.equal(noI.ok, false);
+  // a second pair after the own one is refused
+  const twice = parseAgentExec(PY + " -I " + REPO_PATH + "/scripts/jh.py --agent-proof jhp2.own --agent-proof jhp2.own preflight --lane scout", { ...opts, ownProof: own });
+  assert.equal(twice.ok, false);
+});
+
 test("checkArgs fails closed on an unknown value class", () => {
   const r = checkArgs({ "--x": "no_such_class" }, ["--x", "1"], classes, []);
   assert.equal(r.ok, false);
@@ -115,7 +163,9 @@ test("public read-only exec for other agents (R7)", () => {
   assert.equal(parsePublicExec(JH + " --human inbox", opts).ok, true);
   assert.equal(parsePublicExec(JH + " budget --platform linkedin", opts).ok, true);
   assert.equal(parsePublicExec(JH + " approvals list", opts).ok, true);
-  for (const bad of [JH + " approve A7K2", JH + " unpause", JH + " status --grant 1.a.b", JH + " config lower a.b 1", "cd /x && " + JH + " approve A7K2", JH + " breaker reset --scope linkedin"]) {
+  assert.equal(parsePublicExec(PY + " -I " + REPO_PATH + "/scripts/jh.py status", opts).ok, true);
+  for (const bad of [JH + " approve A7K2", JH + " unpause", JH + " status --grant 1.a.b", JH + " config lower a.b 1", "cd /x && " + JH + " approve A7K2", JH + " breaker reset --scope linkedin",
+                     JH + " --agent-proof x status", JH + " status --agent-p x", JH + " --agent-proof=x status", PY + " -S " + REPO_PATH + "/scripts/jh.py status"]) {
     assert.equal(parsePublicExec(bad, opts).ok, false, bad);
   }
 });

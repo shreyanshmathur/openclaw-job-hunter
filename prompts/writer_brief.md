@@ -59,8 +59,9 @@ A follow-up keeps the thread's subject (code sets it).
 
 ## What you write (draft file, then `jh.py draft create --file <path>`)
 
-Write the file with your file tool under your own work folder for this cycle, then run the command. Code derives the
-recipient, the routing and the signature; never put an email address or a name in the file except inside the body.
+Write the file with the write tool, as one whole file, under your own work folder for this cycle (there is no edit
+tool: to fix it, write it again), then run the command. Code derives the recipient, the routing and the signature;
+never put an email address or a name in the file except inside the body.
 
 ```json
 {

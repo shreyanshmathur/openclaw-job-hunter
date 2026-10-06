@@ -1,0 +1,33 @@
+{
+ "name": "claude-cli unrestricted run: Claude Code native tools of a jobhunter agent, with and without the guard",
+ "note": "A stray unrestricted run (no cron --tools list, pin off): Claude Code's native tools as OpenClaw 2026.9.8 projects them for plugin hooks (execute-plugin.ts: Bash -> exec {command, description, timeout}; Read/Write/Edit -> read/write/edit with path = file_path; ctx with agentId, sessionKey, cwd, workspaceDir). `steps`: with claudeNativeTools deny (the default) the guard refuses every native call of a jobhunter agent. `raw`: the same native Bash commands when no guard decides them (plugin off or not loaded): Claude Code runs the text as typed, without -I, without the argv proof and without resolve_exec_env, in the agent's workspace, with the harness variables OpenClaw and Claude Code set; jh.py sees an unproven agent (the harness markers, never a proof): public read-only commands only, E_GUARD_MISSING for every other command, never system. `gate`: mode N (claudeNativeTools gate, an explicit reduced-protection opt-in): the guard rewrites native Bash with -I and the argv proof; the env proof never comes (resolve_exec_env does not fire for native Bash), so jh.py accepts the call only when cli_route.carriers is argv. Placeholders as in claude_cli_restricted.json. Fictional data only.",
+ "agent": "jobhunter-evaluator",
+ "session": "agent:jobhunter-evaluator:main",
+ "ctx": {"cwd": "{WS_ROOT}/evaluator", "workspaceDir": "{WS_ROOT}/evaluator"},
+ "native_env": {"CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "OPENCLAW_MCP_TOKEN": "mcp-token-example"},
+ "steps": [
+  {"tool": "exec", "params": {"command": "{JH} profile infer-record --file {WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "description": "Record the inference", "timeout": 120000}, "expect": "G_TOOL_DENIED"},
+  {"tool": "exec", "params": {"command": "{JH} home show", "description": "Show the install", "timeout": 120000}, "expect": "G_TOOL_DENIED"},
+  {"tool": "read", "params": {"file_path": "{WS_ROOT}/evaluator/ref/profile_inference.md", "path": "{WS_ROOT}/evaluator/ref/profile_inference.md"}, "expect": "G_TOOL_DENIED"},
+  {"tool": "write", "params": {"file_path": "{WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "path": "{WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "content": "{}"}, "expect": "G_TOOL_DENIED"},
+  {"tool": "Bash", "params": {"command": "{JH} whoami"}, "expect": "G_TOOL_DENIED"},
+  {"tool": "Glob", "params": {"pattern": "**/*.md"}, "expect": "G_TOOL_DENIED"}
+ ],
+ "raw": [
+  {"command": "{JH} profile infer-record --file {WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "code": "E_GUARD_MISSING"},
+  {"command": "{JH} profile salary-record --file {WS_ROOT}/evaluator/work/onboarding/profile_inference.json", "code": "E_GUARD_MISSING"},
+  {"command": "{JH} eval next", "code": "E_GUARD_MISSING"},
+  {"command": "{JH} dispatch tick", "code": "E_GUARD_MISSING"},
+  {"command": "{JH} home show", "code": "OK"},
+  {"command": "{JH} status", "code": "OK"},
+  {"command": "{JH} whoami", "code": "E_GUARD_MISSING"},
+  {"command": "{PY} -I {REPO}/scripts/jh.py whoami", "code": "E_GUARD_MISSING"},
+  {"command": "{PY} -I {REPO}/scripts/jh.py home show", "code": "OK"}
+ ],
+ "gate": [
+  {"tool": "exec", "params": {"command": "{JH} whoami", "description": "Who am I", "timeout": 120000}, "expect": "allow"},
+  {"tool": "exec", "params": {"command": "{JH} home show", "run_in_background": true}, "expect": "G_EXEC_SHAPE"},
+  {"tool": "exec", "params": {"command": "cat /etc/hosts", "timeout": 1000}, "expect": "G_EXEC_SHAPE"},
+  {"tool": "read", "params": {"file_path": "~/.zshrc", "path": "~/.zshrc"}, "expect": "G_PATH_DENIED"}
+ ]
+}

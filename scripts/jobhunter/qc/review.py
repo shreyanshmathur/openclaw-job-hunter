@@ -3,6 +3,8 @@
 - start(conn, draft_uid): checks the reviewer hashes (E_REVIEWER_TAMPERED), builds the packet from the database,
   writes it to state/qc/packets/<qjob_uid>.txt (mode 600, outside every agent workspace), inserts a queued
   qc_jobs row and sets the draft review_pending. The caller spawns the worker after COMMIT.
+- render_packet(values): fills the reviewer prompt's placeholders once (data is never expanded again); {today} is
+  the review date the reviewer measures hook ages against (the golden set passes its fixed as_of date instead).
 - parse_verdict(raw, nonce, draft_sha): the last JSON object in the reply, validated against
   qc/schema_review.json (unknown keys or missing fields fail), nonce and draft sha256 echoed.
 - decide(verdict, channel): recomputes weighted_score and the pass rule in code; a claim with supported false
@@ -28,8 +30,8 @@ WEIGHTS = {"specificity": 0.25, "value": 0.20, "human_voice": 0.20, "clarity": 0
 GATES = ("truthful", "hook_verified", "swap_test", "no_ai_voice", "safe")
 STRUCTURED = ("resume", "application_package")
 SOFT_GATES = frozenset({"swap_test", "no_ai_voice"})
-PLACEHOLDERS = ("nonce", "draft_sha256", "channel", "recipient_json", "research_facts_json", "profile_facts_json",
-                "lint_warnings_json", "subject_line_if_any", "body")
+PLACEHOLDERS = ("nonce", "draft_sha256", "today", "channel", "recipient_json", "research_facts_json",
+                "profile_facts_json", "lint_warnings_json", "subject_line_if_any", "body")
 _PH_RE = re.compile(r"\{(" + "|".join(PLACEHOLDERS) + r")\}")
 _schema_cache = None
 
@@ -83,7 +85,8 @@ def validate(v, s: dict, path: str = "$") -> list:
         if s.get("additionalProperties") is False:
             for k in v:
                 if k not in props:
-                    errs.append("%s: unknown key %s" % (path, k))
+                    # name the keys this object may hold, so a slip such as fact_id in an issue reads clearly
+                    errs.append("%s: unknown key %s (this object takes only %s)" % (path, k, ", ".join(props)))
         for k, sub in props.items():
             if k in v:
                 errs.extend(validate(v[k], sub, path + "." + k))
@@ -215,6 +218,11 @@ def _j(obj) -> str:
     return json.dumps(obj, sort_keys=True, ensure_ascii=True).replace("<", "\\u003c").replace(">", "\\u003e")
 
 
+def today() -> str:
+    """The review date (UTC, YYYY-MM-DD) the reviewer measures hook ages against (the {today} placeholder)."""
+    return now()[:10]
+
+
 def render_packet(values: dict) -> str:
     with open(REVIEWER_PROMPT_FILE, "r", encoding="utf-8") as fh:
         template = fh.read()
@@ -268,7 +276,8 @@ def packet_values(conn, row, nonce: str) -> dict:
         warn_list = json.loads(warns[0]) if warns else []
     except ValueError:
         warn_list = []
-    return {"nonce": nonce, "draft_sha256": row["text_sha256"], "channel": row["channel"], "recipient_json": _j(rec),
+    return {"nonce": nonce, "draft_sha256": row["text_sha256"], "today": today(), "channel": row["channel"],
+            "recipient_json": _j(rec),
             "research_facts_json": _j(research), "profile_facts_json": _j(facts), "lint_warnings_json": _j(warn_list),
             "subject_line_if_any": subject_line, "body": body}
 

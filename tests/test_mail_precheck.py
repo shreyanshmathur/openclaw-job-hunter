@@ -381,5 +381,17 @@ class SkillSentReadbackTests(unittest.TestCase):
         self.assertIn('"--observed-file"', src[start:src.index('"gate fail"', start)])
 
 
+class SkillCycleEndingTests(unittest.TestCase):
+    """The web-route skill ends a stopped cycle with the plain word CYCLE_DONE, never NO_REPLY (design M6)."""
+
+    def test_session_check_ends_with_cycle_done(self):
+        with open(SKILL, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertNotIn("NO_REPLY", text)
+        start = text.index("## 0. Session check")
+        sec = text[start:text.index("## 1.", start)]
+        self.assertIn("you end the cycle and reply `CYCLE_DONE`", sec)
+
+
 if __name__ == "__main__":
     unittest.main()

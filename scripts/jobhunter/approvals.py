@@ -43,7 +43,9 @@ def issue_code(conn, draft_id: int) -> str:
         return row[0]
     for _ in range(200):
         code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(4))
-        if _one(conn, "SELECT 1 FROM approval_codes WHERE code = ?", (code,)) is None:
+        if _one(conn, "SELECT 1 FROM approval_codes WHERE code = ?", (code,)) is None and \
+                _one(conn, "SELECT 1 FROM captcha_tasks WHERE code = ? AND (status = 'open' OR opened_at > ?)",
+                     (code, ts_add(now(), days=-30))) is None:
             conn.execute("INSERT INTO approval_codes (code, draft_id, issued_at) VALUES (?, ?, ?)",
                          (code, draft_id, now()))
             return code

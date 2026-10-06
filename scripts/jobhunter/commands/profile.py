@@ -9,6 +9,9 @@ from .. import profile as P
 from ..errors import Denied
 from . import Result, add_command
 
+# onboarding turns are not cycles and end with a plain final word (CLI route design 6.3, M6)
+ONBOARD_NEXT = "reply with the single word ONBOARD_DONE"
+
 
 def register(subparsers):
     p = add_command(subparsers, "profile import", cmd_import, callers="H",
@@ -60,7 +63,7 @@ def cmd_salary_record(args, ctx):
     with db.tx(conn):
         data = P.record_salary(conn, payload)
     return Result(data=data, message="salary research recorded (%d sources)" % data["sources_recorded"],
-                  next="reply NO_REPLY")
+                  next=ONBOARD_NEXT)
 
 
 def cmd_infer_record(args, ctx):
@@ -69,7 +72,7 @@ def cmd_infer_record(args, ctx):
     with db.tx(conn):
         data = P.record_inference(conn, payload)
     return Result(data=data, message="profile inference recorded; %d questions wait for the person"
-                  % data["questions"], next="reply NO_REPLY")
+                  % data["questions"], next=ONBOARD_NEXT)
 
 
 def cmd_questions(args, ctx):

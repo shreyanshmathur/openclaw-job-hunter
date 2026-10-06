@@ -12,15 +12,14 @@ from __future__ import annotations
 import hashlib
 import shutil
 import unittest
-from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import canon, ocrun, sheets_rows
+from jobhunter import canon, sheets_rows
 from jobhunter import qc as qcpkg
 from jobhunter.commands.core import LINKEDIN_ACK
 from tests.fakes.u1 import write_heartbeat
 from tests.fakes.u3 import FakeReviewer, install_reviewer_hashes
-from tests.fixtures.e2e.support import World
+from tests.fixtures.e2e.support import World, install_reviewer
 from tests.test_drivers_static import li_page, message_box, run_driver, subject_input
 
 OU = "jobhunter-outreach"
@@ -49,9 +48,7 @@ class TestInMailThroughGate(unittest.TestCase):
         prev = qcpkg.SPAWN
         qcpkg.SPAWN = [].append
         self.addCleanup(setattr, qcpkg, "SPAWN", prev)
-        p = mock.patch.object(ocrun, "agent_turn", FakeReviewer("pass"))
-        p.start()
-        self.addCleanup(p.stop)
+        install_reviewer(self, FakeReviewer("pass"))
 
     def draft_inmail(self) -> dict:
         """Contact, research, InMail draft, QC and the owner's approval. Returns the ids."""

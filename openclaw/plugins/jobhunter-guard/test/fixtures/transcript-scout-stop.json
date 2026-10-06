@@ -2,19 +2,19 @@
   "name": "scout reaches a LinkedIn checkpoint page without calling detect",
   "steps": [
     {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "exec", "params": {"command": "@JH@ preflight --lane scout", "timeoutSeconds": 90}}, "expect": "allow"},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "navigate", "targetUrl": "https://www.linkedin.com/search/results/content/?keywords=hiring%20analyst"}}, "expect": "allow"},
-    {"result": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "navigate", "targetUrl": "https://www.linkedin.com/search/results/content/?keywords=hiring%20analyst"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.linkedin.com/search/results/content/?keywords=hiring%20analyst"}}, "expect": "allow"},
+    {"result": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.linkedin.com/search/results/content/?keywords=hiring%20analyst"},
       "result": {"content": [{"type": "text", "text": "- main:\n  - link \"Kestrel Commerce\" [ref=e1]\n  - button \"Show more results\" [ref=e2]"}], "details": {"ok": true, "targetId": "t1", "url": "https://www.linkedin.com/search/results/content/?keywords=hiring%20analyst"}}}, "expect_stop": false},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e2", "targetId": "t1"}}, "expect": "allow"},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e1", "targetId": "t1"}}, "expect": "allow"},
-    {"result": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e1", "targetId": "t1"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "click", "ref": "e2", "targetId": "t1"}}, "expect": "allow"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "click", "ref": "e1", "targetId": "t1"}}, "expect": "allow"},
+    {"result": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "click", "ref": "e1", "targetId": "t1"},
       "result": {"content": [{"type": "text", "text": "- main:\n  - heading \"Let's do a quick security check\" [level=1]\n  - button \"Start puzzle\" [ref=e7]"}], "details": {"ok": true, "targetId": "t1", "url": "https://www.linkedin.com/checkpoint/challenge/AgFexample"}}}, "expect_stop": true},
     {"expect_jh": ["detect", "--file", "*", "--source", "guard"]},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "act", "kind": "click", "ref": "e7", "targetId": "t1"}}, "expect": "G_STOPPED"},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"action": "snapshot"}}, "expect": "G_STOPPED"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "act", "kind": "click", "ref": "e7", "targetId": "t1"}}, "expect": "G_STOPPED"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "browser", "params": {"profile": "jobhunter", "action": "snapshot"}}, "expect": "G_STOPPED"},
     {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "exec", "params": {"command": "@JH@ usage add --platform linkedin --metric page_view"}}, "expect": "G_STOPPED"},
     {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:scout", "tool": "exec", "params": {"command": "@JH@ cycle end --cycle C20260927T050000ZABCD"}}, "expect": "allow"},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:other", "tool": "browser", "params": {"action": "snapshot"}}, "expect": "G_PAGE_UNKNOWN"},
-    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:other", "tool": "browser", "params": {"action": "navigate", "targetUrl": "https://www.naukri.com/data-analyst-jobs"}}, "expect": "allow"}
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:other", "tool": "browser", "params": {"profile": "jobhunter", "action": "snapshot"}}, "expect": "G_PAGE_UNKNOWN"},
+    {"call": {"agent": "jobhunter-scout", "session": "agent:jobhunter-scout:cron:other", "tool": "browser", "params": {"profile": "jobhunter", "action": "navigate", "targetUrl": "https://www.naukri.com/data-analyst-jobs"}}, "expect": "allow"}
   ]
 }

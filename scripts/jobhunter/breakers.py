@@ -63,6 +63,12 @@ POLICIES: dict = {
     # a job board asks the agent's browser to log in again (session expired): no waiting time
     "site_logged_out": {"scope": None, "cooldown": 0, "resume": None},
     "ats_blocked": {"scope": "ats", "cooldown": 24 * H, "resume": None},
+    # email codes, site accounts and the CAPTCHA hand-off (scope ats:<platform>, FEATURES-OTP-ACCOUNTS-CAPTCHA 1.4)
+    "otp_failures": {"scope": None, "cooldown": 24 * H, "resume": None},
+    "account_failures": {"scope": None, "cooldown": 24 * H, "resume": None},
+    "captcha_repeat": {"scope": None, "cooldown": 24 * H, "resume": None},
+    # an SMS, authenticator, social sign-in or identity check on an ATS page: the owner looks first
+    "ats_security": {"scope": None, "cooldown": 0, "resume": None},
     "clock_skew": {"scope": "global", "cooldown": 0, "resume": None},
     "audit_mismatch": {"scope": "global", "cooldown": 0, "resume": None},
     "dup_denials": {"scope": "global", "cooldown": 0, "resume": None},
@@ -80,6 +86,7 @@ POLICIES: dict = {
 }
 DEFAULT_POLICY = {"scope": None, "cooldown": 24 * H, "resume": None}
 SCOPE_RE = re.compile(r"^(global|gmail|gmail\.cold|linkedin|linkedin\.(invites|messages|easy_apply|search)|ats|"
+                      r"ats:[a-z0-9_]{2,40}|"
                       r"enrich|enrich:[a-z0-9_]{2,40}|"
                       r"site:[a-z0-9_.-]{2,40}|api:[a-z0-9_.:-]{2,60}|pause:[a-z0-9_.:-]{2,60})$")
 AREA_LABEL = {"global": "Everything", "gmail": "Gmail", "gmail.cold": "Cold email", "linkedin": "LinkedIn",
@@ -153,10 +160,20 @@ def platform_scope(platform: str) -> str:
     return "site:" + name
 
 
+def ats_platform_key(platform: str) -> str | None:
+    """The canonical ATS platform key of a platform id (workday, site:workday), or None for the ats family."""
+    from .keys import ATS_NAMES
+    p = (platform or "").lower()
+    p = p[5:] if p.startswith("site:") else p
+    return p if p in ATS_NAMES else None
+
+
 def parents(scope: str) -> list[str]:
     out = [scope]
     if scope.startswith("enrich:"):
         out.append("enrich")        # a provider of the email finder is stopped with the whole finder
+    elif scope.startswith("ats:"):
+        out.append("ats")           # one ATS platform is stopped with every job form
     elif "." in scope and not scope.startswith(("site:", "api:", "pause:")):
         out.append(scope.split(".", 1)[0])
     return out
@@ -182,6 +199,10 @@ def scopes_for(platform: str, kind: str) -> list[str]:
             out.append("linkedin.search")
     else:
         out.append("pause:" + ps)
+        if ps == "ats":
+            plat = ats_platform_key(platform)
+            if plat:
+                out.append("ats:" + plat)
     if kind in ("application", "application_email"):
         out.append("pause:applications")
     return out
@@ -194,8 +215,8 @@ def _open_rows(conn, scopes: list[str]) -> list:
             if p not in wanted:
                 wanted.append(p)
             if not p.startswith("pause:") and p != "global":
-                root = "enrich" if p.startswith("enrich") else (
-                    p.split(".", 1)[0] if not p.startswith(("site:", "api:")) else p)
+                root = "enrich" if p.startswith("enrich") else ("ats" if p.startswith("ats:") else (
+                    p.split(".", 1)[0] if not p.startswith(("site:", "api:")) else p))
                 if "pause:" + root not in wanted:
                     wanted.append("pause:" + root)
     if "global" not in wanted:

@@ -1,16 +1,15 @@
 """U6 outreach queue: target order, route choice, every drop rule, post-accept targets, skips, history import."""
 from __future__ import annotations
 
-import io
-import json
 import sys
 import unittest
 from unittest import mock
 
 import tests  # noqa: F401
-from jobhunter import canon, cli, db, outreach, threads
+from jobhunter import canon, db, outreach, threads
 from tests.fakes.u6 import U6TestCase, set_config
 from tests.fakes.u6 import enrich as enrich_fakes
+from tests.fakes.u6.agentcall import agent_cli_isolated
 from tests.helpers import insert_action, insert_company, insert_contact, insert_draft, insert_job
 
 
@@ -134,14 +133,14 @@ class TestSkip(OutreachBase):
         self.assertDenied("E_NOT_FOUND", outreach.skip, self.conn, "contact:PAAAAAAA", "no_hook")
 
     def test_cli(self):
-        out = io.StringIO()
-        env = {"OPENCLAW_SHELL": "1", "JH_AGENT_ID": "jobhunter-outreach"}
-        rc = cli.main(["outreach", "skip", "job:" + self.juid, "--reason", "no_address"], env=env,
-                      stdin=io.StringIO(""), stdout=out)
-        self.assertEqual(rc, 0, out.getvalue())
-        out = io.StringIO()
-        rc = cli.main(["outreach", "next"], env=env, stdin=io.StringIO(""), stdout=out)
-        self.assertEqual((rc, json.loads(out.getvalue())["code"]), (0, "NOTHING_TO_DO"))
+        # the outreach agent's calls as the guard runs them: python -I, argv and env proof of one session
+        rc, out = agent_cli_isolated("jobhunter-outreach", ["outreach", "skip", "job:" + self.juid,
+                                                            "--reason", "no_address"])
+        self.assertEqual(rc, 0, out)
+        rc, out = agent_cli_isolated("jobhunter-outreach", ["outreach", "next"])
+        self.assertEqual((rc, out["code"]), (0, "NOTHING_TO_DO"))
+        rc, out = agent_cli_isolated("jobhunter-applier", ["outreach", "next"])
+        self.assertEqual((rc, out["code"]), (11, "E_CALLER_NOT_ALLOWED"), out)
 
 
 class TestAddressHint(OutreachBase):

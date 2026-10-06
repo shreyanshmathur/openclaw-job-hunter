@@ -42,7 +42,7 @@ _LIVE_ACTIONS = ("reserved", "armed", "sent", "failed_after_click", "unknown", "
 KEY_KINDS = ("ats", "board", "post", "url")
 HUMAN_CALLS = ("apply_anyway", "never")
 AGENT_NEEDS_HUMAN_REASONS = ("captcha_visible", "account_required", "sensitive_field", "unsupported_form",
-                             "answer_missing")
+                             "answer_missing", "captcha_wait", "account_terms")
 
 _SOURCE_RE = re.compile(r"^[a-z0-9_]{2,40}$")
 _NATIVE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
